@@ -5,48 +5,176 @@
 [![Release](https://github.com/CATMIAOZHI/Rainytoken/actions/workflows/release.yml/badge.svg)](https://github.com/CATMIAOZHI/Rainytoken/actions)
 [![Version](https://img.shields.io/github/v/release/CATMIAOZHI/Rainytoken?color=ff85a2)](https://github.com/CATMIAOZHI/Rainytoken/releases)
 
-Android AI 余额查询 APP —— 统一查看 DeepSeek 和 OpenCode Go 的余额/配额。
+Android AI 余额查询 APP —— 统一查看 DeepSeek 和 OpenCode Go 的余额与用量配额。粉色调品牌 UI，配套桌面小组件。
 
-## 功能
+---
 
-- 📊 仪表盘：DeepSeek 余额（¥）+ OpenCode Go 用量（5h/本周/本月）+ 下拉全局刷新
-- 📈 用量图表：消耗金额 / API 请求次数 / Token 消耗（3 张 Canvas 图表，支持多粒度筛选）
-- 📋 详细数据：原始记录分页浏览，时间+模型筛选，原始数据弹窗
-- 🧩 桌面小组件：不打开 APP 也能看用量
-- 🔄 自动同步：首页下拉自动同步用量；无缓存时启动自动全量同步
-- 🎀 雨晴粉色调 UI
+## ✨ 功能特性
 
-## 构建
+| 特性 | 说明 |
+|------|------|
+| 📊 **仪表盘** | DeepSeek 余额（¥）+ OpenCode Go 用量（5h/本周/本月）+ 下拉全局刷新 |
+| 📈 **用量图表** | 3 张 Canvas 手绘图表 — 消耗金额 / API 请求次数 / Token 消耗 |
+| 📋 **详细数据** | 原始记录分页浏览，支持时间 + 模型筛选，点击查看完整字段 |
+| 🔍 **多粒度筛选** | 5小时 / 24小时 / 今天 / 昨天 / 最近7天 / 当月 / 自定义日·月·范围 |
+| 🏷️ **模型筛选** | 多选 / 单选 / 全选，动态图例自适应换行 |
+| 📱 **桌面小组件** | 不打开 APP 也能看用量，进度条颜色按百分比动态变化 |
+| 🔄 **自动同步** | 首页下拉自动同步用量；无缓存时启动自动全量同步 |
+| ⚡ **内存缓存** | DataStore 全量 JSON 仅反序列化一次，后续操作零 IO |
+| 🎀 **雨晴粉主题** | Material Design 3 · 草莓粉 #FF85A2 · 樱粉 #FFD1DC |
 
+---
+
+## 📦 下载
+
+前往 [Releases](https://github.com/CATMIAOZHI/Rainytoken/releases) 下载最新 APK。
+
+> ⚠️ 需要配置 DeepSeek API Key 和/或 OpenCode Go 登录凭据才能拉取数据。
+
+---
+
+## 🏗️ 技术架构
+
+```
+┌──────────────────────────────────────────────────┐
+│                 Android App                       │
+│                                                   │
+│  ┌─────────────────────────────────────────────┐ │
+│  │        Compose UI（3 层页面）                │ │
+│  │  仪表盘 · 用量图表 · 总统计 · 详细数据 · 设置│ │
+│  └────────────────────┬────────────────────────┘ │
+│                       │                           │
+│  ┌────────────────────▼─────────────────────────┐ │
+│  │         ViewModel 层（MVVM）                  │ │
+│  │  DashboardVM · UsageVM · UsageChartVM        │ │
+│  │  · UsageDataVM（Hilt 注入）                   │ │
+│  └────────────────────┬────────────────────────┘ │
+│                       │                           │
+│  ┌────────────────────▼─────────────────────────┐ │
+│  │         UseCase 层                            │ │
+│  │  RefreshBalanceUseCase（余额）                │ │
+│  │  SyncUsageUseCase（用量全量/增量同步）        │ │
+│  └────────────────────┬────────────────────────┘ │
+│                       │                           │
+│  ┌────────────────────▼─────────────────────────┐ │
+│  │         Repository + Network                  │ │
+│  │  DeepSeekApi（Retrofit）· OpenCodeGo 网页抓取 │ │
+│  │  · OpenCodeUsageRepository（分页翻页）        │ │
+│  └────────────────────┬────────────────────────┘ │
+│                       │                           │
+│  ┌────────────────────▼─────────────────────────┐ │
+│  │         本地存储                              │ │
+│  │  BalanceCache（DataStore）                    │ │
+│  │  UsageCache（DataStore + @Volatile 内存缓存） │ │
+│  │  CredentialRepository（Keystore AES-256 GCM） │ │
+│  └──────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────┘
+```
+
+---
+
+## 📁 项目结构
+
+```
+Rainytoken/
+├── app/src/main/java/com/rainy/token/
+│   ├── data/
+│   │   ├── cache/          # BalanceCache（DataStore）
+│   │   ├── local/          # UsageCache（DataStore + 内存缓存）、UsageRecord、ChartBucket
+│   │   ├── remote/         # DeepSeekApi（Retrofit）+ OpenCodeGo 抓取 + OpenCodeUsageRepository
+│   │   └── repository/     # DeepSeekRepository / OpenCodeGoRepository / CredentialRepository
+│   ├── domain/
+│   │   ├── model/          # ServiceBalance、Credential 等
+│   │   ├── service/        # ServiceType 枚举
+│   │   └── usecase/        # RefreshBalanceUseCase / SyncUsageUseCase
+│   ├── ui/
+│   │   ├── dashboard/      # DashboardScreen / UsageDetailScreen（图表）/ UsageOverviewScreen（总统计）/ UsageDataScreen（原始数据）
+│   │   ├── widget/         # 桌面小组件（OpenCodeGoWidgetProvider）
+│   │   ├── components/     # ServiceIcon / StatusChip 等
+│   │   ├── theme/          # 雨晴粉主题（StrawberryPink / InkMuted）
+│   │   └── RainyTokenNavHost.kt  # Navigation 路由
+│   └── di/                 # Hilt 模块
+├── gradle/libs.versions.toml   # Version Catalog 依赖管理
+├── build.gradle.kts            # 项目级配置
+└── settings.gradle.kts         # 项目设置
+```
+
+---
+
+## 🛠️ 构建
+
+### 方式一：Android Studio（推荐）
+1. Clone 仓库：`git clone https://github.com/CATMIAOZHI/Rainytoken.git`
+2. 用 Android Studio 打开项目
+3. 同步 Gradle，连接设备，Run ▶️
+
+### 方式二：命令行
 ```bash
-cd Rainytoken
-export ANDROID_HOME=$HOME/Android
-export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64
+# 构建 Debug APK
 ./gradlew assembleDebug
+# APK 输出：app/build/outputs/apk/debug/app-debug.apk
+
+# 构建 Release APK
+./gradlew assembleRelease
 ```
 
-APK 输出：`app/build/outputs/apk/debug/app-debug.apk`
+<details>
+<summary>🔧 ARM64 环境说明（非必需）</summary>
 
-## 技术栈
-
-Kotlin + Jetpack Compose + Material 3 · Hilt + KSP · Retrofit + OkHttp · DataStore · minSdk=31
-
-## 项目结构
-
+项目内置了 ARM64 AAPT2 二进制，在 Proot/Termux 等 ARM64 环境中自动启用：
+```bash
+chmod +x ./setup_android_env.sh
+./setup_android_env.sh
 ```
-com.rainy.token/
-├── data/
-│   ├── cache/          # BalanceCache（DataStore）
-│   ├── local/          # UsageCache（DataStore + 内存缓存）、UsageRecord、ChartBucket
-│   ├── remote/         # DeepSeekApi（Retrofit）+ OpenCodeGo 抓取 + OpenCodeUsageRepository
-│   └── repository/     # DeepSeekRepository / OpenCodeGoRepository / CredentialRepository
-├── domain/
-│   ├── model/          # ServiceBalance、Credential 等
-│   ├── service/        # ServiceType 枚举
-│   └── usecase/        # RefreshBalanceUseCase / SyncUsageUseCase
-├── ui/
-│   ├── dashboard/      # DashboardScreen、UsageDetailScreen（图表）、UsageOverviewScreen（总统计）、UsageDataScreen（原始数据）
-│   ├── widget/         # 桌面小组件（OpenCodeGoWidgetProvider）
-│   └── theme/          # 雨晴粉主题
-└── di/                 # Hilt 模块
-```
+该脚本会配置 `$ANDROID_HOME` 并使用项目内置的 ARM64 build-tools。
+> 在 x86_64 环境（GitHub Actions / 普通 Linux）中会自动走官方 AAPT2，无需额外操作。
+</details>
+
+---
+
+## 📦 依赖管理
+
+项目使用 Gradle Version Catalog (`gradle/libs.versions.toml`) 统一管理依赖。
+
+| 依赖 | 用途 |
+|------|------|
+| `androidx.compose:compose-bom` | Jetpack Compose BOM |
+| `androidx.navigation:navigation-compose` | 页面导航 |
+| `com.squareup.retrofit2:retrofit` | DeepSeek REST API |
+| `com.squareup.okhttp3:okhttp` | OpenCode Go 网页抓取 |
+| `org.jetbrains.kotlinx:kotlinx-serialization-json` | JSON 序列化 |
+| `org.jsoup:jsoup` | HTML 解析（SSR hydration 数据提取） |
+| `androidx.datastore:datastore-preferences` | 本地缓存 |
+| `com.google.dagger:hilt-android` | 依赖注入 |
+| `com.google.devtools.ksp:symbol-processing-api` | KSP 注解处理 |
+
+---
+
+## 🔒 安全说明
+
+- ✅ API Key / Session 凭据存入 **Android Keystore**（AES-256 GCM 加密）
+- ✅ 网络请求仅向 DeepSeek / OpenCode 官方 API 发出
+- ✅ `allowBackup="false"`，拒绝应用数据被备份
+- ✅ 签名密钥固定，每次 Release 可覆盖安装
+- ✅ GitHub Secrets 加密存储签名密钥，CI 中解码使用
+
+---
+
+## 🐱 关于
+
+RainyToken 由 [雨晴喵](https://github.com/CATMIAOZHI) 与水晴共同打造，属于「雨晴系列」工具之一：
+
+- [RainyLLM](https://github.com/CATMIAOZHI/RainyLLM) — 手机本地 LLM 推理服务器（Gemma + OpenAI 兼容 API）
+- [RainyScanner](https://github.com/CATMIAOZHI/RainyScanner) — 不拦截不跳转的 Android 扫码工具
+- [Rainy2FA](https://github.com/CATMIAOZHI/Rainy2FA) — 纯本地生物识别保护的 TOTP 验证器
+- **RainyToken** — AI 余额用量查询（本项目）
+
+---
+
+## 📄 License
+
+MIT License © 2026 Rainy
+
+---
+
+<p align="center">💖 Made with love by 雨晴喵</p>
