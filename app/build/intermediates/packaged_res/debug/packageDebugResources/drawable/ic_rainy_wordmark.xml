@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  RainyToken 几何字标 · 与 OpenCode Go logo 完全同构
+  同样的两个 24x30 S 形方块拼接，只是配色换成雨晴粉色系：
+  - Go 深色 #211E1E → 粉色 #C2185B
+  - Go 浅色 #CFCECD → 浅粉 #FFD1DC
+  viewBox 和 path 与 ic_opencode_go_logo 完全一致
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="54dp"
+    android:height="30dp"
+    android:viewportWidth="54"
+    android:viewportHeight="30">
+    <!-- 左块（深粉） -->
+    <path
+        android:fillColor="#C2185B"
+        android:pathData="M24 30H0V0H24V6H6V24H18V18H12V12H24V30Z"/>
+    <!-- 左块 S 内弯（浅粉） -->
+    <path
+        android:fillColor="#FFD1DC"
+        android:pathData="M12 18H18V24H6V12H12V18Z"/>
+    <!-- 右块 S 内弯（浅粉） -->
+    <path
+        android:fillColor="#FFD1DC"
+        android:pathData="M48 12V24H36V12H48Z"/>
+    <!-- 右块（深粉） -->
+    <path
+        android:fillColor="#C2185B"
+        android:pathData="M54 30H30V0H54V30ZM36 24H48V6H36V24Z"/>
+</vector>

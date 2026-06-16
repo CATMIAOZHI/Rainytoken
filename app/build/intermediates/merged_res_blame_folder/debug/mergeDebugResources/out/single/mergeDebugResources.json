@@ -1,0 +1,62 @@
+[
+    {
+        "merged": "com.rainy.token.app-debug-3:/xml_network_security_config.xml.flat",
+        "source": "com.rainy.token.app-main-5:/xml/network_security_config.xml"
+    },
+    {
+        "merged": "com.rainy.token.app-debug-3:/xml_backup_rules.xml.flat",
+        "source": "com.rainy.token.app-main-5:/xml/backup_rules.xml"
+    },
+    {
+        "merged": "com.rainy.token.app-debug-3:/xml_data_extraction_rules.xml.flat",
+        "source": "com.rainy.token.app-main-5:/xml/data_extraction_rules.xml"
+    },
+    {
+        "merged": "com.rainy.token.app-debug-3:/drawable_ic_widget_refresh.xml.flat",
+        "source": "com.rainy.token.app-main-5:/drawable/ic_widget_refresh.xml"
+    },
+    {
+        "merged": "com.rainy.token.app-debug-3:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.rainy.token.app-main-5:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "com.rainy.token.app-debug-3:/layout_widget_opencode_go.xml.flat",
+        "source": "com.rainy.token.app-main-5:/layout/widget_opencode_go.xml"
+    },
+    {
+        "merged": "com.rainy.token.app-debug-3:/drawable_widget_bg.xml.flat",
+        "source": "com.rainy.token.app-main-5:/drawable/widget_bg.xml"
+    },
+    {
+        "merged": "com.rainy.token.app-debug-3:/drawable-nodpi_ic_deepseek_logo.png.flat",
+        "source": "com.rainy.token.app-main-5:/drawable-nodpi/ic_deepseek_logo.png"
+    },
+    {
+        "merged": "com.rainy.token.app-debug-3:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.rainy.token.app-main-5:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "com.rainy.token.app-debug-3:/drawable_ic_launcher_background.xml.flat",
+        "source": "com.rainy.token.app-main-5:/drawable/ic_launcher_background.xml"
+    },
+    {
+        "merged": "com.rainy.token.app-debug-3:/xml_widget_opencode_go_info.xml.flat",
+        "source": "com.rainy.token.app-main-5:/xml/widget_opencode_go_info.xml"
+    },
+    {
+        "merged": "com.rainy.token.app-debug-3:/drawable_ic_opencode_go_logo.xml.flat",
+        "source": "com.rainy.token.app-main-5:/drawable/ic_opencode_go_logo.xml"
+    },
+    {
+        "merged": "com.rainy.token.app-debug-3:/drawable_ic_rainy_wordmark.xml.flat",
+        "source": "com.rainy.token.app-main-5:/drawable/ic_rainy_wordmark.xml"
+    },
+    {
+        "merged": "com.rainy.token.app-debug-3:/drawable-nodpi_rainytoken_wordmark.png.flat",
+        "source": "com.rainy.token.app-main-5:/drawable-nodpi/rainytoken_wordmark.png"
+    },
+    {
+        "merged": "com.rainy.token.app-debug-3:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.rainy.token.app-main-5:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    }
+]

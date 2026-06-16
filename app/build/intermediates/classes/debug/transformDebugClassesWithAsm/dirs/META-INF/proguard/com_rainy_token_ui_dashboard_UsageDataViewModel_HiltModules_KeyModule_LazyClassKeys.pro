@@ -1,0 +1,1 @@
+-keep,allowobfuscation,allowshrinking class com.rainy.token.ui.dashboard.UsageDataViewModel

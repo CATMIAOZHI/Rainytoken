@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  OpenCode Go 官方 logo（来自 https://opencode.ai/zh/go 页面 hero 区）
+  viewBox 0 0 54 30，两个反方向的 S 形拼接
+  保留原配色：#211E1E（深） + #CFCECD（浅），在白色卡片背景上对比度足够
+  注意：drawable 不支持 ?attr/，用原色硬编码；如需主题自适应请改用 Compose Image + Painter
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="54dp"
+    android:height="30dp"
+    android:viewportWidth="54"
+    android:viewportHeight="30">
+    <path
+        android:fillColor="#211E1E"
+        android:pathData="M24 30H0V0H24V6H6V24H18V18H12V12H24V30Z"/>
+    <path
+        android:fillColor="#CFCECD"
+        android:pathData="M12 18H18V24H6V12H12V18Z"/>
+    <path
+        android:fillColor="#CFCECD"
+        android:pathData="M48 12V24H36V12H48Z"/>
+    <path
+        android:fillColor="#211E1E"
+        android:pathData="M54 30H30V0H54V30ZM36 24H48V6H36V24Z"/>
+</vector>

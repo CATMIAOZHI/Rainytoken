@@ -1,0 +1,182 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.rainy.token"
+4    android:versionCode="1"
+5    android:versionName="1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="31"
+9        android:targetSdkVersion="35" />
+10
+11    <uses-permission android:name="android.permission.INTERNET" />
+11-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:5:5-67
+11-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:5:22-64
+12
+13    <permission
+13-->[androidx.core:core:1.13.1] /root/.gradle/caches/9.1.0/transforms/8defe354b3d8a69afc6e52ccacbc38f4/transformed/core-1.13.1/AndroidManifest.xml:22:5-24:47
+14        android:name="com.rainy.token.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+14-->[androidx.core:core:1.13.1] /root/.gradle/caches/9.1.0/transforms/8defe354b3d8a69afc6e52ccacbc38f4/transformed/core-1.13.1/AndroidManifest.xml:23:9-81
+15        android:protectionLevel="signature" />
+15-->[androidx.core:core:1.13.1] /root/.gradle/caches/9.1.0/transforms/8defe354b3d8a69afc6e52ccacbc38f4/transformed/core-1.13.1/AndroidManifest.xml:24:9-44
+16
+17    <uses-permission android:name="com.rainy.token.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+17-->[androidx.core:core:1.13.1] /root/.gradle/caches/9.1.0/transforms/8defe354b3d8a69afc6e52ccacbc38f4/transformed/core-1.13.1/AndroidManifest.xml:26:5-97
+17-->[androidx.core:core:1.13.1] /root/.gradle/caches/9.1.0/transforms/8defe354b3d8a69afc6e52ccacbc38f4/transformed/core-1.13.1/AndroidManifest.xml:26:22-94
+18
+19    <application
+19-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:7:5-47:19
+20        android:name="com.rainy.token.RainyTokenApplication"
+20-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:8:9-46
+21        android:allowBackup="true"
+21-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:9:9-35
+22        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+22-->[androidx.core:core:1.13.1] /root/.gradle/caches/9.1.0/transforms/8defe354b3d8a69afc6e52ccacbc38f4/transformed/core-1.13.1/AndroidManifest.xml:28:18-86
+23        android:dataExtractionRules="@xml/data_extraction_rules"
+23-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:10:9-65
+24        android:debuggable="true"
+25        android:extractNativeLibs="false"
+26        android:fullBackupContent="@xml/backup_rules"
+26-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:11:9-54
+27        android:icon="@mipmap/ic_launcher"
+27-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:12:9-43
+28        android:label="@string/app_name"
+28-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:13:9-41
+29        android:networkSecurityConfig="@xml/network_security_config"
+29-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:17:9-69
+30        android:roundIcon="@mipmap/ic_launcher_round"
+30-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:14:9-54
+31        android:supportsRtl="true"
+31-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:15:9-35
+32        android:theme="@style/Theme.RainyToken" >
+32-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:16:9-48
+33        <activity
+33-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:20:9-29:20
+34            android:name="com.rainy.token.MainActivity"
+34-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:21:13-41
+35            android:exported="true"
+35-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:22:13-36
+36            android:label="@string/app_name"
+36-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:23:13-45
+37            android:theme="@style/Theme.RainyToken" >
+37-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:24:13-52
+38            <intent-filter>
+38-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:25:13-28:29
+39                <action android:name="android.intent.action.MAIN" />
+39-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:26:17-69
+39-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:26:25-66
+40
+41                <category android:name="android.intent.category.LAUNCHER" />
+41-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:27:17-77
+41-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:27:27-74
+42            </intent-filter>
+43        </activity>
+44
+45        <!-- 桌面小组件 -->
+46        <receiver
+46-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:32:9-34:40
+47            android:name="com.rainy.token.ui.widget.WidgetRefreshReceiver"
+47-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:33:13-60
+48            android:exported="false" />
+48-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:34:13-37
+49        <receiver
+49-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:36:9-45:20
+50            android:name="com.rainy.token.ui.widget.OpenCodeGoWidgetProvider"
+50-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:37:13-63
+51            android:exported="true" >
+51-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:38:13-36
+52            <intent-filter>
+52-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:39:13-41:29
+53                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+53-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:40:17-84
+53-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:40:25-81
+54            </intent-filter>
+55
+56            <meta-data
+56-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:42:13-44:67
+57                android:name="android.appwidget.provider"
+57-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:43:17-58
+58                android:resource="@xml/widget_opencode_go_info" />
+58-->/data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken/app/src/main/AndroidManifest.xml:44:17-64
+59        </receiver>
+60
+61        <provider
+61-->[androidx.emoji2:emoji2:1.3.0] /root/.gradle/caches/9.1.0/transforms/0b7d3cdcd254e947dbfcdecebc1b6777/transformed/emoji2-1.3.0/AndroidManifest.xml:24:9-32:20
+62            android:name="androidx.startup.InitializationProvider"
+62-->[androidx.emoji2:emoji2:1.3.0] /root/.gradle/caches/9.1.0/transforms/0b7d3cdcd254e947dbfcdecebc1b6777/transformed/emoji2-1.3.0/AndroidManifest.xml:25:13-67
+63            android:authorities="com.rainy.token.androidx-startup"
+63-->[androidx.emoji2:emoji2:1.3.0] /root/.gradle/caches/9.1.0/transforms/0b7d3cdcd254e947dbfcdecebc1b6777/transformed/emoji2-1.3.0/AndroidManifest.xml:26:13-68
+64            android:exported="false" >
+64-->[androidx.emoji2:emoji2:1.3.0] /root/.gradle/caches/9.1.0/transforms/0b7d3cdcd254e947dbfcdecebc1b6777/transformed/emoji2-1.3.0/AndroidManifest.xml:27:13-37
+65            <meta-data
+65-->[androidx.emoji2:emoji2:1.3.0] /root/.gradle/caches/9.1.0/transforms/0b7d3cdcd254e947dbfcdecebc1b6777/transformed/emoji2-1.3.0/AndroidManifest.xml:29:13-31:52
+66                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+66-->[androidx.emoji2:emoji2:1.3.0] /root/.gradle/caches/9.1.0/transforms/0b7d3cdcd254e947dbfcdecebc1b6777/transformed/emoji2-1.3.0/AndroidManifest.xml:30:17-75
+67                android:value="androidx.startup" />
+67-->[androidx.emoji2:emoji2:1.3.0] /root/.gradle/caches/9.1.0/transforms/0b7d3cdcd254e947dbfcdecebc1b6777/transformed/emoji2-1.3.0/AndroidManifest.xml:31:17-49
+68            <meta-data
+68-->[androidx.lifecycle:lifecycle-process:2.8.7] /root/.gradle/caches/9.1.0/transforms/284289f131ade5f3476906b401f0c5a4/transformed/lifecycle-process-2.8.7/AndroidManifest.xml:29:13-31:52
+69                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+69-->[androidx.lifecycle:lifecycle-process:2.8.7] /root/.gradle/caches/9.1.0/transforms/284289f131ade5f3476906b401f0c5a4/transformed/lifecycle-process-2.8.7/AndroidManifest.xml:30:17-78
+70                android:value="androidx.startup" />
+70-->[androidx.lifecycle:lifecycle-process:2.8.7] /root/.gradle/caches/9.1.0/transforms/284289f131ade5f3476906b401f0c5a4/transformed/lifecycle-process-2.8.7/AndroidManifest.xml:31:17-49
+71            <meta-data
+71-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/9.1.0/transforms/6051d5830bc117177999c40c40240376/transformed/profileinstaller-1.3.1/AndroidManifest.xml:29:13-31:52
+72                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+72-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/9.1.0/transforms/6051d5830bc117177999c40c40240376/transformed/profileinstaller-1.3.1/AndroidManifest.xml:30:17-85
+73                android:value="androidx.startup" />
+73-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/9.1.0/transforms/6051d5830bc117177999c40c40240376/transformed/profileinstaller-1.3.1/AndroidManifest.xml:31:17-49
+74        </provider>
+75
+76        <activity
+76-->[androidx.compose.ui:ui-test-manifest:1.7.5] /root/.gradle/caches/9.1.0/transforms/3f8a0c27abe3f4314d83bba3bf873065/transformed/ui-test-manifest-1.7.5/AndroidManifest.xml:23:9-25:39
+77            android:name="androidx.activity.ComponentActivity"
+77-->[androidx.compose.ui:ui-test-manifest:1.7.5] /root/.gradle/caches/9.1.0/transforms/3f8a0c27abe3f4314d83bba3bf873065/transformed/ui-test-manifest-1.7.5/AndroidManifest.xml:24:13-63
+78            android:exported="true" />
+78-->[androidx.compose.ui:ui-test-manifest:1.7.5] /root/.gradle/caches/9.1.0/transforms/3f8a0c27abe3f4314d83bba3bf873065/transformed/ui-test-manifest-1.7.5/AndroidManifest.xml:25:13-36
+79        <activity
+79-->[androidx.compose.ui:ui-tooling-android:1.7.5] /root/.gradle/caches/9.1.0/transforms/d2ff36ed8f441fede39a316624d868c2/transformed/ui-tooling-release/AndroidManifest.xml:23:9-25:39
+80            android:name="androidx.compose.ui.tooling.PreviewActivity"
+80-->[androidx.compose.ui:ui-tooling-android:1.7.5] /root/.gradle/caches/9.1.0/transforms/d2ff36ed8f441fede39a316624d868c2/transformed/ui-tooling-release/AndroidManifest.xml:24:13-71
+81            android:exported="true" />
+81-->[androidx.compose.ui:ui-tooling-android:1.7.5] /root/.gradle/caches/9.1.0/transforms/d2ff36ed8f441fede39a316624d868c2/transformed/ui-tooling-release/AndroidManifest.xml:25:13-36
+82
+83        <receiver
+83-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/9.1.0/transforms/6051d5830bc117177999c40c40240376/transformed/profileinstaller-1.3.1/AndroidManifest.xml:34:9-52:20
+84            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+84-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/9.1.0/transforms/6051d5830bc117177999c40c40240376/transformed/profileinstaller-1.3.1/AndroidManifest.xml:35:13-76
+85            android:directBootAware="false"
+85-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/9.1.0/transforms/6051d5830bc117177999c40c40240376/transformed/profileinstaller-1.3.1/AndroidManifest.xml:36:13-44
+86            android:enabled="true"
+86-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/9.1.0/transforms/6051d5830bc117177999c40c40240376/transformed/profileinstaller-1.3.1/AndroidManifest.xml:37:13-35
+87            android:exported="true"
+87-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/9.1.0/transforms/6051d5830bc117177999c40c40240376/transformed/profileinstaller-1.3.1/AndroidManifest.xml:38:13-36
+88            android:permission="android.permission.DUMP" >
+88-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/9.1.0/transforms/6051d5830bc117177999c40c40240376/transformed/profileinstaller-1.3.1/AndroidManifest.xml:39:13-57
+89            <intent-filter>
+89-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/9.1.0/transforms/6051d5830bc117177999c40c40240376/transformed/profileinstaller-1.3.1/AndroidManifest.xml:40:13-42:29
+90                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+90-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/9.1.0/transforms/6051d5830bc117177999c40c40240376/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:17-91
+90-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/9.1.0/transforms/6051d5830bc117177999c40c40240376/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:25-88
+91            </intent-filter>
+92            <intent-filter>
+92-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/9.1.0/transforms/6051d5830bc117177999c40c40240376/transformed/profileinstaller-1.3.1/AndroidManifest.xml:43:13-45:29
+93                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+93-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/9.1.0/transforms/6051d5830bc117177999c40c40240376/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:17-85
+93-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/9.1.0/transforms/6051d5830bc117177999c40c40240376/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:25-82
+94            </intent-filter>
+95            <intent-filter>
+95-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/9.1.0/transforms/6051d5830bc117177999c40c40240376/transformed/profileinstaller-1.3.1/AndroidManifest.xml:46:13-48:29
+96                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+96-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/9.1.0/transforms/6051d5830bc117177999c40c40240376/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:17-88
+96-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/9.1.0/transforms/6051d5830bc117177999c40c40240376/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:25-85
+97            </intent-filter>
+98            <intent-filter>
+98-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/9.1.0/transforms/6051d5830bc117177999c40c40240376/transformed/profileinstaller-1.3.1/AndroidManifest.xml:49:13-51:29
+99                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+99-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/9.1.0/transforms/6051d5830bc117177999c40c40240376/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:17-95
+99-->[androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/9.1.0/transforms/6051d5830bc117177999c40c40240376/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:25-92
+100            </intent-filter>
+101        </receiver>
+102    </application>
+103
+104</manifest>
