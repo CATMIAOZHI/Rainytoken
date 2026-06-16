@@ -91,17 +91,13 @@ fun UsageStatsCard(
 
             // ─── 核心指标 ───
             uiState.overview?.let { overview ->
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // 输入 Token = input + cacheRead
                 val inputTotal = overview.inputTokens + overview.cacheReadTokens
-                MetricRow(
-                    label = "输入 Token",
-                    value = formatTokenCount(inputTotal),
-                    isPrimary = true
-                )
+                MetricRow("输入 Token", formatTokenCount(inputTotal))
 
-                // 缓存子行：缓存读取 · 缓存写入（仅当有数据时显示）
+                // 缓存子行
                 if (overview.cacheReadTokens > 0 || overview.cacheWriteTokens > 0) {
                     val parts = mutableListOf<String>()
                     if (overview.cacheReadTokens > 0) parts.add("缓存读取 ${formatTokenCount(overview.cacheReadTokens)}")
@@ -114,23 +110,13 @@ fun UsageStatsCard(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
-                // 输出 Token
-                MetricRow(
-                    label = "输出 Token",
-                    value = formatTokenCount(overview.outputTokens),
-                    isPrimary = true
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // 总花费
-                MetricRow(
-                    label = "总花费",
-                    value = "$${String.format(Locale.US, "%.4f", overview.totalCost / 100_000_000.0)}",
-                    isPrimary = true
-                )
+                // 输出 Token + 总花费 同一排
+                Row(Modifier.fillMaxWidth()) {
+                    MetricRow("输出 Token", formatTokenCount(overview.outputTokens), Modifier.weight(1f))
+                    MetricRow("总花费", "$${String.format(Locale.US, "%.4f", overview.totalCost / 100_000_000.0)}", Modifier.weight(1f))
+                }
             }
 
             // ─── 空状态 ───
@@ -180,8 +166,8 @@ fun UsageStatsCard(
 }
 
 @Composable
-private fun MetricRow(label: String, value: String, isPrimary: Boolean = false) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+private fun MetricRow(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.fillMaxWidth()) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodySmall,
@@ -189,8 +175,7 @@ private fun MetricRow(label: String, value: String, isPrimary: Boolean = false) 
         )
         Text(
             text = value,
-            style = if (isPrimary) MaterialTheme.typography.headlineSmall
-            else MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = StrawberryPink
         )

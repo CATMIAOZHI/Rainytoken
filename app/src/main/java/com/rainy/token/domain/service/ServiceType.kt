@@ -14,8 +14,8 @@ enum class ServiceType(
     /** 用于在 SecureStorage 中索引的稳定 key（与枚举名解耦，避免重命名丢数据） */
     val storageKey: String
 ) {
-    DEEPSEEK("DeepSeek", "deepseek"),
-    OPENCODE_GO("OpenCode Go", "opencode_go");
+    OPENCODE_GO("OpenCode Go", "opencode_go"),
+    DEEPSEEK("DeepSeek", "deepseek");
 
     companion object {
         fun fromStorageKey(key: String): ServiceType? =
