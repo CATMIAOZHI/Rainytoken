@@ -1,4 +1,9 @@
-# 雨晴Token
+# 🌧️ 雨晴Token (RainyToken)
+
+> *"AI 用量，尽在掌握"* 🐱✨
+
+[![Release](https://github.com/CATMIAOZHI/Rainytoken/actions/workflows/release.yml/badge.svg)](https://github.com/CATMIAOZHI/Rainytoken/actions)
+[![Version](https://img.shields.io/github/v/release/CATMIAOZHI/Rainytoken?color=ff85a2)](https://github.com/CATMIAOZHI/Rainytoken/releases)
 
 Android AI 余额查询 APP —— 统一查看 DeepSeek 和 OpenCode Go 的余额/配额。
 
