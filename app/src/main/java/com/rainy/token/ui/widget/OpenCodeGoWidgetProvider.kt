@@ -22,7 +22,7 @@ import java.util.Locale
  * OpenCode Go 桌面小组件。
  *
  * 显示 3 个用量窗口（5h / 本周 / 本月）的百分比 + 进度条 + 重置倒计时。
- * 数据来自 [BalanceCache]（DataStore），不触发网络请求。
+ * 优先展示缓存数据；缓存为空或超过 5 分钟冷却时间时，自动触发后台网络刷新。
  */
 class OpenCodeGoWidgetProvider : AppWidgetProvider() {
 
@@ -31,6 +31,8 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
+        var hasCachedData = false
+
         for (widgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_opencode_go)
 
@@ -58,6 +60,7 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                     val cache = BalanceCache(dataStore)
                     val cached = cache.get(ServiceType.OPENCODE_GO)
                     if (cached != null) {
+                        hasCachedData = true
                         val bal = cached.balance
                         val extras = bal.extras
 
@@ -74,7 +77,7 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                         val sdf = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
                         val timeText = "更新 " + sdf.format(Date(cached.fetchedAt))
                         views.setTextViewText(R.id.widget_updated, timeText)
-} else {
+                    } else {
                         setEmptyState(views)
                     }
 
@@ -93,6 +96,12 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
             }
 
             appWidgetManager.updateAppWidget(widgetId, views)
+        }
+
+        // 自动刷新：缓存为空 或 超过冷却时间 → 触发后台刷新
+        if (!hasCachedData || shouldAutoRefresh(context)) {
+            markAutoRefreshTime(context)
+            context.sendBroadcast(WidgetRefreshReceiver.createIntent(context))
         }
     }
 
@@ -144,10 +153,32 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
     }
 
     companion object {
+
+        /** 两次自动刷新的最小间隔（5分钟），防止频繁网络请求 */
+        private const val AUTO_REFRESH_COOLDOWN_MS = 5 * 60 * 1000L
+        private const val PREFS_NAME = "widget_auto_refresh"
+        private const val KEY_LAST_AUTO_REFRESH = "last_auto_refresh"
+
+        private fun autoRefreshPrefs(context: Context) =
+            context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+        private fun shouldAutoRefresh(context: Context): Boolean {
+            val lastRefresh = autoRefreshPrefs(context).getLong(KEY_LAST_AUTO_REFRESH, 0L)
+            return System.currentTimeMillis() - lastRefresh > AUTO_REFRESH_COOLDOWN_MS
+        }
+
+        private fun markAutoRefreshTime(context: Context) {
+            autoRefreshPrefs(context).edit()
+                .putLong(KEY_LAST_AUTO_REFRESH, System.currentTimeMillis())
+                .apply()
+        }
+
         /**
          * APP 内刷新后主动更新 Widget。
+         * 同时更新自动刷新时间戳，避免后续 onUpdate() 重复触发网络请求。
          */
         fun notifyDataChanged(context: Context) {
+            markAutoRefreshTime(context) // 重置冷却计时器
             val appWidgetManager = AppWidgetManager.getInstance(context)
             val component = ComponentName(context, OpenCodeGoWidgetProvider::class.java)
             val ids = appWidgetManager.getAppWidgetIds(component)
