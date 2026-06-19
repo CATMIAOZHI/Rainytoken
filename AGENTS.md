@@ -39,8 +39,11 @@ Dashboard → UsageDetail（图表） → UsageOverview（总统计）
 
 **桌面小组件（Widget）**：
 - 显示 OpenCode Go 三个用量窗口（5h/本周/本月）+ 进度条 + 重置时间 + DeepSeek 余额
-- 右上角刷新按钮（后台广播 → `WidgetRefreshReceiver` → EntryPoints 获取 `RefreshBalanceUseCase`）
+- 右上角 ↻ 手动刷新按钮（后台广播 → `WidgetRefreshReceiver` → EntryPoints 获取 `RefreshBalanceUseCase`）
 - 进度条颜色按百分比动态变化（<50% 草莓粉 / 50-80% 暖橙 / >80% 玫红）
+- **MIUI Widget 适配**：`miuiWidget` 标识 → 可拖入负一屏；`miui.appwidget.action.APPWIDGET_UPDATE` 曝光刷新（划到即触发，20s 冷却）；`@android:id/background` 根布局 ID（系统统一裁切圆角）
+- **自动刷新**：`onUpdate()` 内缓存为空或超过 5 分钟冷却时自动发送 `WidgetRefreshReceiver` 广播
+- **一键添桌面**：Dashboard 顶部栏 + 按钮 → `requestPinAppWidget`（有 fallback 到 `ACTION_APPWIDGET_PICK`）
 
 ## RemoteViews 兼容性红线
 
@@ -83,6 +86,11 @@ Widget 刷新按钮：
   ↻ → PendingIntent.getBroadcast() → WidgetRefreshReceiver
     → EntryPoints → RefreshBalanceUseCase(DEEPSEEK + OPENCODE_GO)
     → notifyDataChanged()
+
+MIUI 曝光刷新（用户划到负一屏/桌面）：
+  → miui.appwidget.action.APPWIDGET_UPDATE → onReceive() → onUpdate()
+    → 读缓存渲染
+    → 缓存为空/过期? → sendBroadcast(WidgetRefreshReceiver)
 ```
 
 ## 品牌色
@@ -96,3 +104,5 @@ Widget 刷新按钮：
 | 暖灰辅助 | `#8A7A82` |
 | 玫红（>80% 警示） | `#E91E63` |
 | 暖橙（50-80%） | `#FFA726` |
+
+深色模式下文字颜色由 `inkWarm()` / `inkMuted()` composable 自动切换（定义在 `Theme.kt`），静态资源通过 `drawable-night/` / `layout-night/` 适配。
