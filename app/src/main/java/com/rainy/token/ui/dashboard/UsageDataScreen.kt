@@ -52,7 +52,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rainy.token.data.local.UsageRecord
-import com.rainy.token.ui.theme.InkMuted
+import com.rainy.token.ui.theme.inkMuted
 import com.rainy.token.ui.theme.StrawberryPink
 import java.text.SimpleDateFormat
 import java.time.Instant
@@ -121,7 +121,7 @@ fun UsageDataScreen(
                         })
                     }
                 }
-                Text("UTC+0", style = MaterialTheme.typography.bodySmall, color = InkMuted)
+                Text("UTC+0", style = MaterialTheme.typography.bodySmall, color = inkMuted())
                 Spacer(Modifier.weight(1f))
                 // 模型筛选
                 Box {
@@ -150,17 +150,17 @@ fun UsageDataScreen(
                 CustomTimeRangeRow(customStartMs, customEndMs,
                     { showStartPicker = true }, { showEndPicker = true },
                     { viewModel.setTimeFilter(TimeFilter.Custom(customStartMs, customEndMs)) })
-                Text("所有时间按 UTC+0 计算", style = MaterialTheme.typography.bodySmall, color = InkMuted)
+                Text("所有时间按 UTC+0 计算", style = MaterialTheme.typography.bodySmall, color = inkMuted())
             }
 
             // ─── 记录数 + 分页 ───
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Text("${state.totalRecords} 条记录", style = MaterialTheme.typography.bodySmall, color = InkMuted)
+                Text("${state.totalRecords} 条记录", style = MaterialTheme.typography.bodySmall, color = inkMuted())
                 if (state.totalPages > 1) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = { viewModel.prevPage() }, enabled = state.currentPage > 1) {
                             Text("◀", color = StrawberryPink, fontSize = 13.sp) }
-                        Text("${state.currentPage}/${state.totalPages}", style = MaterialTheme.typography.bodySmall, color = InkMuted)
+                        Text("${state.currentPage}/${state.totalPages}", style = MaterialTheme.typography.bodySmall, color = inkMuted())
                         TextButton(onClick = { viewModel.nextPage() }, enabled = state.currentPage < state.totalPages) {
                             Text("▶", color = StrawberryPink, fontSize = 13.sp) }
                         Spacer(Modifier.width(6.dp))
@@ -173,7 +173,7 @@ fun UsageDataScreen(
                             keyboardOptions = KeyboardOptions.Default.copy(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = StrawberryPink,
-                                unfocusedBorderColor = InkMuted.copy(alpha = 0.4f)
+                                unfocusedBorderColor = inkMuted().copy(alpha = 0.4f)
                             )
                         )
                         TextButton(onClick = {
@@ -201,11 +201,11 @@ fun UsageDataScreen(
             // ─── 记录列表 ───
             if (state.loading) {
                 Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                    Text("加载中…", color = InkMuted)
+                    Text("加载中…", color = inkMuted())
                 }
             } else if (state.records.isEmpty()) {
                 Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                    Text("暂无数据", color = InkMuted)
+                    Text("暂无数据", color = inkMuted())
                 }
             } else {
                 LazyColumn(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(1.dp)) {
@@ -265,7 +265,7 @@ fun UsageDataScreen(
 @Composable
 private fun HeaderCell(text: String, modifier: Modifier) {
     Text(text, modifier = modifier, fontSize = 12.sp, fontWeight = FontWeight.Bold,
-        color = InkMuted, textAlign = TextAlign.Center)
+        color = inkMuted(), textAlign = TextAlign.Center)
 }
 
 @Composable
@@ -293,7 +293,7 @@ private fun DataCell(text: String, modifier: Modifier) {
 @Composable
 private fun RawField(label: String, value: String) {
     Row(Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
-        Text("$label: ", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = InkMuted)
+        Text("$label: ", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = inkMuted())
         Text(value, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
     }
 }

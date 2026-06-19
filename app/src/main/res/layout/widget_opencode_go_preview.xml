@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- MIUI Widget 布局规范：根布局必须为 FrameLayout + @android:id/background -->
+<!-- 小组件预览布局 — 小米小部件中心选择器展示用 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@android:id/background"
     android:layout_width="match_parent"
@@ -7,15 +7,13 @@
     android:background="@drawable/widget_bg">
 
     <LinearLayout
-        android:id="@+id/widget_content"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:padding="8dp"
+        android:padding="12dp"
         android:gravity="center_vertical">
-    <!-- 注意：保持和原来一样的内部结构，只是套了一层 FrameLayout -->
 
-    <!-- 第一行 -->
+    <!-- 标题行 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -24,11 +22,9 @@
         android:layout_marginBottom="2dp">
 
         <ImageView
-            android:id="@+id/widget_wordmark"
             android:layout_width="wrap_content"
             android:layout_height="24dp"
             android:src="@drawable/rainytoken_wordmark"
-            android:contentDescription="RainyToken"
             android:adjustViewBounds="true" />
 
         <ProgressBar
@@ -43,38 +39,25 @@
             android:indeterminate="false" />
 
         <TextView
-            android:id="@+id/widget_updated"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="--"
+            android:text="自动刷新"
             android:textColor="#C4A0AB"
             android:textSize="10sp" />
+    </LinearLayout>
 
-        <TextView
-            android:id="@+id/widget_refresh"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="↻"
-            android:textColor="#FF85A2"
-            android:textSize="20sp"
-            android:layout_marginStart="6dp" />
-
-        </LinearLayout>
-
-    <!-- 第二行 -->
+    <!-- OpenCode Go 标识 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:layout_marginBottom="6dp">
+        android:layout_marginBottom="10dp">
 
         <ImageView
-            android:id="@+id/widget_logo"
             android:layout_width="22dp"
             android:layout_height="12dp"
             android:src="@drawable/ic_opencode_go_logo"
-            android:contentDescription="OpenCode Go"
             android:layout_marginEnd="5dp" />
 
         <TextView
@@ -91,27 +74,23 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:layout_marginBottom="3dp">
+        android:layout_marginBottom="6dp">
 
-        <TextView android:id="@+id/row1_label"
+        <TextView
             android:layout_width="36dp" android:layout_height="wrap_content"
             android:text="5h" android:textColor="#8A7A82" android:textSize="11sp" />
 
-        <TextView android:id="@+id/row1_pct"
+        <TextView
             android:layout_width="38dp" android:layout_height="wrap_content"
-            android:text="--" android:textColor="#3D2C35" android:textSize="12sp"
+            android:text="42%" android:textColor="#3D2C35" android:textSize="12sp"
             android:textStyle="bold" android:gravity="end" />
 
-        <ProgressBar android:id="@+id/row1_bar"
+        <ProgressBar
             style="@android:style/Widget.ProgressBar.Horizontal"
             android:layout_width="0dp" android:layout_height="6dp"
             android:layout_weight="1" android:layout_marginStart="8dp"
-            android:layout_marginEnd="8dp" android:max="100" android:progress="0"
-            android:progressTint="@color/widget_bar_5h" />
-
-        <TextView android:id="@+id/row1_reset"
-            android:layout_width="48dp" android:layout_height="wrap_content"
-            android:text="--" android:textColor="#B0A0A7" android:textSize="10sp" />
+            android:layout_marginEnd="8dp" android:max="100" android:progress="42"
+            android:progressTint="#FF85A2" />
     </LinearLayout>
 
     <!-- 本周 -->
@@ -120,27 +99,23 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:layout_marginBottom="3dp">
+        android:layout_marginBottom="6dp">
 
-        <TextView android:id="@+id/row2_label"
+        <TextView
             android:layout_width="36dp" android:layout_height="wrap_content"
             android:text="本周" android:textColor="#8A7A82" android:textSize="11sp" />
 
-        <TextView android:id="@+id/row2_pct"
+        <TextView
             android:layout_width="38dp" android:layout_height="wrap_content"
-            android:text="--" android:textColor="#3D2C35" android:textSize="12sp"
+            android:text="68%" android:textColor="#3D2C35" android:textSize="12sp"
             android:textStyle="bold" android:gravity="end" />
 
-        <ProgressBar android:id="@+id/row2_bar"
+        <ProgressBar
             style="@android:style/Widget.ProgressBar.Horizontal"
             android:layout_width="0dp" android:layout_height="6dp"
             android:layout_weight="1" android:layout_marginStart="8dp"
-            android:layout_marginEnd="8dp" android:max="100" android:progress="0"
-            android:progressTint="@color/widget_bar_weekly" />
-
-        <TextView android:id="@+id/row2_reset"
-            android:layout_width="48dp" android:layout_height="wrap_content"
-            android:text="--" android:textColor="#B0A0A7" android:textSize="10sp" />
+            android:layout_marginEnd="8dp" android:max="100" android:progress="68"
+            android:progressTint="#FFA726" />
     </LinearLayout>
 
     <!-- 本月 -->
@@ -149,27 +124,23 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:layout_marginBottom="3dp">
+        android:layout_marginBottom="8dp">
 
-        <TextView android:id="@+id/row3_label"
+        <TextView
             android:layout_width="36dp" android:layout_height="wrap_content"
             android:text="本月" android:textColor="#8A7A82" android:textSize="11sp" />
 
-        <TextView android:id="@+id/row3_pct"
+        <TextView
             android:layout_width="38dp" android:layout_height="wrap_content"
-            android:text="--" android:textColor="#3D2C35" android:textSize="12sp"
+            android:text="35%" android:textColor="#3D2C35" android:textSize="12sp"
             android:textStyle="bold" android:gravity="end" />
 
-        <ProgressBar android:id="@+id/row3_bar"
+        <ProgressBar
             style="@android:style/Widget.ProgressBar.Horizontal"
             android:layout_width="0dp" android:layout_height="6dp"
             android:layout_weight="1" android:layout_marginStart="8dp"
-            android:layout_marginEnd="8dp" android:max="100" android:progress="0"
-            android:progressTint="@color/widget_bar_monthly" />
-
-        <TextView android:id="@+id/row3_reset"
-            android:layout_width="48dp" android:layout_height="wrap_content"
-            android:text="--" android:textColor="#B0A0A7" android:textSize="10sp" />
+            android:layout_marginEnd="8dp" android:max="100" android:progress="35"
+            android:progressTint="#FF85A2" />
     </LinearLayout>
 
     <!-- DeepSeek 余额 -->
@@ -178,13 +149,12 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:layout_marginBottom="2dp">
+        android:layout_marginBottom="4dp">
 
         <ImageView
             android:layout_width="wrap_content"
             android:layout_height="12dp"
             android:src="@drawable/ic_deepseek_logo"
-            android:contentDescription="DeepSeek"
             android:adjustViewBounds="true"
             android:layout_marginEnd="5dp" />
 
@@ -196,40 +166,13 @@
             android:textSize="11sp" />
 
         <TextView
-            android:id="@+id/widget_ds_amount"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="--"
+            android:text="¥18.00"
             android:textColor="#3D2C35"
             android:textSize="11sp"
             android:textStyle="bold"
             android:layout_marginStart="4dp" />
-    </LinearLayout>
-
-    <!-- 署名 -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
-
-        <ProgressBar
-            style="@android:style/Widget.ProgressBar.Horizontal"
-            android:layout_width="0dp"
-            android:layout_height="1dp"
-            android:layout_weight="1"
-            android:max="100"
-            android:progress="0"
-            android:progressTint="#00000000"
-            android:progressBackgroundTint="#00000000"
-            android:indeterminate="false" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="雨晴喵"
-            android:textColor="#D4C4CC"
-            android:textSize="9sp" />
     </LinearLayout>
 
 </LinearLayout>

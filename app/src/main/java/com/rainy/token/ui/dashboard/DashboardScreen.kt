@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
@@ -59,8 +60,14 @@ import com.rainy.token.ui.components.ServiceIcon
 import com.rainy.token.ui.components.StatusChip
 import com.rainy.token.ui.components.StatusLevel
 import com.rainy.token.ui.components.StatusStyle
-import com.rainy.token.ui.theme.InkMuted
+import com.rainy.token.ui.theme.inkMuted
 import com.rainy.token.ui.theme.StrawberryPink
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
+import com.rainy.token.ui.widget.OpenCodeGoWidgetProvider
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -110,11 +117,36 @@ fun DashboardScreen(
                         Text(
                             text = "AI 余额一览",
                             style = MaterialTheme.typography.bodySmall,
-                            color = InkMuted
+                            color = inkMuted()
                         )
                     }
                 },
                 actions = {
+                    // 添加小组件：优先 requestPinAppWidget，不支持则打开系统小组件选择器
+                    val context = LocalContext.current
+                    IconButton(onClick = {
+                        val appWidgetManager = AppWidgetManager.getInstance(context)
+                        val component = ComponentName(context, OpenCodeGoWidgetProvider::class.java)
+                        if (appWidgetManager.isRequestPinAppWidgetSupported) {
+                            appWidgetManager.requestPinAppWidget(component, null, null)
+                        } else {
+                            // MIUI 等桌面回退：直接打开小组件选择器
+                            try {
+                                val pickerIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK).apply {
+                                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+                                }
+                                context.startActivity(pickerIntent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "请在桌面长按 → 小组件 → 查找雨晴Token", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }) {
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = "添加小组件到桌面",
+                            tint = StrawberryPink
+                        )
+                    }
                     IconButton(
                         onClick = { viewModel.refresh() },
                         enabled = !uiState.refreshing
@@ -165,7 +197,7 @@ fun DashboardScreen(
                         Text(
                             text = "服务余额",
                             style = MaterialTheme.typography.labelMedium,
-                            color = InkMuted,
+                            color = inkMuted(),
                             modifier = Modifier.padding(top = 8.dp)
                         )
                     }
@@ -204,7 +236,7 @@ private fun DashboardCard(card: DashboardCardUi, onClick: () -> Unit) {
                     Text(
                         text = secondaryLine(card),
                         style = MaterialTheme.typography.bodySmall,
-                        color = InkMuted
+                        color = inkMuted()
                     )
                 }
                 StatusChip(style = card.statusBadgeStyle())
@@ -223,7 +255,7 @@ private fun DashboardCard(card: DashboardCardUi, onClick: () -> Unit) {
                 color = if (card.lastFetchError != null)
                     MaterialTheme.colorScheme.error
                 else
-                    InkMuted
+                    inkMuted()
             )
         }
     }
@@ -237,24 +269,24 @@ private fun BalanceMainArea(card: DashboardCardUi) {
             Text(
                 text = "—",
                 style = MaterialTheme.typography.displayMedium,
-                color = InkMuted
+                color = inkMuted()
             )
             Text(
                 text = "点击配置凭据",
                 style = MaterialTheme.typography.bodySmall,
-                color = InkMuted
+                color = inkMuted()
             )
         }
         balance == null -> {
             Text(
                 text = "—",
                 style = MaterialTheme.typography.displayMedium,
-                color = InkMuted
+                color = inkMuted()
             )
             Text(
                 text = "下拉刷新",
                 style = MaterialTheme.typography.bodySmall,
-                color = InkMuted
+                color = inkMuted()
             )
         }
         card.service == ServiceType.OPENCODE_GO -> {
@@ -278,7 +310,7 @@ private fun BalanceMainArea(card: DashboardCardUi) {
                 Text(
                     text = balance.unit,
                     style = MaterialTheme.typography.titleMedium,
-                    color = InkMuted,
+                    color = inkMuted(),
                     modifier = Modifier.padding(bottom = 6.dp)
                 )
             }
@@ -293,7 +325,7 @@ private fun BalanceMainArea(card: DashboardCardUi) {
                 Text(
                     text = "本月已用 ${formatAmount(spent)}${balance.unit}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = InkMuted
+                    color = inkMuted()
                 )
             }
         }
@@ -313,7 +345,7 @@ private fun OpenCodeGoMainBalance(balance: com.rainy.token.domain.model.ServiceB
         Text(
             text = "%",
             style = MaterialTheme.typography.titleLarge,
-            color = InkMuted,
+            color = inkMuted(),
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(bottom = 6.dp, start = 2.dp)
         )
@@ -321,7 +353,7 @@ private fun OpenCodeGoMainBalance(balance: com.rainy.token.domain.model.ServiceB
         Text(
             text = "5h 用量",
             style = MaterialTheme.typography.titleMedium,
-            color = InkMuted,
+            color = inkMuted(),
             modifier = Modifier.padding(bottom = 6.dp)
         )
     }
@@ -356,13 +388,13 @@ private fun CompactUsageRowEmpty(label: String, resetInSec: Long?) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodySmall,
-                color = InkMuted,
+                color = inkMuted(),
                 modifier = Modifier.weight(1f)
             )
             Text(
                 text = "—",
                 style = MaterialTheme.typography.bodyMedium,
-                color = InkMuted
+                color = inkMuted()
             )
         }
         Spacer(modifier = Modifier.height(4.dp))
@@ -372,7 +404,7 @@ private fun CompactUsageRowEmpty(label: String, resetInSec: Long?) {
                 .fillMaxWidth()
                 .height(4.dp)
                 .clip(RoundedCornerShape(2.dp)),
-            color = InkMuted.copy(alpha = 0.3f),
+            color = inkMuted().copy(alpha = 0.3f),
             trackColor = MaterialTheme.colorScheme.surfaceVariant,
             strokeCap = androidx.compose.ui.graphics.StrokeCap.Butt
         )
@@ -381,7 +413,7 @@ private fun CompactUsageRowEmpty(label: String, resetInSec: Long?) {
             Text(
                 text = "${formatResetInSec(resetInSec)}后重置",
                 style = MaterialTheme.typography.bodySmall,
-                color = InkMuted
+                color = inkMuted()
             )
         }
     }
@@ -398,7 +430,7 @@ private fun CompactUsageRow(label: String, pct: Int, resetInSec: Long?) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodySmall,
-                color = InkMuted,
+                color = inkMuted(),
                 modifier = Modifier.weight(1f)
             )
             Text(
@@ -433,7 +465,7 @@ private fun CompactUsageRow(label: String, pct: Int, resetInSec: Long?) {
             Text(
                 text = "${formatResetInSec(resetInSec)}后重置",
                 style = MaterialTheme.typography.bodySmall,
-                color = InkMuted
+                color = inkMuted()
             )
         }
     }
@@ -511,13 +543,13 @@ private fun DashboardFooter() {
         Text(
             text = "RainyToken · v1.0",
             style = MaterialTheme.typography.bodySmall,
-            color = InkMuted
+            color = inkMuted()
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = "本地加密存储，不上传任何数据",
             style = MaterialTheme.typography.bodySmall,
-            color = InkMuted
+            color = inkMuted()
         )
     }
 }

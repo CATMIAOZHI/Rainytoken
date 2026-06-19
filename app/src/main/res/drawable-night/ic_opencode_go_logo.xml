@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- OpenCode Go logo 深色模式版：深色填充 → 浅色，保证在 #2D1825 背景上可见 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="54dp"
+    android:height="30dp"
+    android:viewportWidth="54"
+    android:viewportHeight="30">
+    <path
+        android:fillColor="#E8D8D5"
+        android:pathData="M24 30H0V0H24V6H6V24H18V18H12V12H24V30Z"/>
+    <path
+        android:fillColor="#A09098"
+        android:pathData="M12 18H18V24H6V12H12V18Z"/>
+    <path
+        android:fillColor="#A09098"
+        android:pathData="M48 12V24H36V12H48Z"/>
+    <path
+        android:fillColor="#E8D8D5"
+        android:pathData="M54 30H30V0H54V30ZM36 24H48V6H36V24Z"/>
+</vector>

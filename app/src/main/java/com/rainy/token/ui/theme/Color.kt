@@ -37,3 +37,6 @@ val DarkBackground = Color(0xFF1F1419)    // 暖深背景
 val DarkSurface = Color(0xFF2A1F25)       // 卡片
 val DarkOnSurface = Color(0xFFEFE0E5)     // 卡片文本
 val DarkPrimary = Color(0xFFFFB3C6)       // 暗色下主色更亮
+val DarkInkWarm = Color(0xFFEFE0E5)       // 暗色下暖黑→浅粉白
+val DarkInkMuted = Color(0xFFC9B8BE)      // 暗色下暖灰→浅灰粉
+val DarkInkOutline = Color(0xFF4D3A42)    // 暗色下描边

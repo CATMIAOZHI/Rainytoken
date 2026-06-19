@@ -19,12 +19,29 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * OpenCode Go 桌面小组件。
+ * OpenCode Go 桌面小组件（MIUI Widget）。
  *
- * 显示 3 个用量窗口（5h / 本周 / 本月）的百分比 + 进度条 + 重置倒计时。
- * 优先展示缓存数据；缓存为空或超过 5 分钟冷却时间时，自动触发后台网络刷新。
+ * 显示 3 个用量窗口（5h / 本周 / 本月）的百分比 + 进度条 + 重置倒计时 + DeepSeek 余额。
+ *
+ * 刷新路径：
+ * - MIUI 曝光刷新：用户划到负一屏 → miui.appwidget.action.APPWIDGET_UPDATE → onReceive → onUpdate
+ * - 标准定时刷新：系统 30min 定时 → android.appwidget.action.APPWIDGET_UPDATE → onUpdate
+ * - 手动 ↻ 按钮：PendingIntent 直通 WidgetRefreshReceiver → 网络请求 → notifyDataChanged
+ * - APP 内刷新：notifyDataChanged() → 广播 ACTION_APPWIDGET_UPDATE → onUpdate
+ * - 缓存为空/过期时 onUpdate 自动触发后台刷新
  */
 class OpenCodeGoWidgetProvider : AppWidgetProvider() {
+
+    override fun onReceive(context: Context, intent: Intent) {
+        if ("miui.appwidget.action.APPWIDGET_UPDATE" == intent.action) {
+            val appWidgetIds = intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)
+            if (appWidgetIds != null) {
+                onUpdate(context, AppWidgetManager.getInstance(context), appWidgetIds)
+            }
+        } else {
+            super.onReceive(context, intent)
+        }
+    }
 
     override fun onUpdate(
         context: Context,
@@ -44,7 +61,7 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                 context, 0, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
+            views.setOnClickPendingIntent(R.id.widget_content, pendingIntent)
 
             // 刷新按钮 → 后台广播刷新
             val refreshPendingIntent = PendingIntent.getBroadcast(

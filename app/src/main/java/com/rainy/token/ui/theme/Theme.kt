@@ -89,3 +89,13 @@ fun RainyTokenTheme(
         content = content
     )
 }
+
+/**
+ * 暗色模式自适应的文本颜色。
+ * 浅色模式下返回暖黑/暖灰，深色模式下自动切换到浅色。
+ */
+@Composable
+fun inkWarm(): Color = if (isSystemInDarkTheme()) DarkInkWarm else InkWarm
+
+@Composable
+fun inkMuted(): Color = if (isSystemInDarkTheme()) DarkInkMuted else InkMuted

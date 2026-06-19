@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">雨晴Token</string>
+    <string name="widget_name">AI用量面板</string>
+<string name="widget_description">OpenCode Go 用量 + DeepSeek 余额，自动刷新</string>
 </resources>

@@ -28,21 +28,43 @@
             </intent-filter>
         </activity>
 
-        <!-- 桌面小组件 -->
+        <!-- 桌面小组件：后台刷新接收器（主进程，需要 Hilt DI） -->
         <receiver
             android:name=".ui.widget.WidgetRefreshReceiver"
             android:exported="false" />
 
+        <!-- OpenCode Go 小组件（MIUI Widget） -->
         <receiver
             android:name=".ui.widget.OpenCodeGoWidgetProvider"
-            android:exported="true">
+            android:exported="true"
+            android:label="@string/widget_name">
             <intent-filter>
+                <!-- 标准 Android 定时刷新 -->
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <!-- MIUI 曝光刷新（划到负一屏/桌面时触发） -->
+                <action android:name="miui.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_opencode_go_info" />
+            <!-- MIUI Widget 核心标识 -->
+            <meta-data
+                android:name="miuiWidget"
+                android:value="true" />
+            <!-- MIUI 曝光刷新：用户滑动到小组件所在页面时自动触发 -->
+            <meta-data
+                android:name="miuiWidgetRefresh"
+                android:value="exposure" />
+            <!-- 曝光刷新最小间隔 20 秒（官方最短为 10 秒） -->
+            <meta-data
+                android:name="miuiWidgetRefreshMinInterval"
+                android:value="20000" />
         </receiver>
+
+        <!-- MIUI Widget 版本号（application 级，升级时递增） -->
+        <meta-data
+            android:name="miuiWidgetVersion"
+            android:value="1" />
 
     </application>
 

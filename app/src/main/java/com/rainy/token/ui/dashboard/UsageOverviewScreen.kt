@@ -43,7 +43,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rainy.token.data.local.ModelStats
 import com.rainy.token.data.local.OverviewStats
-import com.rainy.token.ui.theme.InkMuted
+import com.rainy.token.ui.theme.inkMuted
 import com.rainy.token.ui.theme.StrawberryPink
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -89,7 +89,7 @@ fun UsageOverviewScreen(
                         Text(uiState.timeFilter.label, color = StrawberryPink, fontWeight = FontWeight.SemiBold)
                         Icon(Icons.Filled.ArrowDropDown, null, tint = StrawberryPink)
                     }
-                    Text("UTC+0", style = MaterialTheme.typography.bodySmall, color = InkMuted, modifier = Modifier.padding(start = 4.dp))
+                    Text("UTC+0", style = MaterialTheme.typography.bodySmall, color = inkMuted(), modifier = Modifier.padding(start = 4.dp))
                     DropdownMenu(menuExpanded, { menuExpanded = false }) {
                         listOf(TimeFilter.All, TimeFilter.Last5h, TimeFilter.Last24h,
                             TimeFilter.Today, TimeFilter.Yesterday,
@@ -112,7 +112,7 @@ fun UsageOverviewScreen(
                     CustomTimeRangeRow(customStartMs, customEndMs,
                         { showStartPicker = true }, { showEndPicker = true },
                         { viewModel.setTimeFilter(TimeFilter.Custom(customStartMs, customEndMs)) })
-                    Text("所有时间按 UTC+0 计算", style = MaterialTheme.typography.bodySmall, color = InkMuted)
+                    Text("所有时间按 UTC+0 计算", style = MaterialTheme.typography.bodySmall, color = inkMuted())
                 }
             }
             // 总览
@@ -157,7 +157,7 @@ fun UsageOverviewScreen(
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                             TextButton(onClick = { viewModel.prevDailyPage() }, enabled = uiState.dailyPage > 1) {
                                 Text("◀ 上一页", color = StrawberryPink, style = MaterialTheme.typography.bodySmall) }
-                            Text("${uiState.dailyPage} / $totalPages", style = MaterialTheme.typography.bodySmall, color = InkMuted)
+                            Text("${uiState.dailyPage} / $totalPages", style = MaterialTheme.typography.bodySmall, color = inkMuted())
                             TextButton(onClick = { viewModel.nextDailyPage() }, enabled = uiState.dailyPage < totalPages) {
                                 Text("下一页 ▶", color = StrawberryPink, style = MaterialTheme.typography.bodySmall) }
                         }
@@ -193,7 +193,7 @@ fun UsageOverviewScreen(
 @Composable private fun CacheBreakdownCard(overview: OverviewStats) {
     Card(Modifier.fillMaxWidth(), RoundedCornerShape(20.dp), CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(16.dp)) {
-            Text("缓存 Token 细分", style = MaterialTheme.typography.labelMedium, color = InkMuted)
+            Text("缓存 Token 细分", style = MaterialTheme.typography.labelMedium, color = inkMuted())
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly) {
                 StatItem("缓存读取", formatTokenCount(overview.cacheReadTokens))
@@ -201,7 +201,7 @@ fun UsageOverviewScreen(
             }
             if (overview.cacheReadTokens > 0) {
                 Spacer(Modifier.height(4.dp))
-                Text("※ 缓存读取已计入「输入 Token」", style = MaterialTheme.typography.bodySmall, color = InkMuted)
+                Text("※ 缓存读取已计入「输入 Token」", style = MaterialTheme.typography.bodySmall, color = inkMuted())
             }
         }
     }
@@ -216,11 +216,11 @@ fun UsageOverviewScreen(
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(stat.model, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                Text("${stat.count} 次调用", style = MaterialTheme.typography.bodySmall, color = InkMuted)
+                Text("${stat.count} 次调用", style = MaterialTheme.typography.bodySmall, color = inkMuted())
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(formatTokenCount(stat.totalTokens), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = StrawberryPink)
-                Text("$${String.format(Locale.US, "%.4f", stat.totalCost / 100_000_000.0)}", style = MaterialTheme.typography.bodySmall, color = InkMuted)
+                Text("$${String.format(Locale.US, "%.4f", stat.totalCost / 100_000_000.0)}", style = MaterialTheme.typography.bodySmall, color = inkMuted())
             }
         }
     }
@@ -233,7 +233,7 @@ fun UsageOverviewScreen(
             Text(utcFmt.format(Date(day.dayTs)), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
             Column(horizontalAlignment = Alignment.End) {
                 Text(formatTokenCount(day.totalTokens), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = StrawberryPink)
-                Text("${day.count} 次 · $${String.format(Locale.US, "%.4f", day.totalCost / 100_000_000.0)}", style = MaterialTheme.typography.bodySmall, color = InkMuted)
+                Text("${day.count} 次 · $${String.format(Locale.US, "%.4f", day.totalCost / 100_000_000.0)}", style = MaterialTheme.typography.bodySmall, color = inkMuted())
             }
         }
     }
@@ -242,7 +242,7 @@ fun UsageOverviewScreen(
 @Composable private fun StatItem(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = StrawberryPink)
-        Text(label, style = MaterialTheme.typography.bodySmall, color = InkMuted)
+        Text(label, style = MaterialTheme.typography.bodySmall, color = inkMuted())
     }
 }
 

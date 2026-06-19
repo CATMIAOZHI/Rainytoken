@@ -51,7 +51,7 @@ import com.rainy.token.ui.components.ServiceIcon
 import com.rainy.token.ui.components.StatusChip
 import com.rainy.token.ui.components.StatusLevel
 import com.rainy.token.ui.components.StatusStyle
-import com.rainy.token.ui.theme.InkMuted
+import com.rainy.token.ui.theme.inkMuted
 import com.rainy.token.ui.theme.StrawberryPink
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -187,7 +187,7 @@ private fun OpenCodeGoWindowsCard(state: State) {
             Text(
                 text = "用量窗口",
                 style = MaterialTheme.typography.labelLarge,
-                color = InkMuted
+                color = inkMuted()
             )
             Spacer(modifier = Modifier.height(12.dp))
             UsageWindowRow(
@@ -226,7 +226,7 @@ private fun UsageWindowRow(label: String, pct: Int?, resetInSec: Long?) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodyMedium,
-                color = InkMuted,
+                color = inkMuted(),
                 modifier = Modifier.weight(1f)
             )
             Row(verticalAlignment = Alignment.Bottom) {
@@ -238,7 +238,7 @@ private fun UsageWindowRow(label: String, pct: Int?, resetInSec: Long?) {
                 Text(
                     text = "%",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = InkMuted,
+                    color = inkMuted(),
                     modifier = Modifier.padding(bottom = 2.dp, start = 2.dp)
                 )
             }
@@ -262,7 +262,7 @@ private fun UsageWindowRow(label: String, pct: Int?, resetInSec: Long?) {
             Text(
                 text = "${formatResetInSec(resetInSec)}后重置",
                 style = MaterialTheme.typography.bodySmall,
-                color = InkMuted
+                color = inkMuted()
             )
         }
     }
@@ -293,7 +293,7 @@ private fun MainBalanceCard(state: State, service: ServiceType) {
                 Text(
                     text = mainCardLabel(service),
                     style = MaterialTheme.typography.labelLarge,
-                    color = InkMuted
+                    color = inkMuted()
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 StatusChip(style = stateToChip(state))
@@ -322,14 +322,14 @@ private fun MainBalanceCard(state: State, service: ServiceType) {
                     Text(
                         text = "显示的是上次成功获取的余额",
                         style = MaterialTheme.typography.bodySmall,
-                        color = InkMuted
+                        color = inkMuted()
                     )
                 }
                 is State.ManualModeHint -> {
                     Text(
                         text = "—",
                         style = MaterialTheme.typography.displayMedium,
-                        color = InkMuted
+                        color = inkMuted()
                     )
                 }
             }
@@ -343,7 +343,7 @@ private fun BalanceBigNumber(balance: ServiceBalance?) {
         Text(
             text = "—",
             style = MaterialTheme.typography.displayLarge,
-            color = InkMuted
+            color = inkMuted()
         )
         return
     }
@@ -358,7 +358,7 @@ private fun BalanceBigNumber(balance: ServiceBalance?) {
         Text(
             text = balance.unit,
             style = MaterialTheme.typography.titleLarge,
-            color = InkMuted,
+            color = inkMuted(),
             modifier = Modifier.padding(bottom = 8.dp)
         )
     }
@@ -375,7 +375,7 @@ private fun BalanceBigNumber(balance: ServiceBalance?) {
         Text(
             text = "本月消费 ${formatAmount(spent)}${balance.unit}",
             style = MaterialTheme.typography.bodyMedium,
-            color = InkMuted
+            color = inkMuted()
         )
     }
 }
@@ -406,7 +406,7 @@ private fun DeepSeekBreakdownCard(state: State) {
             Text(
                 text = "余额构成",
                 style = MaterialTheme.typography.labelLarge,
-                color = InkMuted
+                color = inkMuted()
             )
             Spacer(modifier = Modifier.height(12.dp))
             BreakdownRow("赠送余额", granted, balance!!.unit)
@@ -427,7 +427,7 @@ private fun BreakdownRow(label: String, value: Double, unit: String) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
-            color = InkMuted,
+            color = inkMuted(),
             modifier = Modifier.weight(1f)
         )
         Row(verticalAlignment = Alignment.Bottom) {
@@ -440,7 +440,7 @@ private fun BreakdownRow(label: String, value: Double, unit: String) {
             Text(
                 text = unit,
                 style = MaterialTheme.typography.bodyMedium,
-                color = InkMuted,
+                color = inkMuted(),
                 modifier = Modifier.padding(bottom = 2.dp)
             )
         }

@@ -2,6 +2,7 @@ package com.rainy.token.ui.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,7 +41,7 @@ fun ServiceIcon(
                 modifier = modifier
                     .size(size.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color.White),
+                    .background(if (isSystemInDarkTheme()) Color(0xFF352329) else Color.White),
                 contentAlignment = Alignment.Center
             ) {
                 Image(
