@@ -1,0 +1,7 @@
+fix: 图表模型颜色从8色扩展为12色 Material Design 500调色板
+
+modelColors 从8色扩展到12色 MD500 色阶，解决11个模型颜色不够区分、
+后3个模型与前面颜色循环重复的问题。
+
+UsageChartScreen.kt — modelColors: 8色 → 12色 (Red/Pink/Purple/Deep Purple/
+Indigo/Blue/Cyan/Teal/Green/Orange/Brown/Blue Grey)

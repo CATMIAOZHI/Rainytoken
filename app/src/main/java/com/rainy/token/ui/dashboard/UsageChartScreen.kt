@@ -67,16 +67,20 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// 图表用色板（每个模型一个颜色）
+// 图表用色板（每个模型一个颜色，12 色 Material Design 500 色阶，足够区分 12 个模型）
 internal val modelColors = listOf(
-    Color(0xFFFF6B8A), // 草莓粉
-    Color(0xFFFFA726), // 暖橙
-    Color(0xFF66BB6A), // 绿
-    Color(0xFF42A5F5), // 蓝
-    Color(0xFFAB47BC), // 紫
-    Color(0xFF26C6DA), // 青
-    Color(0xFFEF5350), // 红
-    Color(0xFF8D6E63)  // 棕
+    Color(0xFFF44336), // Red
+    Color(0xFFE91E63), // Pink
+    Color(0xFF9C27B0), // Purple
+    Color(0xFF673AB7), // Deep Purple
+    Color(0xFF3F51B5), // Indigo
+    Color(0xFF2196F3), // Blue
+    Color(0xFF00BCD4), // Cyan
+    Color(0xFF009688), // Teal
+    Color(0xFF4CAF50), // Green
+    Color(0xFFFF9800), // Orange
+    Color(0xFF795548), // Brown
+    Color(0xFF607D8B)  // Blue Grey
 )
 
 // Token 堆叠色板：命中缓存（浅粉·顶）、未命中输入（粉·中）、输出（深粉·底）
