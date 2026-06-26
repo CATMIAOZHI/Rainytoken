@@ -51,6 +51,21 @@ fun ServiceIcon(
                 )
             }
         }
+        ServiceType.COMMANDCODE_GO -> {
+            // CommandCode Go：暂无官方 logo，用 ⚡ emoji 占位
+            Box(
+                modifier = modifier
+                    .size(size.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF2D3748)),
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.compose.material3.Text(
+                    text = "⚡",
+                    fontSize = (size * 0.5).sp
+                )
+            }
+        }
         ServiceType.DEEPSEEK -> {
             // DeepSeek 官方无开放 logo 资源 —— 用蓝鲸 emoji 占位
             Box(

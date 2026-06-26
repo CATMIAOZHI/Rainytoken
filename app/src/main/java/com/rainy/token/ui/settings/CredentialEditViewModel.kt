@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rainy.token.data.repository.CommandCodeGoRepository
 import com.rainy.token.data.repository.CredentialRepository
 import com.rainy.token.data.repository.OpenCodeGoRepository
 import com.rainy.token.data.repository.RepositoryError
@@ -34,6 +35,7 @@ import javax.inject.Provider
 class CredentialEditViewModel @Inject constructor(
     private val credentialRepository: CredentialRepository,
     private val openCodeGoRepositoryProvider: Provider<OpenCodeGoRepository>,
+    private val commandCodeGoRepositoryProvider: Provider<CommandCodeGoRepository>,
     private val refreshBalanceUseCaseProvider: Provider<RefreshBalanceUseCase>
 ) : ViewModel() {
 
@@ -125,7 +127,7 @@ class CredentialEditViewModel @Inject constructor(
      */
     fun testAndSaveApiKey() {
         val type = serviceType ?: return
-        if (type != ServiceType.DEEPSEEK) {
+        if (type != ServiceType.DEEPSEEK && type != ServiceType.COMMANDCODE_GO) {
             _uiState.update { it.copy(message = "暂不支持测试此服务") }
             return
         }

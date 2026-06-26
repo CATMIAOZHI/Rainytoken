@@ -9,6 +9,7 @@ import com.rainy.token.data.local.UsageCache
 import com.rainy.token.data.local.usageCacheDataStore
 import com.rainy.token.data.repository.CredentialRepository
 import com.rainy.token.data.repository.DeepSeekRepository
+import com.rainy.token.data.repository.CommandCodeGoRepository
 import com.rainy.token.data.repository.OpenCodeGoRepository
 import com.rainy.token.data.repository.OpenCodeUsageRepository
 import dagger.Module
@@ -100,6 +101,17 @@ object NetworkModule {
         credentialRepository: CredentialRepository,
         balanceCache: BalanceCache
     ): OpenCodeGoRepository = OpenCodeGoRepository(okHttpClient, credentialRepository, balanceCache)
+
+    /**
+     * CommandCode Go 仓库：API Key 认证，调 JSON API。
+     */
+    @Provides
+    @Singleton
+    fun provideCommandCodeGoRepository(
+        okHttpClient: OkHttpClient,
+        credentialRepository: CredentialRepository,
+        balanceCache: BalanceCache
+    ): CommandCodeGoRepository = CommandCodeGoRepository(okHttpClient, credentialRepository, balanceCache)
 
     /**
      * DeepSeek 仓库：同上。注意即使 [DeepSeekRepository] 自己有 @Inject constructor，

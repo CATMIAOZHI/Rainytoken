@@ -48,6 +48,12 @@ object ServiceConfigProvider {
             method = FetchMethod.WEBVIEW_SCRAPER,
             loginUrl = "https://opencode.ai/auth",
             displayUnit = "%"
+        ),
+        ServiceType.COMMANDCODE_GO to ServiceConfig(
+            type = ServiceType.COMMANDCODE_GO,
+            method = FetchMethod.REST_API,
+            loginUrl = "", // API Key 模式不需要登录 URL
+            displayUnit = "$"
         )
     )
 

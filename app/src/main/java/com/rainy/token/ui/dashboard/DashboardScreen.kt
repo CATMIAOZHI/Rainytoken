@@ -297,6 +297,12 @@ private fun BalanceMainArea(card: DashboardCardUi) {
             // 3 个窗口进度条
             OpenCodeGoUsageWindows(balance)
         }
+        card.service == ServiceType.COMMANDCODE_GO -> {
+            // CommandCode Go 卡片：跟 OCGO 一样平铺三档窗口
+            CommandCodeGoMainBalance(balance)
+            Spacer(modifier = Modifier.height(12.dp))
+            CommandCodeGoUsageWindows(balance)
+        }
         else -> {
             // DeepSeek 等：主数字 + 单位
             Row(verticalAlignment = Alignment.Bottom) {
@@ -358,7 +364,6 @@ private fun OpenCodeGoMainBalance(balance: com.rainy.token.domain.model.ServiceB
         )
     }
 }
-
 @Composable
 private fun OpenCodeGoUsageWindows(balance: com.rainy.token.domain.model.ServiceBalance) {
     val windows = listOf(
@@ -371,7 +376,65 @@ private fun OpenCodeGoUsageWindows(balance: com.rainy.token.domain.model.Service
             if (pct != null) {
                 CompactUsageRow(label = label, pct = pct, resetInSec = resetSec)
             } else {
-                // 数据未拿到 —— 不隐藏整行，显示"—"占位
+                CompactUsageRowEmpty(label = label, resetInSec = resetSec)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CommandCodeGoMainBalance(balance: com.rainy.token.domain.model.ServiceBalance) {
+    val total = balance.totalQuota
+    Row(verticalAlignment = Alignment.Bottom) {
+        Text(
+            text = formatAmount(balance.amount),
+            style = MaterialTheme.typography.displayMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = "$",
+            style = MaterialTheme.typography.titleLarge,
+            color = inkMuted(),
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = 6.dp, start = 2.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "剩余",
+            style = MaterialTheme.typography.titleMedium,
+            color = inkMuted(),
+            modifier = Modifier.padding(bottom = 6.dp)
+        )
+        if (total != null && total > 0) {
+            val used = total - balance.amount
+            Text(
+                text = " · 已用 ${formatAmount(used)} / 共 ${formatAmount(total)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = inkMuted(),
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun CommandCodeGoUsageWindows(balance: com.rainy.token.domain.model.ServiceBalance) {
+    val extras = balance.extras
+    fun calcPct(used: Double?, cap: Double?): Int? {
+        if (used == null || cap == null || cap <= 0) return null
+        return ((used / cap) * 100).toInt().coerceIn(0, 100)
+    }
+    val windows = listOf(
+        Triple("5 小时", calcPct(extras["fiveHour.used"]?.toDoubleOrNull(), extras["fiveHour.cap"]?.toDoubleOrNull()), extras["fiveHour.resetInSec"]?.toLongOrNull()),
+        Triple("本周",   calcPct(extras["weekly.used"]?.toDoubleOrNull(), extras["weekly.cap"]?.toDoubleOrNull()),   extras["weekly.resetInSec"]?.toLongOrNull()),
+        Triple("本月",   calcPct(balance.monthlySpent, balance.totalQuota), extras["monthly.resetInSec"]?.toLongOrNull())
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        windows.forEach { (label, pct, resetSec) ->
+            if (pct != null) {
+                CompactUsageRow(label = label, pct = pct, resetInSec = resetSec)
+            } else {
                 CompactUsageRowEmpty(label = label, resetInSec = resetSec)
             }
         }
@@ -501,6 +564,7 @@ private fun DashboardCardUi.statusBadgeStyle(): StatusStyle = when {
 private fun secondaryLine(card: DashboardCardUi): String = when (card.service) {
     ServiceType.DEEPSEEK -> "REST API · ¥"
     ServiceType.OPENCODE_GO -> "WebView 抓取 · 5h 配额"
+    ServiceType.COMMANDCODE_GO -> "JSON API · \$"
 }
 
 private fun footerText(card: DashboardCardUi): String {

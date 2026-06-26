@@ -131,6 +131,9 @@ fun ServiceDetailScreen(
                 ServiceType.OPENCODE_GO -> {
                     item { OpenCodeGoWindowsCard(uiState.state) }
                 }
+                ServiceType.COMMANDCODE_GO -> {
+                    item { CommandCodeGoUsageCard(uiState.state) }
+                }
             }
 
             // 错误信息（如有）
@@ -159,6 +162,117 @@ fun ServiceDetailScreen(
             }
         }
     }
+}
+
+/**
+ * CommandCode Go 专属：月度用量卡 + 窗口进度条。
+ *
+ * 数据从 balance.extras 中的 monthlyRemaining / monthlyTotal / fiveHour / weekly 取，
+ * 展示月度已用/总量 + 5h + 每周窗口进度条。
+ * 窗口顺序：5小时 → 本周 → 本月（最底部为月度总览）。
+ */
+@Composable
+private fun CommandCodeGoUsageCard(state: State) {
+    val balance = when (state) {
+        is State.Fresh -> state.data
+        is State.Stale -> state.data
+        is State.Error -> state.cached
+        else -> null
+    }
+    val extras = balance?.extras ?: return
+    val monthlyRemaining = extras["monthlyRemaining"]?.toDoubleOrNull() ?: return
+    val monthlyTotal = extras["monthlyTotal"]?.toDoubleOrNull()
+    val purchased = extras["purchasedCredits"]?.toDoubleOrNull() ?: 0.0
+    val planName = extras["planName"].orEmpty()
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                text = "用量窗口${if (planName.isNotBlank()) " · $planName" else ""}",
+                style = MaterialTheme.typography.labelLarge,
+                color = inkMuted()
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 1. 5h 窗口（最上面）
+            val fiveHourUsed = extras["fiveHour.used"]?.toDoubleOrNull()
+            val fiveHourCap = extras["fiveHour.cap"]?.toDoubleOrNull()
+            if (fiveHourUsed != null && fiveHourCap != null && fiveHourCap > 0) {
+                val pct = ((fiveHourUsed / fiveHourCap) * 100).toInt().coerceIn(0, 100)
+                UsageWindowRow(
+                    label = "5 小时滚动",
+                    pct = pct,
+                    resetInSec = extras["fiveHour.resetInSec"]?.toLongOrNull()
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+
+            // 2. 每周窗口
+            val weeklyUsed = extras["weekly.used"]?.toDoubleOrNull()
+            val weeklyCap = extras["weekly.cap"]?.toDoubleOrNull()
+            if (weeklyUsed != null && weeklyCap != null && weeklyCap > 0) {
+                val pct = ((weeklyUsed / weeklyCap) * 100).toInt().coerceIn(0, 100)
+                UsageWindowRow(
+                    label = "本周",
+                    pct = pct,
+                    resetInSec = extras["weekly.resetInSec"]?.toLongOrNull()
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+
+            // 3. 本月（最下面）
+            if (monthlyTotal != null && monthlyTotal > 0) {
+                val used = monthlyTotal - monthlyRemaining
+                val pct = ((used / monthlyTotal) * 100).toInt().coerceIn(0, 100)
+                UsageWindowRow(
+                    label = "本月",
+                    pct = pct,
+                    resetInSec = extras["billingPeriodEnd"]?.let { parseIsoDuration(it) }
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "已用 \$${formatAmount(used)} / 共 \$${formatAmount(monthlyTotal)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = inkMuted()
+                )
+            } else {
+                Text(
+                    text = "剩余 \$${formatAmount(monthlyRemaining)}",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            // 额外充值
+            if (purchased > 0) {
+                Spacer(modifier = Modifier.height(8.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Spacer(modifier = Modifier.height(8.dp))
+                BreakdownRow("额外充值", purchased, "$")
+            }
+        }
+    }
+}
+
+/**
+ * 尝试从 ISO8601 时间戳计算剩余秒数。
+ */
+private fun parseIsoDuration(isoStr: String): Long? {
+    return try {
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+        sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+        val end = sdf.parse(isoStr.take(19))?.time ?: return null
+        maxOf(0L, (end - System.currentTimeMillis()) / 1000)
+    } catch (_: Exception) { null }
 }
 
 /**
@@ -532,6 +646,7 @@ private fun ActionButtons(
 private fun mainCardLabel(service: ServiceType): String = when (service) {
     ServiceType.DEEPSEEK -> "当前余额"
     ServiceType.OPENCODE_GO -> "5h 实时用量"
+    ServiceType.COMMANDCODE_GO -> "月度余额"
 }
 
 private fun stateToChip(state: State): StatusStyle = when (state) {
