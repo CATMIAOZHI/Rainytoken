@@ -4,8 +4,22 @@
 
 [![Release](https://github.com/CATMIAOZHI/Rainytoken/actions/workflows/release.yml/badge.svg)](https://github.com/CATMIAOZHI/Rainytoken/actions)
 [![Version](https://img.shields.io/github/v/release/CATMIAOZHI/Rainytoken?color=ff85a2)](https://github.com/CATMIAOZHI/Rainytoken/releases)
-
 Android AI 余额查询 APP —— 统一查看 DeepSeek、OpenCode Go 和 CommandCode Go 的余额与用量配额。粉色调品牌 UI，配套桌面小组件。
+
+---
+
+## 📸 截图
+
+<p align="center">
+  <img src="docs/screenshots/dashboard-light.jpg" width="200" alt="仪表盘（亮色）" />
+  <img src="docs/screenshots/dashboard-dark.jpg" width="200" alt="仪表盘（深色）" />
+  <img src="docs/screenshots/detail.jpg" width="200" alt="用量图表" />
+  <img src="docs/screenshots/widget.jpg" width="200" alt="桌面小组件" />
+</p>
+
+<p align="center">
+  <em>仪表盘（亮色） · 仪表盘（深色） · 用量图表 · 桌面小组件</em>
+</p>
 
 ---
 
