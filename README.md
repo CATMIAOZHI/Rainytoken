@@ -31,7 +31,7 @@ Android AI 余额查询 APP —— 统一查看 DeepSeek、OpenCode Go 和 Comma
 
 前往 [Releases](https://github.com/CATMIAOZHI/Rainytoken/releases) 下载最新 APK。
 
-> ⚠️ 需要配置 DeepSeek API Key 和/或 OpenCode Go 登录凭据才能拉取数据。
+> ⚠️ 需要配置 DeepSeek API Key、OpenCode Go 登录凭据或 CommandCode Go API Key 才能拉取数据。
 
 ---
 

@@ -70,6 +70,7 @@ fun CredentialEditScreen(
     val context = LocalContext.current
     var showCookieHelp by remember { mutableStateOf(false) }
     var showGoHelp by remember { mutableStateOf(false) }
+    var showOpenCcgoHelp by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.message) {
         uiState.message?.let { msg ->
@@ -117,7 +118,8 @@ fun CredentialEditScreen(
                         onApiKeyChange = viewModel::updateApiKey,
                         onCookieChange = viewModel::updateCookieInput,
                         onSave = viewModel::saveCommandCodeGoCredential,
-                        onTestAndSave = viewModel::testAndSaveCommandCodeGo
+                        onTestAndSave = viewModel::testAndSaveCommandCodeGo,
+                        onShowHelp = { showOpenCcgoHelp = true }
                     )
                 } else {
                     ApiKeyForm(
@@ -223,6 +225,33 @@ fun CredentialEditScreen(
             }
         )
     }
+
+    if (showOpenCcgoHelp) {
+        AlertDialog(
+            onDismissRequest = { showOpenCcgoHelp = false },
+            title = { Text("如何获取 CommandCode Go 凭据？") },
+            text = {
+                Column {
+                    Text("1. 打开 https://commandcode.ai 并登录 GitHub")
+                    Text("")
+                    Text("▸ 获取 API Key（必填）：")
+                    Text("   右上角头像 → Settings → API Keys → 创建一个 Key")
+                    Text("")
+                    Text("▸ 获取全部 Cookie（用于用量记录）：")
+                    Text("   F12 → Application → Cookies → commandcode.ai")
+                    Text("   选中所有 Cookie，复制整个 Cookie 字符串")
+                    Text("   粘贴到下方输入框即可，无需逐个挑选")
+                    Text("")
+                    Text("提示：不填 Cookie 也能正常查看余额，只是用量记录为空。")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showOpenCcgoHelp = false }) {
+                    Text("我知道了")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -303,7 +332,8 @@ private fun CommandCodeGoForm(
     onApiKeyChange: (String) -> Unit,
     onCookieChange: (String) -> Unit,
     onSave: () -> Unit,
-    onTestAndSave: () -> Unit
+    onTestAndSave: () -> Unit,
+    onShowHelp: () -> Unit
 ) {
     Text(text = "CommandCode Go 凭据", style = MaterialTheme.typography.titleMedium)
     Text(
@@ -315,7 +345,7 @@ private fun CommandCodeGoForm(
         value = apiKey,
         onValueChange = onApiKeyChange,
         label = { Text("API Key") },
-        placeholder = { Text("从 Studio → API Keys 生成") },
+        placeholder = { Text("从 Settings → API Keys 生成") },
         singleLine = true,
         visualTransformation = PasswordVisualTransformation(),
         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -324,8 +354,8 @@ private fun CommandCodeGoForm(
     OutlinedTextField(
         value = cookieInput,
         onValueChange = onCookieChange,
-        label = { Text("Session Cookie") },
-        placeholder = { Text("Secure-commandcode_prod_.session_token=xxx; Secure-commandcode_prod_.session_data=xxx") },
+        label = { Text("Session Cookie（可选）") },
+        placeholder = { Text("F12 → Cookies → commandcode.ai → 全选复制粘贴即可") },
         modifier = Modifier.fillMaxWidth(),
         minLines = 2
     )
@@ -338,6 +368,9 @@ private fun CommandCodeGoForm(
         enabled = apiKey.isNotBlank()
     ) {
         Text(text = "测试并保存")
+    }
+    OutlinedButton(onClick = onShowHelp, modifier = Modifier.fillMaxWidth()) {
+        Text(text = "如何获取 API Key 和 Cookie？")
     }
 }
 
