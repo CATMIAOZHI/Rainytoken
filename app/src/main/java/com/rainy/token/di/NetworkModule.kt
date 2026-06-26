@@ -10,6 +10,7 @@ import com.rainy.token.data.local.usageCacheDataStore
 import com.rainy.token.data.repository.CredentialRepository
 import com.rainy.token.data.repository.DeepSeekRepository
 import com.rainy.token.data.repository.CommandCodeGoRepository
+import com.rainy.token.data.repository.CommandCodeUsageRepository
 import com.rainy.token.data.repository.OpenCodeGoRepository
 import com.rainy.token.data.repository.OpenCodeUsageRepository
 import dagger.Module
@@ -101,6 +102,16 @@ object NetworkModule {
         credentialRepository: CredentialRepository,
         balanceCache: BalanceCache
     ): OpenCodeGoRepository = OpenCodeGoRepository(okHttpClient, credentialRepository, balanceCache)
+
+    /**
+     * CommandCode Go 用量仓库。
+     */
+    @Provides
+    @Singleton
+    fun provideCommandCodeUsageRepository(
+        okHttpClient: OkHttpClient,
+        credentialRepository: CredentialRepository
+    ): CommandCodeUsageRepository = CommandCodeUsageRepository(okHttpClient, credentialRepository)
 
     /**
      * CommandCode Go 仓库：API Key 认证，调 JSON API。
