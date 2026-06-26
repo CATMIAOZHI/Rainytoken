@@ -9,6 +9,7 @@ import com.rainy.token.data.local.UsageCache
 import com.rainy.token.data.repository.CredentialRepository
 import com.rainy.token.domain.model.Credential
 import com.rainy.token.domain.service.ServiceType
+import com.rainy.token.domain.usecase.SyncCommandCodeUsageUseCase
 import com.rainy.token.domain.usecase.SyncUsageUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -72,27 +73,29 @@ sealed class TimeFilter(val label: String) {
 class UsageViewModel @Inject constructor(
     private val cacheProvider: Provider<UsageCache>,
     private val syncUseCaseProvider: Provider<SyncUsageUseCase>,
+    private val syncCommandCodeUseCaseProvider: Provider<SyncCommandCodeUsageUseCase>,
     private val credentialRepository: CredentialRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(UsageUiState())
     val uiState: StateFlow<UsageUiState> = _uiState.asStateFlow()
 
-    init {
-        loadStatsAndSyncIfNeeded()
+    private var workspaceIdOverride: String? = null
+    private var loadGeneration = 0  // 递增：过时的 loadStatsInternal 结果自动丢弃
+
+    /** 覆盖 workspaceId，用于 CCGO 等非 OCGO 服务。必须在 loadStats() 前调用。 */
+    fun setWorkspace(wid: String) {
+        workspaceIdOverride = wid
+        loadGeneration++
+        // 先清空数据防止 init 自动加载的 OCGO 数据闪一下
+        _uiState.value = UsageUiState()
+        loadStats()
     }
 
-    private fun loadStatsAndSyncIfNeeded() {
-        viewModelScope.launch {
-            loadStatsInternal()
-            // 无缓存数据 → 自动触发同步
-            if (_uiState.value.overview == null && _uiState.value.recordCount == 0) {
-                sync()
-            }
-        }
-    }
+    // 不在 init 自动加载，由 Composable 层显式触发 loadStats()（OCGO）或 setWorkspace()（CCGO）
 
     private suspend fun workspaceId(): String? {
+        workspaceIdOverride?.let { return it }
         val c = credentialRepository.get(ServiceType.OPENCODE_GO)
         return (c as? Credential.SessionCredential)?.workspaceId?.takeIf { it.isNotBlank() }
     }
@@ -104,6 +107,7 @@ class UsageViewModel @Inject constructor(
     /** 只调一次 getRecords()，所有统计从同一次结果派生。重 IO/CPU 操作跑在 Default 上。 */
     private suspend fun loadStatsInternal() {
         val wid = workspaceId() ?: return
+        val genAtStart = loadGeneration  // 记下发起时的世代
         val cache = cacheProvider.get()
         val filter = _uiState.value.timeFilter
         val (fromTs, toTs) = filter.toRange()
@@ -138,6 +142,9 @@ class UsageViewModel @Inject constructor(
 
             LoadResult(ov, ms, ds, records.size)
         }
+
+        // 如果 loadGeneration 已经变化（setWorkspace 被调用），丢弃这次结果
+        if (loadGeneration != genAtStart) return
 
         _uiState.update {
             it.copy(
@@ -178,10 +185,16 @@ class UsageViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(syncing = true) }
             val result = withContext(Dispatchers.Default) {
-                val useCase = syncUseCaseProvider.get()
                 val cache = cacheProvider.get()
-                val count = cache.count()
-                if (count == 0) useCase.fullSync() else useCase.incrementalSync()
+                if (workspaceIdOverride == com.rainy.token.data.repository.CommandCodeUsageRepository.CCGO_WORKSPACE_ID) {
+                    val useCase = syncCommandCodeUseCaseProvider.get()
+                    val count = cache.count(com.rainy.token.data.repository.CommandCodeUsageRepository.CCGO_WORKSPACE_ID)
+                    if (count == 0) useCase.fullSync() else useCase.incrementalSync()
+                } else {
+                    val useCase = syncUseCaseProvider.get()
+                    val count = cache.count()
+                    if (count == 0) useCase.fullSync() else useCase.incrementalSync()
+                }
             }
             result.onSuccess { loadStats() }
             _uiState.update {
@@ -192,6 +205,31 @@ class UsageViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    /** 清除当前 workspace 的缓存数据并全量重新同步。 */
+    fun clearAndResync() {
+        viewModelScope.launch {
+            val wid = workspaceIdOverride ?: return@launch
+            _uiState.update { it.copy(syncing = true) }
+            val cache = cacheProvider.get()
+            cache.deleteByWorkspaceId(wid)
+            invalidateData()
+            val useCase = syncCommandCodeUseCaseProvider.get()
+            val result = useCase.fullSync()
+            result.onSuccess { loadStats() }
+            _uiState.update {
+                it.copy(
+                    syncing = false,
+                    lastSyncResult = result.getOrNull()?.inserted ?: 0,
+                    lastSyncError = result.exceptionOrNull()?.message
+                )
+            }
+        }
+    }
+
+    private fun invalidateData() {
+        _uiState.value = UsageUiState()
     }
 }
 

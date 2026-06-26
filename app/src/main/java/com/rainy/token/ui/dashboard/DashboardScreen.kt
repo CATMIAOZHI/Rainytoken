@@ -17,14 +17,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -78,6 +80,7 @@ import java.util.Locale
  * 视觉：
  *  - 顶部 TopAppBar 透明 + 渐变背景
  *  - 下拉刷新（PullToRefresh）触发 DashboardViewModel.refresh()
+ *  - 顶栏刷新按钮亦可触发
  *  - 卡片：白底圆角 + 左侧服务图标 + 中间余额大数字 + 右侧状态 chip
  *  - 卡片底部展示"更新于 X 分钟前"或错误信息
  *  - 主数字加粗超大，视觉锚点
@@ -88,6 +91,7 @@ fun DashboardScreen(
     onOpenSettings: () -> Unit,
     onOpenService: (ServiceType) -> Unit,
     onOpenUsageDetail: () -> Unit,
+    onOpenCcgoUsageDetail: () -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -186,26 +190,30 @@ fun DashboardScreen(
                     CircularProgressIndicator(color = StrawberryPink)
                 }
             } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(16.dp),
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     // 用量统计卡片（主页面，独立 ViewModel）
-                    item { UsageStatsCard(onOpenDetail = onOpenUsageDetail, refreshTrigger = usageSyncTrigger) }
+                    UsageStatsCard(onOpenDetail = onOpenUsageDetail, refreshTrigger = usageSyncTrigger)
+                    // CommandCode Go 用量统计卡片（风格完全一致）
+                    CommandCodeUsageStatsCard(onOpenDetail = onOpenCcgoUsageDetail, refreshTrigger = usageSyncTrigger)
                     // 分隔
-                    item {
-                        Text(
-                            text = "服务余额",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = inkMuted(),
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
-                    }
-                    items(uiState.cards, key = { it.service.name }) { card ->
-                        DashboardCard(card = card, onClick = { onOpenService(card.service) })
+                    Text(
+                        text = "服务余额",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = inkMuted(),
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                    uiState.cards.forEach { card ->
+                        DashboardCard(card = card, onClick = { onOpenService(card.service) },
+                            onOpenCcgoUsageDetail = if (card.service == ServiceType.COMMANDCODE_GO) onOpenCcgoUsageDetail else null)
                     }
                     // 底部 footer：填空白 + 提供版本号
-                    item { DashboardFooter() }
+                    DashboardFooter()
                 }
             }
         }
@@ -213,7 +221,7 @@ fun DashboardScreen(
 }
 
 @Composable
-private fun DashboardCard(card: DashboardCardUi, onClick: () -> Unit) {
+private fun DashboardCard(card: DashboardCardUi, onClick: () -> Unit, onOpenCcgoUsageDetail: (() -> Unit)? = null) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -246,6 +254,21 @@ private fun DashboardCard(card: DashboardCardUi, onClick: () -> Unit) {
 
             // ─── 主体：服务特定的主信息 ───
             BalanceMainArea(card)
+
+            // CCGO 卡片底部：用量详情入口（仅当有凭证且非 CCGO 未配置状态时显示）
+            if (onOpenCcgoUsageDetail != null && card.credentialState != com.rainy.token.domain.model.CredentialStatus.State.NOT_CONFIGURED) {
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(onClick = onOpenCcgoUsageDetail) {
+                    Text("查看用量详情", color = StrawberryPink)
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Icon(
+                        imageVector = Icons.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = StrawberryPink,
+                        modifier = Modifier.padding(top = 1.dp)
+                    )
+                }
+            }
 
             // ─── 底部：更新时间 / 错误信息 ───
             Spacer(modifier = Modifier.height(12.dp))

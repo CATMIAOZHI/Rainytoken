@@ -2,9 +2,9 @@
 
 ## 项目概述
 
-Android（Jetpack Compose + Kotlin）APP，统一查询 DeepSeek、OpenCode Go 两项服务的余额/配额。
+Android（Jetpack Compose + Kotlin）APP，统一查询 DeepSeek、OpenCode Go、CommandCode Go 三项服务的余额/配额。
 DeepSeek 走 REST API，OpenCode Go 通过 OkHttp 抓取 dashboard HTML 解析 SSR hydration 数据。
-APP 名为「雨晴Token」（粉色调品牌），配套桌面小组件。
+CommandCode Go 走 JSON API 抓取用量数据。APP 名为「雨晴Token」（粉色调品牌），配套桌面小组件。
 
 ## 技术栈
 
@@ -21,20 +21,43 @@ APP 名为「雨晴Token」（粉色调品牌），配套桌面小组件。
 **服务**：
 - ✅ DeepSeek — REST API `GET /user/balance`，API Key 认证
 - ✅ OpenCode Go — OkHttp 抓 dashboard HTML，解析 `rollingUsage`/`weeklyUsage`/`monthlyUsage`
+- ✅ CommandCode Go — JSON API 抓取用量数据，`CommandCodeUsageRepository` 解析（workspaceId = `"commandcode"`）
 - ❌ OpenCode Zen / 小米 MiMo — 未实现
 
 **用量统计系统**：
 - ✅ `UsageCache`（DataStore，~3700 条记录）— 全量 JSON 序列化 + 内存缓存（`@Volatile cachedAll`），仅在写入后失效
-- ✅ `SyncUsageUseCase` — 首次全量同步（cursor 翻页）、增量同步（逐页比对本地 ID 集合）
+- ✅ `SyncUsageUseCase`（OCGO）/ `SyncCommandCodeUsageUseCase`（CCGO） — 首次全量同步（cursor 翻页）、增量同步（逐页比对本地 ID 集合）
 - ✅ `UsageViewModel` — `loadStatsInternal()` 单次 `getRecords()`→ 内存聚合 Overview/ModelStats/DailyStats，所有重操作包在 `withContext(Dispatchers.Default)` 避免主线程卡顿
 - ✅ `UsageChartViewModel` — 图表粒度（5h/24h/今天/昨天/7天/当月/自定义日/月/范围），模型多选，3 张 Canvas 图表
 - ✅ `UsageDataViewModel` — 原始记录分页浏览（20条/页），支持时间+模型筛选，页码输入跳转
 - ✅ 全局刷新绑定 — Dashboard 下拉刷新 → `DashboardViewModel.refresh()` → `UsageViewModel.sync()`（增量）
 
+**ViewModel 加载机制红线**：
+
+> ⚠️ 三个 ViewModel 的 `init` 块**已移除**，不再自动加载。数据加载由 Composable 层的 `LaunchedEffect(Unit)` 显式触发：
+> - OCGO 页面：`LaunchedEffect(Unit) { viewModel.load() / loadStats() / loadData() }`
+> - CCGO 页面：`LaunchedEffect(Unit) { viewModel.setWorkspace(wid) }`（`setWorkspace` 内部调 `load()`）
+> - CCGO 页面通过 `autoLoad = false` 参数跳过 Screen 内的 `LaunchedEffect` 重复 load
+>
+> 原因：`init` 自动加载时 `workspaceIdOverride` 为 null，协程读到 OCGO 凭据，导致 CCGO 页面闪现 OCGO 数据。
+
+**hiltViewModel key 红线**：
+
+> ⚠️ `hiltViewModel(key = key)` 的 key 在 ViewModelStore 内全局唯一、不区分类型。
+> CCGO 路由中 `UsageChartViewModel` 和 `UsageViewModel` 用相同 key 会导致类型碰撞、加载失败。
+> 当前方案：`chartVm` 用 `"ccgo_chart_$wid"`，`usageVm` 用 `"ccgo_$wid"`（与 Dashboard 首页 `CommandCodeUsageStatsCard` 共享实例）。
+
+**首页布局**：
+
+> Dashboard 使用 `PullToRefreshBox` → `Column` + `verticalScroll`（非 `LazyColumn`）。
+> 页面仅 7 个 item，`LazyColumn` 的 dispose/recompose 会导致用量卡片的 `LaunchedEffect` 反复触发，产生卡顿。
+
 **页面导航**：
 ```
-Dashboard → UsageDetail（图表） → UsageOverview（总统计）
-                 ↘ UsageData（原始数据）
+Dashboard → OCGO: UsageDetail（图表） → UsageOverview（总统计）
+                          ↘ UsageData（原始数据）
+          → CCGO: CCGO_USAGE_DETAIL（图表） → CCGO_USAGE_OVERVIEW（总统计）
+                                        ↘ CCGO_USAGE_DATA（原始数据）
 ```
 
 **桌面小组件（Widget）**：
@@ -77,10 +100,19 @@ DashboardViewModel.refresh()
   → OpenCodeGoWidgetProvider.notifyDataChanged(context)
 
 Dashboard 下拉刷新 → usageSyncTrigger++ → UsageViewModel.sync()
-  → SyncUsageUseCase.fullSync() / incrementalSync()
+  → OCGO: SyncUsageUseCase.fullSync() / incrementalSync()
     → OpenCodeUsageRepository.fetchPage(cursor) 逐页抓取
     → UsageCache.insertAll() → persist() → invalidateCache()
+  → CCGO: SyncCommandCodeUsageUseCase.fullSync() / incrementalSync()
+    → CommandCodeUsageRepository.fetchPage(cursor) 逐页抓取
   → UsageViewModel.loadStats() → getRecords() → 内存聚合
+
+CCGO 清除按钮（详情页顶栏）：
+  点击 → AlertDialog 警告弹窗 → 3s 倒计时确认
+  → UsageViewModel.clearAndResync()
+    → UsageCache.deleteByWorkspaceId("commandcode")
+    → SyncCommandCodeUsageUseCase.fullSync()
+    → loadStats() → onBack()
 
 Widget 刷新按钮：
   ↻ → PendingIntent.getBroadcast() → WidgetRefreshReceiver

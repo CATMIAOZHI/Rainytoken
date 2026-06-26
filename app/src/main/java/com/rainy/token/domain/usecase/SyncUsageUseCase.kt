@@ -83,7 +83,10 @@ data class SyncResult(
 )
 
 sealed class SyncError : Exception() {
-    class PartialSync(val inserted: Int, val errors: List<String>) : SyncError() {
-        override val message: String = "部分同步完成：插入 $inserted 条，${errors.size} 页失败"
-    }
+class PartialSync(val inserted: Int, val errors: List<String>) : SyncError() {
+override val message: String = buildString {
+append("部分同步完成：插入 ${inserted}条，${errors.size}页失败")
+if (errors.isNotEmpty()) append("。${errors.first().take(200)}")
+}
+}
 }

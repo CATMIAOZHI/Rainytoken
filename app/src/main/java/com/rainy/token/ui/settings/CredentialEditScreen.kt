@@ -109,13 +109,25 @@ fun CredentialEditScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 if (uiState.isApiKeyService) {
-            ApiKeyForm(
-                apiKey = uiState.apiKey,
-                hasExisting = uiState.hasExisting,
-                onApiKeyChange = viewModel::updateApiKey,
-                onSave = viewModel::saveApiKey,
-                onTestAndSave = viewModel::testAndSaveApiKey
-            )
+                if (service == ServiceType.COMMANDCODE_GO) {
+                    CommandCodeGoForm(
+                        apiKey = uiState.apiKey,
+                        cookieInput = uiState.cookieInput,
+                        hasExisting = uiState.hasExisting,
+                        onApiKeyChange = viewModel::updateApiKey,
+                        onCookieChange = viewModel::updateCookieInput,
+                        onSave = viewModel::saveCommandCodeGoCredential,
+                        onTestAndSave = viewModel::testAndSaveCommandCodeGo
+                    )
+                } else {
+                    ApiKeyForm(
+                        apiKey = uiState.apiKey,
+                        hasExisting = uiState.hasExisting,
+                        onApiKeyChange = viewModel::updateApiKey,
+                        onSave = viewModel::saveApiKey,
+                        onTestAndSave = viewModel::testAndSaveApiKey
+                    )
+                }
                 } else {
                     // OpenCode Go：用户粘贴 auth cookie + workspaceId（自动抓取）
                         if (service == ServiceType.OPENCODE_GO) {
@@ -280,6 +292,52 @@ private fun OpenCodeGoForm(
     }
     TextButton(onClick = onCopyLoginUrl, modifier = Modifier.fillMaxWidth()) {
         Text(text = "复制登录 URL 到剪贴板")
+    }
+}
+
+@Composable
+private fun CommandCodeGoForm(
+    apiKey: String,
+    cookieInput: String,
+    hasExisting: Boolean,
+    onApiKeyChange: (String) -> Unit,
+    onCookieChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onTestAndSave: () -> Unit
+) {
+    Text(text = "CommandCode Go 凭据", style = MaterialTheme.typography.titleMedium)
+    Text(
+        text = "需要 API Key（拉余额）。Session Cookie（可选）在浏览器 DevTools 复制，用于拉用量记录。不填也可正常查看余额。",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline
+    )
+    OutlinedTextField(
+        value = apiKey,
+        onValueChange = onApiKeyChange,
+        label = { Text("API Key") },
+        placeholder = { Text("从 Studio → API Keys 生成") },
+        singleLine = true,
+        visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Password),
+        modifier = Modifier.fillMaxWidth()
+    )
+    OutlinedTextField(
+        value = cookieInput,
+        onValueChange = onCookieChange,
+        label = { Text("Session Cookie") },
+        placeholder = { Text("Secure-commandcode_prod_.session_token=xxx; Secure-commandcode_prod_.session_data=xxx") },
+        modifier = Modifier.fillMaxWidth(),
+        minLines = 2
+    )
+    Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) {
+        Text(if (hasExisting) "更新凭据" else "保存凭据")
+    }
+    OutlinedButton(
+        onClick = onTestAndSave,
+        modifier = Modifier.fillMaxWidth(),
+        enabled = apiKey.isNotBlank()
+    ) {
+        Text(text = "测试并保存")
     }
 }
 

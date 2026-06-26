@@ -29,14 +29,25 @@ class UsageChartViewModel @Inject constructor(
     private val _state = MutableStateFlow(ChartUiState())
     val state: StateFlow<ChartUiState> = _state.asStateFlow()
 
+    private var workspaceIdOverride: String? = null
+    private var loadGeneration = 0  // 递增：过时的 load() 结果自动丢弃
+
+    /** 覆盖 workspaceId，用于 CCGO 等非 OCGO 服务。必须在 load() 前调用。 */
+    fun setWorkspace(wid: String) {
+        workspaceIdOverride = wid
+        loadGeneration++
+        // 先清空数据防止 init 自动加载的 OCGO 数据闪一下
+        _state.value = ChartUiState()
+        load()
+    }
+
     private suspend fun workspaceId(): String? {
+        workspaceIdOverride?.let { return it }
         val c = credentialRepository.get(ServiceType.OPENCODE_GO)
         return (c as? Credential.SessionCredential)?.workspaceId?.takeIf { it.isNotBlank() }
     }
 
-    init {
-        load()
-    }
+    // 不在 init 自动加载，由 Composable 层显式触发 load()（OCGO）或 setWorkspace()（CCGO）
 
     fun setGranularity(g: ChartGranularity) {
         _state.update { it.copy(granularity = g) }
@@ -65,6 +76,7 @@ class UsageChartViewModel @Inject constructor(
     fun load() {
         viewModelScope.launch {
             val wid = workspaceId() ?: return@launch
+            val genAtStart = loadGeneration
             val cache = cacheProvider.get()
             val allModels = cache.getDistinctModels(wid)
 
@@ -95,6 +107,9 @@ class UsageChartViewModel @Inject constructor(
             // 最近5小时只保留最后5个桶
             val result = if (_state.value.granularity == ChartGranularity.LAST_5H_HOURLY)
                 filled.takeLast(5) else filled
+
+            // 如果 loadGeneration 已经变化（setWorkspace 被调用），丢弃这次结果
+            if (loadGeneration != genAtStart) return@launch
 
             _state.update {
                 it.copy(

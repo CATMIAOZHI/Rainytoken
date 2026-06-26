@@ -77,7 +77,17 @@ class UsageCache(
         return loadAll().map { it.id }.toSet()
     }
 
+    /** 按 workspaceId 删除所有记录。用于修复旧数据格式问题后重新全量同步。 */
+    suspend fun deleteByWorkspaceId(workspaceId: String) {
+        val current = loadAll().toMutableList()
+        val removed = current.removeAll { it.workspaceId == workspaceId }
+        if (removed) persist(current)
+    }
+
     suspend fun count(): Int = loadAll().size
+
+    /** 按 workspaceId 统计记录数。 */
+    suspend fun count(workspaceId: String): Int = loadAll().count { it.workspaceId == workspaceId }
 
     /** 获取过滤后的原始记录列表（供图表等聚合使用） */
     suspend fun getRecords(

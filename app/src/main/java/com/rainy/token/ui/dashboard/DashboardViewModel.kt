@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.rainy.token.data.cache.BalanceCache
 import com.rainy.token.data.cache.CachedBalance
 import com.rainy.token.data.repository.CredentialRepository
+import com.rainy.token.domain.model.Credential
 import com.rainy.token.domain.model.CredentialStatus
 import com.rainy.token.domain.model.ServiceBalance
 import com.rainy.token.domain.service.ServiceType

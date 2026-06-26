@@ -19,3 +19,4 @@ release.jks
 .operit/
 .kotlin/
 *.jks
+tmp_cc/

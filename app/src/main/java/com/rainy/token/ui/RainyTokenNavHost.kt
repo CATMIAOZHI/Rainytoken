@@ -1,6 +1,8 @@
 package com.rainy.token.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -8,9 +10,12 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.rainy.token.domain.service.ServiceType
 import com.rainy.token.ui.dashboard.DashboardScreen
+import com.rainy.token.ui.dashboard.UsageChartViewModel
 import com.rainy.token.ui.dashboard.UsageDataScreen
+import com.rainy.token.ui.dashboard.UsageDataViewModel
 import com.rainy.token.ui.dashboard.UsageDetailScreen
 import com.rainy.token.ui.dashboard.UsageOverviewScreen
+import com.rainy.token.ui.dashboard.UsageViewModel
 import com.rainy.token.ui.servicedetail.ServiceDetailScreen
 import com.rainy.token.ui.settings.CredentialEditScreen
 import com.rainy.token.ui.settings.SettingsScreen
@@ -33,6 +38,9 @@ object Routes {
     const val USAGE_DETAIL = "usage_detail"
     const val USAGE_OVERVIEW = "usage_overview"
     const val USAGE_DATA = "usage_data"
+    const val CCGO_USAGE_DETAIL = "ccgo_usage_detail"
+    const val CCGO_USAGE_OVERVIEW = "ccgo_usage_overview"
+    const val CCGO_USAGE_DATA = "ccgo_usage_data"
 }
 
 private fun parseServiceType(typeName: String?): ServiceType =
@@ -40,7 +48,7 @@ private fun parseServiceType(typeName: String?): ServiceType =
         ServiceType.fromStorageKey(it) ?: runCatching { ServiceType.valueOf(it) }.getOrNull()
     } ?: ServiceType.DEEPSEEK
 
-@Composable
+    @Composable
 fun RainyTokenNavHost() {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = Routes.DASHBOARD) {
@@ -48,7 +56,8 @@ fun RainyTokenNavHost() {
             DashboardScreen(
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                 onOpenService = { type -> navController.navigate(Routes.serviceDetail(type)) },
-                onOpenUsageDetail = { navController.navigate(Routes.USAGE_DETAIL) }
+                onOpenUsageDetail = { navController.navigate(Routes.USAGE_DETAIL) },
+                onOpenCcgoUsageDetail = { navController.navigate(Routes.CCGO_USAGE_DETAIL) }
             )
         }
         composable(Routes.USAGE_DETAIL) {
@@ -66,6 +75,45 @@ fun RainyTokenNavHost() {
         composable(Routes.USAGE_DATA) {
             UsageDataScreen(
                 onBack = { navController.popBackStack() }
+            )
+        }
+        // CCGO 用量详情 — 隔离实例通过 key 参数标记 workspaceId
+        composable(Routes.CCGO_USAGE_DETAIL) {
+            val wid = com.rainy.token.data.repository.CommandCodeUsageRepository.CCGO_WORKSPACE_ID
+            val chartVm: UsageChartViewModel = hiltViewModel(key = "ccgo_chart_$wid")
+            val usageVm: UsageViewModel = hiltViewModel(key = "ccgo_$wid")
+            LaunchedEffect(Unit) {
+                usageVm.setWorkspace(wid)
+                chartVm.setWorkspace(wid)
+            }
+            UsageDetailScreen(
+                onBack = { navController.popBackStack() },
+                onOpenOverview = { navController.navigate(Routes.CCGO_USAGE_OVERVIEW) },
+                onOpenData = { navController.navigate(Routes.CCGO_USAGE_DATA) },
+                viewModel = chartVm,
+                clearViewModel = usageVm
+            )
+        }
+        composable(Routes.CCGO_USAGE_OVERVIEW) {
+            val wid = com.rainy.token.data.repository.CommandCodeUsageRepository.CCGO_WORKSPACE_ID
+            val key = "ccgo_$wid"
+            val ovVm: UsageViewModel = hiltViewModel(key = key)
+            LaunchedEffect(Unit) { ovVm.setWorkspace(wid) }
+            UsageOverviewScreen(
+                onBack = { navController.popBackStack() },
+                viewModel = ovVm,
+                autoLoad = false
+            )
+        }
+        composable(Routes.CCGO_USAGE_DATA) {
+            val wid = com.rainy.token.data.repository.CommandCodeUsageRepository.CCGO_WORKSPACE_ID
+            val key = "ccgo_$wid"
+            val dataVm: UsageDataViewModel = hiltViewModel(key = key)
+            LaunchedEffect(Unit) { dataVm.setWorkspace(wid) }
+            UsageDataScreen(
+                onBack = { navController.popBackStack() },
+                viewModel = dataVm,
+                autoLoad = false
             )
         }
         composable(Routes.SETTINGS) {

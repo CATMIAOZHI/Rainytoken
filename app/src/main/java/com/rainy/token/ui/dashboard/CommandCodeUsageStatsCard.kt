@@ -34,22 +34,23 @@ import com.rainy.token.ui.theme.StrawberryPink
 import java.util.Locale
 
 /**
- * 用量统计主卡片 —— 精简版。
+ * CommandCode Go 用量统计主卡片 —— 风格与 UsageStatsCard（OCGO）完全一致。
  * 仅展示核心指标：输入 Token（含 Cache）、输出 Token、总花费，
- * 外加同步按钮和"查看详情"入口。详细统计在 UsageDetailScreen。
+ * 外加同步按钮和"查看详情"入口。详细统计在 CCGO 专属详情页。
  */
 @Composable
-fun UsageStatsCard(
+fun CommandCodeUsageStatsCard(
     onOpenDetail: () -> Unit,
-    refreshTrigger: Int = 0,
-    viewModel: UsageViewModel = hiltViewModel()
+    refreshTrigger: Int = 0
 ) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-
-    // OCGO 首次加载（init 不再自动加载）
+    val wid = com.rainy.token.data.repository.CommandCodeUsageRepository.CCGO_WORKSPACE_ID
+    val key = "ccgo_$wid"
+    val viewModel: UsageViewModel = hiltViewModel(key = key)
+    // 初始化 workspace，后续刷新自动走 CCGO 的 sync use case
     LaunchedEffect(Unit) {
-        viewModel.loadStats()
+        viewModel.setWorkspace(wid)
     }
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     // 全局刷新触发用量同步（跳过首次 0）
     LaunchedEffect(refreshTrigger) {
@@ -67,7 +68,7 @@ fun UsageStatsCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "OpenCode 用量",
+                        text = "CommandCode 用量",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -166,6 +167,7 @@ fun UsageStatsCard(
                     color = MaterialTheme.colorScheme.error
                 )
             }
+
         }
     }
 }

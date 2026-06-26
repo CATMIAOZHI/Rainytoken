@@ -27,22 +27,36 @@ class UsageDataViewModel @Inject constructor(
     private val _state = MutableStateFlow(UsageDataState())
     val state: StateFlow<UsageDataState> = _state.asStateFlow()
 
-    init {
-        loadModelsAndData()
+    private var workspaceIdOverride: String? = null
+    private var loadGeneration = 0
+
+    /** 覆盖 workspaceId，用于 CCGO 等非 OCGO 服务。必须在 loadModelsAndData() 前调用。 */
+    fun setWorkspace(wid: String) {
+        workspaceIdOverride = wid
+        loadGeneration++
+        // 先清空数据防止 init 自动加载的 OCGO 数据闪一下
+        _state.value = UsageDataState()
+        loadData()
     }
+
+    // 不在 init 自动加载，由 Composable 层显式触发 loadData()（OCGO）或 setWorkspace()（CCGO）
 
     private fun loadModelsAndData() {
         viewModelScope.launch {
             val wid = workspaceId() ?: return@launch
+            val genAtStart = loadGeneration
             val cache = cacheProvider.get()
             val models = cache.getDistinctModels(wid)
             _state.update { it.copy(allModels = models) }
+            // 如果 loadGeneration 已经变化，丢弃这次结果
+            if (loadGeneration != genAtStart) return@launch
             // 紧接着加载数据
             loadDataInternal(cache, wid)
         }
     }
 
     private suspend fun workspaceId(): String? {
+        workspaceIdOverride?.let { return it }
         val c = credentialRepository.get(ServiceType.OPENCODE_GO)
         return (c as? Credential.SessionCredential)?.workspaceId?.takeIf { it.isNotBlank() }
     }
@@ -51,8 +65,11 @@ class UsageDataViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(loading = true) }
             val wid = workspaceId() ?: return@launch
+            val genAtStart = loadGeneration
             val cache = cacheProvider.get()
             loadDataInternal(cache, wid)
+            // 如果 loadGeneration 已经变化，丢弃这次结果
+            if (loadGeneration != genAtStart) return@launch
         }
     }
 

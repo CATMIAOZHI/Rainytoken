@@ -65,7 +65,11 @@ class CredentialEditViewModel @Inject constructor(
             val existing = credentialRepository.get(type)
             _uiState.update {
                 it.copy(
-                    apiKey = if (existing is Credential.ApiKeyCredential) existing.key else "",
+                    apiKey = when (existing) {
+                        is Credential.ApiKeyCredential -> existing.key
+                        is Credential.SessionCredential -> existing.token.orEmpty()
+                        else -> ""
+                    },
                     cookieInput = if (existing is Credential.SessionCredential) {
                         existing.cookies.joinToString("; ") { c -> "${c.name}=${c.value}" }
                     } else "",
@@ -268,6 +272,94 @@ class CredentialEditViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 保存 CommandCode Go 的 API Key + session cookie。
+     * API Key 存 token 字段，cookie 字符串解析后存 cookies 列表。
+     */
+    fun saveCommandCodeGoCredential() {
+        val type = serviceType ?: return
+        val current = _uiState.value
+        val trimmedKey = current.apiKey.trim()
+        if (trimmedKey.isBlank()) {
+            _uiState.update { it.copy(message = "API Key 不能为空") }
+            return
+        }
+        val cookies = if (current.cookieInput.isNotBlank()) {
+            parseCookieString(current.cookieInput)
+        } else emptyList()
+
+        viewModelScope.launch {
+            val existing = credentialRepository.get(type) as? Credential.SessionCredential
+            val updated = (existing ?: Credential.SessionCredential(
+                service = type,
+                cookies = cookies,
+                token = trimmedKey
+            )).copy(
+                cookies = cookies,
+                token = trimmedKey,
+                lastVerifiedAt = System.currentTimeMillis()
+            )
+            credentialRepository.save(updated)
+            _uiState.update {
+                it.copy(
+                    apiKey = trimmedKey,
+                    message = "已保存凭据",
+                    hasExisting = true,
+                    cookieCount = cookies.size
+                )
+            }
+        }
+    }
+
+    /**
+     * 保存并测试 CommandCode Go 连通性。
+     */
+    fun testAndSaveCommandCodeGo() {
+        val type = serviceType ?: return
+        val current = _uiState.value
+        val trimmedKey = current.apiKey.trim()
+        if (trimmedKey.isBlank()) {
+            _uiState.update { it.copy(message = "API Key 不能为空") }
+            return
+        }
+        viewModelScope.launch {
+            // 先落盘
+            val cookies = if (current.cookieInput.isNotBlank()) {
+                parseCookieString(current.cookieInput)
+            } else emptyList()
+            val existing = credentialRepository.get(type) as? Credential.SessionCredential
+            val updated = (existing ?: Credential.SessionCredential(
+                service = type, cookies = cookies, token = trimmedKey
+            )).copy(cookies = cookies, token = trimmedKey, lastVerifiedAt = System.currentTimeMillis())
+            credentialRepository.save(updated)
+            _uiState.update { it.copy(apiKey = trimmedKey) }
+
+            val result = refreshBalanceUseCaseProvider.get().invoke(type)
+            result.fold(
+                onSuccess = { bal ->
+                    _uiState.update {
+                        it.copy(
+                            message = "连接成功！余额: \$${String.format(java.util.Locale.US, "%.2f", bal.amount)}",
+                            hasExisting = true
+                        )
+                    }
+                },
+                onFailure = { err ->
+                    val reason = when (err) {
+                        is RepositoryError.InvalidCredential -> "API Key 无效 (401/403)"
+                        is RepositoryError.RateLimited -> "请求过于频繁 (429)"
+                        is RepositoryError.ServerError -> "服务端错误 (${err.code})"
+                        is RepositoryError.Network -> "网络错误：${err.cause?.message ?: "未知"}"
+                        else -> err.message ?: err::class.simpleName ?: "未知错误"
+                    }
+                    _uiState.update {
+                        it.copy(message = "连接失败。$reason", hasExisting = true)
+                    }
+                }
+            )
+        }
+    }
+
     fun deleteCredential() {
         val type = serviceType ?: return
         viewModelScope.launch {
@@ -333,6 +425,7 @@ class CredentialEditViewModel @Inject constructor(
             .mapNotNull { entry ->
                 val parts = entry.trim().split("=", limit = 2)
                 if (parts.size != 2 || parts[0].isBlank() || parts[1].isBlank()) return@mapNotNull null
+                // cookie 值原样存储，不做任何解码（better-auth 签名包含了原始字符）
                 CookieEntry(name = parts[0].trim(), value = parts[1].trim())
             }
     }

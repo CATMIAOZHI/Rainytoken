@@ -30,6 +30,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,9 +57,16 @@ import java.util.Locale
 @Composable
 fun UsageOverviewScreen(
     onBack: () -> Unit,
-    viewModel: UsageViewModel = hiltViewModel()
+    viewModel: UsageViewModel = hiltViewModel(),
+    autoLoad: Boolean = true
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // OCGO 首次加载（CCGO 由 setWorkspace 触发，不重复 load）
+    LaunchedEffect(Unit) {
+        if (autoLoad) viewModel.loadStats()
+    }
+
     var menuExpanded by remember { mutableStateOf(false) }
     var modelMenuExpanded by remember { mutableStateOf(false) }
     var showStartPicker by remember { mutableStateOf(false) }

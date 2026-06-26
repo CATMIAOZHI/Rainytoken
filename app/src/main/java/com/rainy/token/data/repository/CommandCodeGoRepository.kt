@@ -42,12 +42,13 @@ class CommandCodeGoRepository(
         val credential = credentialRepository.get(ServiceType.COMMANDCODE_GO)
             ?: return@withContext Result.failure(RepositoryError.InvalidCredential())
 
-        if (credential !is Credential.ApiKeyCredential) {
+        if (credential !is Credential.SessionCredential) {
             return@withContext Result.failure(RepositoryError.InvalidCredential())
         }
 
-        val apiKey = credential.key
-        if (apiKey.isBlank()) {
+        // token 字段存 API Key
+        val apiKey = credential.token
+        if (apiKey.isNullOrBlank()) {
             return@withContext Result.failure(RepositoryError.InvalidCredential())
         }
 

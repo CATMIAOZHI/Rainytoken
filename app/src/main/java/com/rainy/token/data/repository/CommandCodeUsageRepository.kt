@@ -2,6 +2,7 @@ package com.rainy.token.data.repository
 
 import com.rainy.token.data.local.UsageRecord
 import com.rainy.token.domain.model.Credential
+import com.rainy.token.domain.model.CookieEntry
 import com.rainy.token.domain.service.ServiceType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -41,16 +42,22 @@ class CommandCodeUsageRepository(
         const val PAGE_SIZE = 100
         /** cost / DENOM = USD */
         const val COST_DENOM = 100_000_000L
-        private const val CCGO_WORKSPACE_ID = "commandcode"
+        /** CCGO 用量数据在 UsageCache 中的 workspaceId 区分键 */
+        const val CCGO_WORKSPACE_ID = "commandcode"
     }
 
-    private suspend fun getApiKey(): String {
+    private suspend fun getCookieHeader(): String {
         val c = credentialRepository.get(ServiceType.COMMANDCODE_GO)
             ?: throw RepositoryError.InvalidCredential()
-        if (c !is Credential.ApiKeyCredential || c.key.isBlank()) {
+        if (c !is Credential.SessionCredential) {
             throw RepositoryError.InvalidCredential()
         }
-        return c.key
+        // 优先用 cookies 列表，否则尝试从 authCookie 字段解析
+        if (c.cookies.isNotEmpty()) {
+            return c.cookies.joinToString("; ") { "${it.name}=${it.value}" }
+        }
+        // fallback: 如果用户通过旧版接口存了 authCookie，尝试恢复
+        throw RepositoryError.InvalidCredential()
     }
 
     /**
@@ -60,8 +67,8 @@ class CommandCodeUsageRepository(
      */
     suspend fun fetchPage(cursor: String?): Result<Pair<List<UsageRecord>, String?>> =
         withContext(Dispatchers.IO) {
-            val apiKey = try {
-                getApiKey()
+            val cookieHeader = try {
+                getCookieHeader()
             } catch (e: RepositoryError) {
                 return@withContext Result.failure(e)
             }
@@ -73,7 +80,7 @@ class CommandCodeUsageRepository(
 
             val request = Request.Builder()
                 .url(url)
-                .header("Authorization", "Bearer $apiKey")
+                .header("Cookie", cookieHeader)
                 .header("Accept", "application/json")
                 .header("Origin", "https://commandcode.ai")
                 .header("Referer", "https://commandcode.ai/")
@@ -87,14 +94,18 @@ class CommandCodeUsageRepository(
             }
 
             response.use { resp ->
+                val body = resp.body?.string()
                 if (!resp.isSuccessful) {
                     if (resp.code == 401 || resp.code == 403) {
-                        return@withContext Result.failure(RepositoryError.InvalidCredential())
+                        val detail = if (body != null && body.length < 200) "：$body" else ""
+                        return@withContext Result.failure(RepositoryError.InvalidCredential(
+                            RuntimeException("HTTP ${resp.code}$detail")
+                        ))
                     }
                     return@withContext Result.failure(RepositoryError.ServerError(resp.code))
                 }
 
-                val body = resp.body?.string() ?: return@withContext Result.failure(
+                if (body == null) return@withContext Result.failure(
                     RepositoryError.ParseError("响应体为空")
                 )
 
@@ -141,6 +152,9 @@ class CommandCodeUsageRepository(
         val provider = meta?.get("provider")?.jsonPrimitive?.content ?: ""
         val cacheReadInputTokens = meta?.get("cacheReadInputTokens")?.jsonPrimitive?.content?.toLongOrNull() ?: 0L
 
+        // CCGO 的 tokensIn 是总输入（缓存命中 + 未命中），按 OCGO 惯例拆分为 inputTokens（未命中）和 cacheReadTokens（命中）
+        val inputMissTokens = (tokensIn - cacheReadInputTokens).coerceAtLeast(0)
+
         return UsageRecord(
             id = id,
             workspaceId = CCGO_WORKSPACE_ID,
@@ -148,7 +162,7 @@ class CommandCodeUsageRepository(
             timeUpdated = timeCreated,
             model = model,
             provider = provider,
-            inputTokens = tokensIn,
+            inputTokens = inputMissTokens,
             outputTokens = tokensOut,
             reasoningTokens = 0L,
             cacheReadTokens = cacheReadInputTokens,

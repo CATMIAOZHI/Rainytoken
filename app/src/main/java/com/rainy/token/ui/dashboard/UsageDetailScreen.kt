@@ -33,6 +33,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,9 +66,18 @@ fun UsageDetailScreen(
     onBack: () -> Unit,
     onOpenOverview: () -> Unit,
     onOpenData: () -> Unit = {},
-    viewModel: UsageChartViewModel = hiltViewModel()
+    viewModel: UsageChartViewModel = hiltViewModel(),
+    clearViewModel: UsageViewModel? = null  // non-null = CCGO, 显示清除按钮
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+
+    // OCGO 首次加载（CCGO 由 NavHost 的 setWorkspace 触发，不重复 load）
+    LaunchedEffect(Unit) {
+        if (clearViewModel == null) viewModel.load()
+    }
+
+    var showClearDialog by remember { mutableStateOf(false) }
+    var clearCountdown by remember { mutableStateOf(0) }
     var granularityExpanded by remember { mutableStateOf(false) }
     var modelExpanded by remember { mutableStateOf(false) }
     var showCustomDayPicker by remember { mutableStateOf(false) }
@@ -86,6 +96,11 @@ fun UsageDetailScreen(
                 title = { Text("用量详情") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, "返回") } },
                 actions = {
+                    if (clearViewModel != null) {
+                        TextButton(onClick = { showClearDialog = true }) {
+                            Text("清除", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        }
+                    }
                     TextButton(onClick = onOpenData) {
                         Text("详细数据", color = StrawberryPink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                     }
@@ -215,6 +230,51 @@ fun UsageDetailScreen(
             DetailRow("命中缓存", formatTokenComma(state.buckets.sumOf { it.cacheHitTokens }))
             DetailRow("输入(未命中)", formatTokenComma(state.buckets.sumOf { it.inputTokens }))
             DetailRow("输出", formatTokenComma(state.buckets.sumOf { it.outputTokens }))
+        }
+        // 清除数据警告弹窗（仅 CCGO）
+        if (showClearDialog && clearViewModel != null) {
+            val cd = clearCountdown
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showClearDialog = false; clearCountdown = 0 },
+                title = { Text("⚠️ 清除数据", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column {
+                        Text("此操作将清除所有 CommandCode 用量本地缓存并重新同步，需要几秒钟完成。")
+                        Spacer(Modifier.height(12.dp))
+                        Text("是否继续？", fontWeight = FontWeight.SemiBold)
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showClearDialog = false
+                            clearCountdown = 0
+                            clearViewModel?.clearAndResync()
+                            onBack()
+                        },
+                        enabled = cd == 0
+                    ) {
+                        Text(
+                            if (cd > 0) "确认（${cd}s）" else "确认清除",
+                            color = if (cd == 0) MaterialTheme.colorScheme.error else InkMuted
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showClearDialog = false; clearCountdown = 0 }) {
+                        Text("取消")
+                    }
+                }
+            )
+            // 倒计时启动
+            LaunchedEffect(showClearDialog) {
+                if (!showClearDialog) return@LaunchedEffect
+                clearCountdown = 3
+                for (i in 3 downTo 1) {
+                    kotlinx.coroutines.delay(1000)
+                    clearCountdown = i - 1
+                }
+            }
         }
     }
 }
