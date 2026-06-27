@@ -25,6 +25,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -38,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -49,6 +53,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rainy.token.data.local.ChartGranularity
 import com.rainy.token.ui.theme.InkMuted
 import com.rainy.token.ui.theme.StrawberryPink
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -88,9 +93,12 @@ fun UsageDetailScreen(
     var showCostDetail by remember { mutableStateOf(false) }
     var showReqDetail by remember { mutableStateOf(false) }
     var showTokenDetail by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         containerColor = Color.Transparent,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("用量详情") },
@@ -139,7 +147,28 @@ fun UsageDetailScreen(
                                 }
                             }
                         }
-                        Text("UTC+0", style = MaterialTheme.typography.bodySmall, color = InkMuted)
+                        TextButton(onClick = {
+                            viewModel.toggleUtc8()
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    if (state.useUtc8) "已切换到 UTC+8，图表按北京时间显示" else "已切换到 UTC+0，图表按世界协调时显示",
+                                    duration = SnackbarDuration.Short
+                                )
+                            }
+                        }) {
+                            Text(
+                                if (state.useUtc8) "UTC+8」" else "UTC+0」",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (state.useUtc8) StrawberryPink else InkMuted,
+                                fontWeight = if (state.useUtc8) FontWeight.SemiBold else FontWeight.Normal
+                            )
+                            Text(
+                                " 点击切换",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = InkMuted.copy(alpha = 0.5f),
+                                fontWeight = FontWeight.Normal
+                            )
+                        }
                         Spacer(Modifier.weight(1f))
                         Box {
                             val label = if (state.selectedModels.isEmpty()) "全部模型" else "${state.selectedModels.size} 个模型"
@@ -175,14 +204,18 @@ fun UsageDetailScreen(
                             { bucket -> models.mapNotNull { if (bucket.byModel[it] != null) it else null } },
                             formatValue = { "$${String.format(Locale.US, "%.4f", it)}" },
                             granularity = state.granularity,
-                            legendItems = models.mapIndexed { idx, m -> m to modelColors[idx % modelColors.size] })
+                            legendItems = models.mapIndexed { idx, m ->
+                                m to modelColors[idx % modelColors.size]
+                            },
+                            useUtc8 = state.useUtc8
+                        )
                     }
                 }
                 // 图表2
                 item {
                     val reqTotal = state.buckets.sumOf { it.totalRequests }
                     ChartCard("API 请求次数", "${reqTotal}次", { showReqDetail = true }) {
-                        LineChart(state.buckets, { it.totalRequests.toFloat() }, StrawberryPink, { "${it.toInt()}次" }, state.granularity)
+                        LineChart(state.buckets, { it.totalRequests.toFloat() }, StrawberryPink, { "${it.toInt()}次" }, state.granularity, useUtc8 = state.useUtc8)
                     }
                 }
                 // 图表3
@@ -193,9 +226,11 @@ fun UsageDetailScreen(
                             { (it.cacheHitTokens + it.inputTokens + it.outputTokens).toDouble() },
                             { bucket -> listOfNotNull(bucket.outputTokens.toDouble() to tokenColors[2], bucket.inputTokens.toDouble() to tokenColors[1], bucket.cacheHitTokens.toDouble() to tokenColors[0]) },
                             { listOf("输出", "输入(未命中)", "命中缓存") },
-                            tooltipReversed = true,
                             formatValue = { formatTokenComma(it.toLong()) },
-                            granularity = state.granularity)
+                            granularity = state.granularity,
+                            tooltipReversed = true,
+                            useUtc8 = state.useUtc8
+                        )
                     }
                     ChartLegend(listOf("输入(未命中)" to tokenColors[1], "命中缓存" to tokenColors[0], "输出" to tokenColors[2]))
                 }

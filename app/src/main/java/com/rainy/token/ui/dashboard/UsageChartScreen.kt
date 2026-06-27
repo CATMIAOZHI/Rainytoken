@@ -455,7 +455,8 @@ internal fun StackedBarChart(
     tooltipReversed: Boolean = false,
     formatValue: (Double) -> String,
     granularity: ChartGranularity,
-    legendItems: List<Pair<String, Color>> = emptyList()
+    legendItems: List<Pair<String, Color>> = emptyList(),
+    useUtc8: Boolean = false
 ) {
     if (buckets.isEmpty()) {
         Text("暂无数据", color = InkMuted, style = MaterialTheme.typography.bodySmall)
@@ -468,7 +469,7 @@ internal fun StackedBarChart(
     val chartHPx = 160f * d
     val labelHPx = 20f * d
 
-    val maxVal = buckets.maxOf { valueSelector(it) }.coerceAtLeast(1.0)
+    val maxVal = buckets.maxOf { valueSelector(it) }.coerceAtLeast(0.0)
     val refTop = niceCeil(maxVal)
     val refHalf = refTop / 2.0
     // 以 refTop 为满刻度，柱子不会触顶
@@ -512,7 +513,7 @@ internal fun StackedBarChart(
                             drawRect(color, Offset(x, yBase - h), Size(barW, h))
                             yBase -= h
                         }
-                        val (label, show) = formatChartTime(bucket.ts, granularity, i, barCount)
+                        val (label, show) = formatChartTime(bucket.ts, granularity, i, barCount, useUtc8)
                         if (show) {
                             drawContext.canvas.nativeCanvas.drawText(
                                 label, x + barW / 2, chartHPx + labelHPx - 4f * d,
@@ -552,7 +553,7 @@ internal fun StackedBarChart(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(Modifier.padding(8.dp)) {
-                        Text(formatChartTime(bucket.ts, granularity, 0, 1).first, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        Text(formatChartTime(bucket.ts, granularity, 0, 1, useUtc8).first, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                         Text("合计: ${formatValue(total)}", style = MaterialTheme.typography.bodySmall, color = StrawberryPink)
                         val labels = stackLabels(bucket)
                         val items = stackSelector(bucket).withIndex()
@@ -584,7 +585,8 @@ internal fun LineChart(
     valueSelector: (ChartBucket) -> Float,
     lineColor: Color,
     formatValue: (Float) -> String,
-    granularity: ChartGranularity
+    granularity: ChartGranularity,
+    useUtc8: Boolean = false
 ) {
     if (buckets.isEmpty()) {
         Text("暂无数据", color = InkMuted, style = MaterialTheme.typography.bodySmall)
@@ -596,7 +598,7 @@ internal fun LineChart(
     val barCount = buckets.size
     val chartHPx = 140f * d
     val labelHPx = 20f * d
-    val maxVal = buckets.maxOf { valueSelector(it) }.coerceAtLeast(1f)
+    val maxVal = buckets.maxOf { valueSelector(it) }.coerceAtLeast(0f)
     val refTop = niceCeil(maxVal.toDouble()).toFloat()
     val refHalf = refTop / 2f
     val scale = refTop
@@ -641,7 +643,7 @@ internal fun LineChart(
                         drawCircle(lineColor, radius = 3f * d, center = p)
                     }
                     buckets.forEachIndexed { i, b ->
-                        val (label, show) = formatChartTime(b.ts, granularity, i, barCount)
+                        val (label, show) = formatChartTime(b.ts, granularity, i, barCount, useUtc8)
                         if (show) {
                             drawContext.canvas.nativeCanvas.drawText(
                                 label, i * barAreaPx + barAreaPx / 2, chartHPx + labelHPx - 4f * d,
@@ -711,34 +713,38 @@ internal fun ChartLegend(items: List<Pair<String, Color>>) {
 // ═══════════════════════════════════════════
 
 /** 返回格式化标签 + 是否应该绘制 */
-private fun formatChartTime(ts: Long, granularity: ChartGranularity, index: Int, total: Int): Pair<String, Boolean> {
-    val show = when (granularity) {
-        ChartGranularity.LAST_24H_HOURLY ->
-            index == 0 || index == total - 1 || index % 3 == 0  // 每3小时
-        ChartGranularity.TODAY_HOURLY,
-        ChartGranularity.YESTERDAY_HOURLY,
-        ChartGranularity.CUSTOM_DAY_HOURLY ->
-            index == 0 || index == total - 1  // 只显示首尾小时
-        ChartGranularity.LAST_7D_DAILY,
-            ChartGranularity.THIS_MONTH_DAILY,
-            ChartGranularity.CUSTOM_MONTH_DAILY,
-            ChartGranularity.CUSTOM_RANGE_DAILY ->
-            index == 0 || index == total - 1  // 只显示首尾日期
-        else -> true  // 5小时全显示
-    }
-    val fmt = when (granularity) {
-        ChartGranularity.LAST_5H_HOURLY,
-        ChartGranularity.LAST_24H_HOURLY,
-        ChartGranularity.TODAY_HOURLY,
-        ChartGranularity.YESTERDAY_HOURLY,
-        ChartGranularity.CUSTOM_DAY_HOURLY -> SimpleDateFormat("HH:mm", Locale.getDefault()).apply {
-            timeZone = java.util.TimeZone.getTimeZone("UTC")
-        }
-        else -> SimpleDateFormat("MM/dd", Locale.getDefault()).apply {
-            timeZone = java.util.TimeZone.getTimeZone("UTC")
-        }
-    }
-    return fmt.format(Date(ts)) to show
+private fun formatChartTime(ts: Long, granularity: ChartGranularity, index: Int, total: Int, useUtc8: Boolean = false): Pair<String, Boolean> {
+val show = when (granularity) {
+ChartGranularity.LAST_12H_10MIN ->
+index == 0 || index == total - 1 || index % 12 == 0  // 每2小时（每12个10分钟桶）
+ChartGranularity.LAST_24H_HOURLY ->
+index == 0 || index == total - 1 || index % 3 == 0  // 每3小时
+ChartGranularity.TODAY_HOURLY,
+ChartGranularity.YESTERDAY_HOURLY,
+ChartGranularity.CUSTOM_DAY_HOURLY ->
+index == 0 || index == total - 1  // 只显示首尾小时
+ChartGranularity.LAST_7D_DAILY,
+ChartGranularity.THIS_MONTH_DAILY,
+ChartGranularity.CUSTOM_MONTH_DAILY,
+ChartGranularity.CUSTOM_RANGE_DAILY ->
+index == 0 || index == total - 1  // 只显示首尾日期
+else -> true  // 5小时全显示
+}
+val tz = if (useUtc8) java.util.TimeZone.getTimeZone("Asia/Shanghai") else java.util.TimeZone.getTimeZone("UTC")
+val fmt = when (granularity) {
+ChartGranularity.LAST_12H_10MIN,
+ChartGranularity.LAST_5H_HOURLY,
+ChartGranularity.LAST_24H_HOURLY,
+ChartGranularity.TODAY_HOURLY,
+ChartGranularity.YESTERDAY_HOURLY,
+ChartGranularity.CUSTOM_DAY_HOURLY -> SimpleDateFormat("HH:mm", Locale.getDefault()).apply {
+timeZone = tz
+}
+else -> SimpleDateFormat("MM/dd", Locale.getDefault()).apply {
+timeZone = tz
+}
+}
+return fmt.format(Date(ts)) to show
 }
 
 private fun formatTokenCount(tokens: Long): String = when {
@@ -760,9 +766,15 @@ private fun niceCeil(v: Double): Double {
     val normalized = v / magnitude // 1..10
     val nice = when {
         normalized <= 1.0 -> 1.0
+        normalized <= 1.15 -> 1.15     // 15% 余量
+        normalized <= 1.25 -> 1.25     // 25% 余量
+        normalized <= 1.5 -> 1.5       // 50% 余量
         normalized <= 2.0 -> 2.0
+        normalized <= 2.5 -> 2.5
         normalized <= 3.0 -> 3.0
+        normalized <= 4.0 -> 4.0
         normalized <= 5.0 -> 5.0
+        normalized <= 7.5 -> 7.5
         else -> 10.0
     }
     return nice * magnitude

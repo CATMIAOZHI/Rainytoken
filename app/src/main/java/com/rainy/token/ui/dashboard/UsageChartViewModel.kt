@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.rainy.token.data.local.ChartAggregator
 import com.rainy.token.data.local.ChartBucket
 import com.rainy.token.data.local.ChartGranularity
+import com.rainy.token.data.local.ChartSettingsStore
 import com.rainy.token.data.local.UsageCache
 import com.rainy.token.data.repository.CredentialRepository
 import com.rainy.token.domain.model.Credential
@@ -23,21 +24,27 @@ import javax.inject.Provider
 @HiltViewModel
 class UsageChartViewModel @Inject constructor(
     private val cacheProvider: Provider<UsageCache>,
-    private val credentialRepository: CredentialRepository
+    private val credentialRepository: CredentialRepository,
+    private val chartSettingsStore: ChartSettingsStore
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(ChartUiState())
+    private val _state = MutableStateFlow(
+        ChartUiState(useUtc8 = chartSettingsStore.getUseUtc8())
+    )
     val state: StateFlow<ChartUiState> = _state.asStateFlow()
 
     private var workspaceIdOverride: String? = null
-    private var loadGeneration = 0  // 递增：过时的 load() 结果自动丢弃
+    private var loadGeneration = 0
+    /** 是否允许自动降级到更大时间窗口（仅初始加载时允许，用户手动选粒度后关闭） */
+    private var allowFallback = true
 
     /** 覆盖 workspaceId，用于 CCGO 等非 OCGO 服务。必须在 load() 前调用。 */
     fun setWorkspace(wid: String) {
         workspaceIdOverride = wid
         loadGeneration++
-        // 先清空数据防止 init 自动加载的 OCGO 数据闪一下
-        _state.value = ChartUiState()
+        allowFallback = true  // CCGO 首次加载也允许降级
+        // 先清空数据防止 init 自动加载的 OCGO 数据闪一下，但保留持久化偏好
+        _state.value = ChartUiState(useUtc8 = _state.value.useUtc8)
         load()
     }
 
@@ -50,6 +57,7 @@ class UsageChartViewModel @Inject constructor(
     // 不在 init 自动加载，由 Composable 层显式触发 load()（OCGO）或 setWorkspace()（CCGO）
 
     fun setGranularity(g: ChartGranularity) {
+        allowFallback = false  // 用户手动选择，关闭自动降级
         _state.update { it.copy(granularity = g) }
         load()
     }
@@ -73,6 +81,14 @@ class UsageChartViewModel @Inject constructor(
         load()
     }
 
+    fun toggleUtc8() {
+        _state.update { it.copy(useUtc8 = !it.useUtc8) }
+        viewModelScope.launch {
+            chartSettingsStore.setUseUtc8(_state.value.useUtc8)
+        }
+        load()
+    }
+
     fun load() {
         viewModelScope.launch {
             val wid = workspaceId() ?: return@launch
@@ -88,18 +104,21 @@ class UsageChartViewModel @Inject constructor(
             val filtered = if (selected.isEmpty()) records
             else records.filter { it.model in selected }
 
+            val offsetHours = if (_state.value.useUtc8) 8 else 0
             val buckets = when (_state.value.granularity) {
+                ChartGranularity.LAST_12H_10MIN ->
+                    ChartAggregator.aggregate10Min(filtered, offsetHours)
                 ChartGranularity.LAST_5H_HOURLY,
                 ChartGranularity.LAST_24H_HOURLY,
                 ChartGranularity.TODAY_HOURLY,
                 ChartGranularity.YESTERDAY_HOURLY,
                 ChartGranularity.CUSTOM_DAY_HOURLY ->
-                    ChartAggregator.aggregateHourly(filtered)
+                    ChartAggregator.aggregateHourly(filtered, offsetHours)
                 ChartGranularity.THIS_MONTH_DAILY,
                 ChartGranularity.LAST_7D_DAILY,
                 ChartGranularity.CUSTOM_MONTH_DAILY,
                 ChartGranularity.CUSTOM_RANGE_DAILY ->
-                    ChartAggregator.aggregateDaily(filtered)
+                    ChartAggregator.aggregateDaily(filtered, offsetHours)
             }
 
             // 填充可能空缺的小时/天桶
@@ -110,6 +129,24 @@ class UsageChartViewModel @Inject constructor(
 
             // 如果 loadGeneration 已经变化（setWorkspace 被调用），丢弃这次结果
             if (loadGeneration != genAtStart) return@launch
+
+            // 自动降级：当前粒度无实际数据且允许降级 → 尝试更大窗口
+            val hasData = result.any { it.totalRequests > 0 }
+            if (allowFallback && !hasData) {
+                val fallbackTo = when (_state.value.granularity) {
+                    ChartGranularity.LAST_5H_HOURLY -> ChartGranularity.LAST_12H_10MIN
+                    ChartGranularity.LAST_12H_10MIN -> ChartGranularity.LAST_7D_DAILY
+                    ChartGranularity.LAST_7D_DAILY -> ChartGranularity.THIS_MONTH_DAILY
+                    else -> null
+                }
+                if (fallbackTo != null) {
+                    _state.update { it.copy(granularity = fallbackTo) }
+                    load()  // 递归重新加载
+                    return@launch
+                }
+            }
+            // 降级后或用户手动选择 → 关闭降级，正常显示
+            allowFallback = false
 
             _state.update {
                 it.copy(
@@ -145,10 +182,12 @@ class UsageChartViewModel @Inject constructor(
 
     private fun timeRangeFor(g: ChartGranularity): Pair<Long?, Long?> {
         val now = System.currentTimeMillis()
-        val utc = ZoneOffset.UTC
-        val today = Instant.ofEpochMilli(now).atOffset(utc).toLocalDate()
-        val todayMidnight = today.atStartOfDay(utc).toInstant().toEpochMilli()
+        val useUtc8 = _state.value.useUtc8
+        val zoneOffset = if (useUtc8) ZoneOffset.ofHours(8) else ZoneOffset.UTC
+        val today = Instant.ofEpochMilli(now).atOffset(zoneOffset).toLocalDate()
+        val todayMidnight = today.atStartOfDay(zoneOffset).toInstant().toEpochMilli()
         return when (g) {
+            ChartGranularity.LAST_12H_10MIN -> now - 12 * 3600_000L to null
             ChartGranularity.LAST_5H_HOURLY -> now - 5 * 3600_000L to null
             ChartGranularity.LAST_24H_HOURLY -> now - 24 * 3600_000L to null
             ChartGranularity.TODAY_HOURLY -> todayMidnight to todayMidnight + 86400_000L - 1
@@ -161,19 +200,19 @@ class UsageChartViewModel @Inject constructor(
                 else _customDayRange.first to _customDayRange.second
             }
             ChartGranularity.THIS_MONTH_DAILY -> {
-                val firstOfMonth = today.withDayOfMonth(1).atStartOfDay(utc).toInstant().toEpochMilli()
+                val firstOfMonth = today.withDayOfMonth(1).atStartOfDay(zoneOffset).toInstant().toEpochMilli()
                 val lastOfMonth = today.withDayOfMonth(today.lengthOfMonth())
-                    .atStartOfDay(utc).toInstant().toEpochMilli() + 86400_000L - 1
+                    .atStartOfDay(zoneOffset).toInstant().toEpochMilli() + 86400_000L - 1
                 firstOfMonth to lastOfMonth
             }
             ChartGranularity.CUSTOM_MONTH_DAILY -> {
                 if (_customMonthStart == 0L) null to null
                 else {
-                    val targetMonth = Instant.ofEpochMilli(_customMonthStart).atOffset(utc).toLocalDate()
+                    val targetMonth = Instant.ofEpochMilli(_customMonthStart).atOffset(zoneOffset).toLocalDate()
                         .withDayOfMonth(1)
-                    val firstOfMonth = targetMonth.atStartOfDay(utc).toInstant().toEpochMilli()
+                    val firstOfMonth = targetMonth.atStartOfDay(zoneOffset).toInstant().toEpochMilli()
                     val lastOfMonth = targetMonth.withDayOfMonth(targetMonth.lengthOfMonth())
-                        .atStartOfDay(utc).toInstant().toEpochMilli() + 86400_000L - 1
+                        .atStartOfDay(zoneOffset).toInstant().toEpochMilli() + 86400_000L - 1
                     firstOfMonth to lastOfMonth
                 }
             }
@@ -192,6 +231,7 @@ class UsageChartViewModel @Inject constructor(
     ): List<ChartBucket> {
         if (buckets.isEmpty() || from == null) return buckets
         val interval = when (granularity) {
+            ChartGranularity.LAST_12H_10MIN -> 600_000L  // 10分钟
             ChartGranularity.LAST_5H_HOURLY,
             ChartGranularity.LAST_24H_HOURLY,
             ChartGranularity.TODAY_HOURLY,
@@ -202,7 +242,9 @@ class UsageChartViewModel @Inject constructor(
         val end = to ?: (System.currentTimeMillis() / interval * interval)
         val result = mutableListOf<ChartBucket>()
         val map = buckets.associateBy { it.ts }
-        var t = from / interval * interval
+        // 日粒度：from 已由 timeRangeFor 按当前时区对齐到午夜，直接用
+        // 小时粒度：from 是滑动窗口起点，需截断到 interval 边界
+        var t = if (interval == 86_400_000L) from else from / interval * interval
         while (t <= end) {
             result.add(map[t] ?: ChartBucket(ts = t, totalCost = 0, totalRequests = 0,
                 inputTokens = 0, cacheHitTokens = 0, outputTokens = 0))
@@ -217,5 +259,6 @@ data class ChartUiState(
     val granularity: ChartGranularity = ChartGranularity.LAST_5H_HOURLY,
     val allModels: List<String> = emptyList(),
     val selectedModels: Set<String> = emptySet(), // empty = all
-    val buckets: List<ChartBucket> = emptyList()
+    val buckets: List<ChartBucket> = emptyList(),
+    val useUtc8: Boolean = false
 )

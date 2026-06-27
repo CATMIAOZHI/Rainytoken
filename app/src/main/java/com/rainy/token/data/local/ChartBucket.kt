@@ -1,5 +1,8 @@
 package com.rainy.token.data.local
 
+import java.time.Instant
+import java.time.ZoneOffset
+
 /**
  * 图表数据点——按时间桶聚合后的单条数据。
  */
@@ -25,6 +28,7 @@ data class ModelBucket(
 /** 时间粒度 */
 enum class ChartGranularity(val label: String) {
     LAST_5H_HOURLY("最近5小时"),
+    LAST_12H_10MIN("最近12小时"),
     LAST_24H_HOURLY("最近24小时"),
     TODAY_HOURLY("今天"),
     YESTERDAY_HOURLY("昨天"),
@@ -39,23 +43,59 @@ enum class ChartGranularity(val label: String) {
 object ChartAggregator {
 
     /**
-     * 按小时聚合（用于5小时/当天）。
-     * hourStart = timeCreated / 3600_000 * 3600_000
+     * 按 10 分钟聚合（用于最近12小时）。
+     * @param offsetHours 时区偏移。
      */
-    fun aggregateHourly(records: List<UsageRecord>): List<ChartBucket> {
+    fun aggregate10Min(records: List<UsageRecord>, offsetHours: Int = 0): List<ChartBucket> {
+        val offset = if (offsetHours == 0) ZoneOffset.UTC else ZoneOffset.ofHours(offsetHours)
         return records
-            .groupBy { it.timeCreated / 3600_000L * 3600_000L }
+            .groupBy {
+                val ldt = Instant.ofEpochMilli(it.timeCreated).atOffset(offset).toLocalDateTime()
+                val min = ldt.minute / 10 * 10
+                ldt.withMinute(min).withSecond(0).withNano(0).atOffset(offset).toInstant().toEpochMilli()
+            }
+            .map { (ts, recs) -> bucketOf(ts, recs) }
+            .sortedBy { it.ts }
+    }
+
+    /**
+     * 按小时聚合。
+     * @param offsetHours 时区偏移（0=UTC，8=UTC+8），影响桶边界对齐。
+     */
+    fun aggregateHourly(records: List<UsageRecord>, offsetHours: Int = 0): List<ChartBucket> {
+        if (offsetHours == 0) {
+            return records
+                .groupBy { it.timeCreated / 3600_000L * 3600_000L }
+                .map { (hourTs, recs) -> bucketOf(hourTs, recs) }
+                .sortedBy { it.ts }
+        }
+        val offset = ZoneOffset.ofHours(offsetHours)
+        return records
+            .groupBy {
+                val ldt = Instant.ofEpochMilli(it.timeCreated).atOffset(offset).toLocalDateTime()
+                ldt.withMinute(0).withSecond(0).withNano(0).atOffset(offset).toInstant().toEpochMilli()
+            }
             .map { (hourTs, recs) -> bucketOf(hourTs, recs) }
             .sortedBy { it.ts }
     }
 
     /**
      * 按天聚合（用于当月/自定义月）。
-     * dayStart = timeCreated / 86400_000 * 86400_000
+     * @param offsetHours 时区偏移（0=UTC，8=UTC+8），影响桶边界对齐。
      */
-    fun aggregateDaily(records: List<UsageRecord>): List<ChartBucket> {
+    fun aggregateDaily(records: List<UsageRecord>, offsetHours: Int = 0): List<ChartBucket> {
+        if (offsetHours == 0) {
+            return records
+                .groupBy { it.timeCreated / 86_400_000L * 86_400_000L }
+                .map { (dayTs, recs) -> bucketOf(dayTs, recs) }
+                .sortedBy { it.ts }
+        }
+        val offset = ZoneOffset.ofHours(offsetHours)
         return records
-            .groupBy { it.timeCreated / 86_400_000L * 86_400_000L }
+            .groupBy {
+                val localDate = Instant.ofEpochMilli(it.timeCreated).atOffset(offset).toLocalDate()
+                localDate.atStartOfDay(offset).toInstant().toEpochMilli()
+            }
             .map { (dayTs, recs) -> bucketOf(dayTs, recs) }
             .sortedBy { it.ts }
     }

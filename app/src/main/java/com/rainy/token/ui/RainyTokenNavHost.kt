@@ -62,7 +62,7 @@ fun RainyTokenNavHost() {
         }
         composable(Routes.USAGE_DETAIL) {
             UsageDetailScreen(
-                onBack = { navController.popBackStack() },
+                onBack = { navController.popBackStack(Routes.DASHBOARD, inclusive = false) },
                 onOpenOverview = { navController.navigate(Routes.USAGE_OVERVIEW) },
                 onOpenData = { navController.navigate(Routes.USAGE_DATA) }
             )
@@ -87,7 +87,7 @@ fun RainyTokenNavHost() {
                 chartVm.setWorkspace(wid)
             }
             UsageDetailScreen(
-                onBack = { navController.popBackStack() },
+                onBack = { navController.popBackStack(Routes.DASHBOARD, inclusive = false) },
                 onOpenOverview = { navController.navigate(Routes.CCGO_USAGE_OVERVIEW) },
                 onOpenData = { navController.navigate(Routes.CCGO_USAGE_DATA) },
                 viewModel = chartVm,
@@ -118,7 +118,8 @@ fun RainyTokenNavHost() {
         }
         composable(Routes.SETTINGS) {
             SettingsScreen(
-                onBack = { navController.popBackStack() },
+                // 使用 popBackStack 到指定路由而非无参 popBackStack，防止双击返回键导致空白页
+                onBack = { navController.popBackStack(Routes.DASHBOARD, inclusive = false) },
                 onEditCredential = { type -> navController.navigate(Routes.credentialEdit(type)) }
             )
         }
@@ -155,7 +156,7 @@ fun RainyTokenNavHost() {
             val type = parseServiceType(backStackEntry.arguments?.getString("type"))
             ServiceDetailScreen(
                 service = type,
-                onBack = { navController.popBackStack() },
+                onBack = { navController.popBackStack(Routes.DASHBOARD, inclusive = false) },
                 onConfigureCredential = { svc -> navController.navigate(Routes.credentialEdit(svc)) },
                 onStartWebViewLogin = { svc -> navController.navigate(Routes.webviewLogin(svc)) }
             )

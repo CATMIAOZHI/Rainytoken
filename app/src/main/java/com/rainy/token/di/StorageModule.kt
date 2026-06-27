@@ -3,6 +3,8 @@ package com.rainy.token.di
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import com.rainy.token.data.local.ChartSettingsStore
+import com.rainy.token.data.local.chartSettingsStore
 import com.rainy.token.data.local.secureStorageDataStore
 import com.rainy.token.data.local.usageCacheDataStore
 import dagger.Module
@@ -48,4 +50,10 @@ object StorageModule {
     fun provideUsageCacheDataStore(
         @ApplicationContext context: Context
     ): DataStore<Preferences> = context.usageCacheDataStore
+
+    @Provides
+    @Singleton
+    fun provideChartSettingsStore(
+        @ApplicationContext context: Context
+    ): ChartSettingsStore = context.chartSettingsStore
 }
