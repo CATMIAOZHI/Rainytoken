@@ -68,12 +68,21 @@ Compact（手机）：
             → CCGO: CCGO_USAGE_DETAIL（图表） → CCGO_USAGE_OVERVIEW（总统计）
                                           ↘ CCGO_USAGE_DATA（原始数据）
 
+  返回用 guardedPop()（150ms 时间戳围栏）+ popExitTransition=None。
+  围栏防同一帧/连续帧的第二次 pop，popExitTransition 消旧 composable 残留窗口。
+  其余 transition 保留默认动画（enter/exit/popEnter）。
+
+⚠️ 已知未修复 Bug：快速连点左上角返回 → 仍然会返回到空页面。
+  根因尚未定位（已排除：动画残留、回调竞态、目标路由 no-op）。
+  待查方向：UsageDetailScreen 内部返回链路 + NavController backQueue 状态。
+
 Expanded（平板，≥840dp）：
-  ┌─ 左侧 35%: Dashboard（固定） ─┐  ┌─ 右侧 65%: AnimatedContent ─────────┐
+  ┌─ 左侧 35%: Dashboard（固定） ─┐  ┌─ 右侧 65%: when(pane) 原子切换 ─────┐
   │                                │  │  ServiceDetail / OCGOUsage / CCGOUsage │
   │                                │  │  Settings（内嵌 NavHost）              │
   └────────────────────────────────┘  └────────────────────────────────────────┘
-  右侧用量详情支持内部子路由：图表 → 总览 / 原始数据（通过 UsageSubRoute 状态）
+  右侧用量详情内部子路由：图表 → 总览 / 原始数据（OCGO/CCGO/Settings 各自用局部 NavHost）
+  面板切换用 when(pane) 分支（同一帧原子重组，零穿透），子路由由局部 NavHost 的 popBackStack() 内置防护。
 ```
 
 **桌面小组件（Widget）**：

@@ -1,9 +1,7 @@
 package com.rainy.token.ui
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.ExitTransition
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -51,10 +49,10 @@ import com.rainy.token.ui.webview.WebViewLoginScreen
  * 应用导航图。
  *
  * 自适应策略：
- *  - **Compact**（< 600dp，手机）：单栈 NavHost，与原来完全一致。
- *  - **Expanded**（≥ 840dp，平板横屏）：左侧 Dashboard 面板 + 右侧详情双窗格。
- *    - 右侧详情通过 AnimatedContent 切换，支持用量详情内的子路由（图表/总览/数据）和设置子路由。
- *    - 设置 → 凭据编辑 → WebView 登录 在右侧内嵌 NavHost 中处理。
+ *  - **Compact**（< 600dp，手机）：单栈 NavHost。guardedPop 时间戳围栏（150ms）防连点栈损坏，
+ *    popExitTransition=None 消除旧 composable 残留，其余 transition 保留默认动画。
+ *  - **Expanded**（≥ 840dp，平板横屏）：左侧 Dashboard + 右侧 when 分支原子切换，
+ *    用量子路由用局部 NavHost。
  */
 object Routes {
     const val DASHBOARD = "dashboard"
@@ -78,10 +76,6 @@ private fun parseServiceType(typeName: String?): ServiceType =
         ServiceType.fromStorageKey(it) ?: runCatching { ServiceType.valueOf(it) }.getOrNull()
     } ?: ServiceType.DEEPSEEK
 
-// ═══════════════════════════════════════════════
-// 双窗格路由状态
-// ═══════════════════════════════════════════════
-
 private sealed class DetailPane {
     object Empty : DetailPane()
     data class ServiceDetail(val type: ServiceType) : DetailPane()
@@ -89,10 +83,6 @@ private sealed class DetailPane {
     object CCGOUsage : DetailPane()
     object Settings : DetailPane()
 }
-
-// ---------------------------------------------------------------------------
-// 入口：根据 WindowSizeClass 分派
-// ---------------------------------------------------------------------------
 
 @Composable
 fun RainyTokenNavHost() {
@@ -107,14 +97,27 @@ fun RainyTokenNavHost() {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Compact：单栈 NavHost（原逻辑，一字未改）
-// ---------------------------------------------------------------------------
+// ═══════════════════════════════════════════════
+// Compact：单栈 NavHost —— guardedPop 围栏 + popExitTransition=None
+// ═══════════════════════════════════════════════
 
 @Composable
 private fun CompactNavHost() {
     val navController = rememberNavController()
-    NavHost(navController = navController, startDestination = Routes.DASHBOARD) {
+    // 时间戳围栏：150ms 内只允许一次 pop，防止连点时旧 composable 残留接收触摸
+    var lastPopTime by remember { mutableStateOf(0L) }
+    val guardedPop: () -> Unit = {
+        val now = System.currentTimeMillis()
+        if (now - lastPopTime >= 150) {
+            lastPopTime = now
+            navController.popBackStack()
+        }
+    }
+    NavHost(
+        navController = navController,
+        startDestination = Routes.DASHBOARD,
+        popExitTransition = { ExitTransition.None }
+    ) {
         composable(Routes.DASHBOARD) {
             DashboardScreen(
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
@@ -125,16 +128,20 @@ private fun CompactNavHost() {
         }
         composable(Routes.USAGE_DETAIL) {
             UsageDetailScreen(
-                onBack = { navController.popBackStack(Routes.DASHBOARD, inclusive = false) },
+                onBack = guardedPop,
                 onOpenOverview = { navController.navigate(Routes.USAGE_OVERVIEW) },
                 onOpenData = { navController.navigate(Routes.USAGE_DATA) }
             )
         }
         composable(Routes.USAGE_OVERVIEW) {
-            UsageOverviewScreen(onBack = { navController.popBackStack() })
+            UsageOverviewScreen(
+                onBack = guardedPop
+            )
         }
         composable(Routes.USAGE_DATA) {
-            UsageDataScreen(onBack = { navController.popBackStack() })
+            UsageDataScreen(
+                onBack = guardedPop
+            )
         }
         composable(Routes.CCGO_USAGE_DETAIL) {
             val wid = CommandCodeUsageRepository.CCGO_WORKSPACE_ID
@@ -145,7 +152,7 @@ private fun CompactNavHost() {
                 chartVm.setWorkspace(wid)
             }
             UsageDetailScreen(
-                onBack = { navController.popBackStack(Routes.DASHBOARD, inclusive = false) },
+                onBack = guardedPop,
                 onOpenOverview = { navController.navigate(Routes.CCGO_USAGE_OVERVIEW) },
                 onOpenData = { navController.navigate(Routes.CCGO_USAGE_DATA) },
                 viewModel = chartVm,
@@ -156,17 +163,25 @@ private fun CompactNavHost() {
             val key = "ccgo_${CommandCodeUsageRepository.CCGO_WORKSPACE_ID}"
             val ovVm: UsageViewModel = hiltViewModel(key = key)
             LaunchedEffect(Unit) { ovVm.setWorkspace(CommandCodeUsageRepository.CCGO_WORKSPACE_ID) }
-            UsageOverviewScreen(onBack = { navController.popBackStack() }, viewModel = ovVm, autoLoad = false)
+            UsageOverviewScreen(
+                onBack = guardedPop,
+                viewModel = ovVm,
+                autoLoad = false
+            )
         }
         composable(Routes.CCGO_USAGE_DATA) {
             val key = "ccgo_${CommandCodeUsageRepository.CCGO_WORKSPACE_ID}"
             val dataVm: UsageDataViewModel = hiltViewModel(key = key)
             LaunchedEffect(Unit) { dataVm.setWorkspace(CommandCodeUsageRepository.CCGO_WORKSPACE_ID) }
-            UsageDataScreen(onBack = { navController.popBackStack() }, viewModel = dataVm, autoLoad = false)
+            UsageDataScreen(
+                onBack = guardedPop,
+                viewModel = dataVm,
+                autoLoad = false
+            )
         }
         composable(Routes.SETTINGS) {
             SettingsScreen(
-                onBack = { navController.popBackStack(Routes.DASHBOARD, inclusive = false) },
+                onBack = guardedPop,
                 onEditCredential = { type -> navController.navigate(Routes.credentialEdit(type)) }
             )
         }
@@ -177,7 +192,7 @@ private fun CompactNavHost() {
             val type = parseServiceType(backStackEntry.arguments?.getString("type"))
             CredentialEditScreen(
                 service = type,
-                onBack = { navController.popBackStack() },
+                onBack = guardedPop,
                 onStartWebViewLogin = { service -> navController.navigate(Routes.webviewLogin(service)) },
                 onWebViewLoginSuccess = { }
             )
@@ -189,8 +204,8 @@ private fun CompactNavHost() {
             val type = parseServiceType(backStackEntry.arguments?.getString("type"))
             WebViewLoginScreen(
                 service = type,
-                onBack = { navController.popBackStack() },
-                onLoginSucceeded = { navController.popBackStack() }
+                onBack = guardedPop,
+                onLoginSucceeded = { guardedPop() }
             )
         }
         composable(
@@ -200,7 +215,7 @@ private fun CompactNavHost() {
             val type = parseServiceType(backStackEntry.arguments?.getString("type"))
             ServiceDetailScreen(
                 service = type,
-                onBack = { navController.popBackStack(Routes.DASHBOARD, inclusive = false) },
+                onBack = guardedPop,
                 onConfigureCredential = { svc -> navController.navigate(Routes.credentialEdit(svc)) },
                 onStartWebViewLogin = { svc -> navController.navigate(Routes.webviewLogin(svc)) }
             )
@@ -208,16 +223,15 @@ private fun CompactNavHost() {
     }
 }
 
-// ---------------------------------------------------------------------------
+// ═══════════════════════════════════════════════
 // Expanded：手动双窗格
-// ---------------------------------------------------------------------------
+// ═══════════════════════════════════════════════
 
 @Composable
 private fun ExpandedLayout() {
     var detailPane by remember { mutableStateOf<DetailPane>(DetailPane.Empty) }
 
     Row(modifier = Modifier.fillMaxSize()) {
-        // ── 左侧 Dashboard 面板（35%） ──
         Box(
             modifier = Modifier
                 .weight(0.35f)
@@ -231,47 +245,24 @@ private fun ExpandedLayout() {
             )
         }
 
-        // 分隔线
         VerticalDivider(
             thickness = 1.dp,
             color = MaterialTheme.colorScheme.outlineVariant
         )
 
-        // ── 右侧详情面板（65%） ──
         Box(
             modifier = Modifier
                 .weight(0.65f)
                 .fillMaxHeight()
+                .background(MaterialTheme.colorScheme.background)
         ) {
-            AnimatedContent(
-                targetState = detailPane,
-                transitionSpec = { fadeIn() togetherWith fadeOut() }
-            ) { pane ->
-                ExpandedDetailPane(
-                    pane = pane,
-                    onClose = { detailPane = DetailPane.Empty }
-                )
-            }
+            ExpandedDetailPane(
+                pane = detailPane,
+                onClose = { detailPane = DetailPane.Empty }
+            )
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Expanded 右侧面板路由
-// ---------------------------------------------------------------------------
-
-/**
- * 用量详情内部的子路由状态（仅 Expanded 下使用）。
- * 右侧面板内从 UsageDetail → Overview / Data 的切换通过此状态管理。
- */
-private sealed class UsageSubRoute {
-    object Chart : UsageSubRoute()
-    object Overview : UsageSubRoute()
-    object Data : UsageSubRoute()
-}
-
-private fun backToEmpty(usageSub: UsageSubRoute?): Boolean =
-    usageSub != null && usageSub !is UsageSubRoute.Chart
 
 @Composable
 private fun ExpandedDetailPane(
@@ -291,32 +282,34 @@ private fun ExpandedDetailPane(
             ServiceDetailScreen(
                 service = pane.type,
                 onBack = onClose,
-                onConfigureCredential = { svc ->
-                    // 在右侧内部子路由跳转到 CredentialEdit
-                    onClose() // 先清右侧再切 Settings（简化：直接切 Settings）
-                },
-                onStartWebViewLogin = { svc -> }
+                onConfigureCredential = { onClose() },
+                onStartWebViewLogin = { }
             )
         }
         is DetailPane.OCGOUsage -> {
-            var subRoute by remember { mutableStateOf<UsageSubRoute>(UsageSubRoute.Chart) }
-            when (subRoute) {
-                is UsageSubRoute.Chart -> {
+            val navController = rememberNavController()
+            NavHost(
+                navController = navController,
+                startDestination = "chart",
+                popExitTransition = { ExitTransition.None }
+            ) {
+                composable("chart") {
                     UsageDetailScreen(
                         onBack = onClose,
-                        onOpenOverview = { subRoute = UsageSubRoute.Overview },
-                        onOpenData = { subRoute = UsageSubRoute.Data }
+                        onOpenOverview = { navController.navigate("overview") },
+                        onOpenData = { navController.navigate("data") }
                     )
                 }
-                is UsageSubRoute.Overview -> {
-                    UsageOverviewScreen(onBack = { subRoute = UsageSubRoute.Chart }, autoLoad = true)
+                composable("overview") {
+                    UsageOverviewScreen(onBack = { navController.popBackStack() }, autoLoad = true)
                 }
-                is UsageSubRoute.Data -> {
-                    UsageDataScreen(onBack = { subRoute = UsageSubRoute.Chart }, autoLoad = true)
+                composable("data") {
+                    UsageDataScreen(onBack = { navController.popBackStack() }, autoLoad = true)
                 }
             }
         }
         is DetailPane.CCGOUsage -> {
+            val navController = rememberNavController()
             val wid = CommandCodeUsageRepository.CCGO_WORKSPACE_ID
             val chartVm: UsageChartViewModel = hiltViewModel(key = "ccgo_chart_$wid")
             val usageVm: UsageViewModel = hiltViewModel(key = "ccgo_$wid")
@@ -324,37 +317,40 @@ private fun ExpandedDetailPane(
                 usageVm.setWorkspace(wid)
                 chartVm.setWorkspace(wid)
             }
-            var subRoute by remember { mutableStateOf<UsageSubRoute>(UsageSubRoute.Chart) }
-            when (subRoute) {
-                is UsageSubRoute.Chart -> {
+            NavHost(
+                navController = navController,
+                startDestination = "chart",
+                popExitTransition = { ExitTransition.None }
+            ) {
+                composable("chart") {
                     UsageDetailScreen(
                         onBack = onClose,
-                        onOpenOverview = { subRoute = UsageSubRoute.Overview },
-                        onOpenData = { subRoute = UsageSubRoute.Data },
+                        onOpenOverview = { navController.navigate("overview") },
+                        onOpenData = { navController.navigate("data") },
                         viewModel = chartVm,
                         clearViewModel = usageVm
                     )
                 }
-                is UsageSubRoute.Overview -> {
+                composable("overview") {
                     val key = "ccgo_$wid"
                     val ovVm: UsageViewModel = hiltViewModel(key = key)
                     LaunchedEffect(Unit) { ovVm.setWorkspace(wid) }
-                    UsageOverviewScreen(onBack = { subRoute = UsageSubRoute.Chart }, viewModel = ovVm, autoLoad = false)
+                    UsageOverviewScreen(onBack = { navController.popBackStack() }, viewModel = ovVm, autoLoad = false)
                 }
-                is UsageSubRoute.Data -> {
+                composable("data") {
                     val key = "ccgo_$wid"
                     val dataVm: UsageDataViewModel = hiltViewModel(key = key)
                     LaunchedEffect(Unit) { dataVm.setWorkspace(wid) }
-                    UsageDataScreen(onBack = { subRoute = UsageSubRoute.Chart }, viewModel = dataVm, autoLoad = false)
+                    UsageDataScreen(onBack = { navController.popBackStack() }, viewModel = dataVm, autoLoad = false)
                 }
             }
         }
         is DetailPane.Settings -> {
-            // Settings 内部子路由用局部 NavHost
             val settingsNavController = rememberNavController()
             NavHost(
                 navController = settingsNavController,
-                startDestination = "settings_main"
+                startDestination = "settings_main",
+                popExitTransition = { ExitTransition.None }
             ) {
                 composable("settings_main") {
                     SettingsScreen(
