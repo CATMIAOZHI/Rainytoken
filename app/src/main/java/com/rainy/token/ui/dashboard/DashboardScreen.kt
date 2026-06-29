@@ -7,7 +7,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -51,6 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -67,7 +71,6 @@ import com.rainy.token.ui.theme.StrawberryPink
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
-import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
 import com.rainy.token.ui.widget.OpenCodeGoWidgetProvider
 import java.text.SimpleDateFormat
@@ -85,7 +88,7 @@ import java.util.Locale
  *  - 卡片底部展示"更新于 X 分钟前"或错误信息
  *  - 主数字加粗超大，视觉锚点
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DashboardScreen(
     onOpenSettings: () -> Unit,
@@ -190,30 +193,65 @@ fun DashboardScreen(
                     CircularProgressIndicator(color = StrawberryPink)
                 }
             } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // 用量统计卡片（主页面，独立 ViewModel）
-                    UsageStatsCard(onOpenDetail = onOpenUsageDetail, refreshTrigger = usageSyncTrigger)
-                    // CommandCode Go 用量统计卡片（风格完全一致）
-                    CommandCodeUsageStatsCard(onOpenDetail = onOpenCcgoUsageDetail, refreshTrigger = usageSyncTrigger)
-                    // 分隔
-                    Text(
-                        text = "服务余额",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = inkMuted(),
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-                    uiState.cards.forEach { card ->
-                        DashboardCard(card = card, onClick = { onOpenService(card.service) },
-                            onOpenCcgoUsageDetail = if (card.service == ServiceType.COMMANDCODE_GO) onOpenCcgoUsageDetail else null)
+                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    // 容器自身宽度 > 600dp 时开双列（自适应父容器，而非全局窗口）
+                    val wideEnough = maxWidth > 600.dp
+                    val contentPadding = if (wideEnough) 16.dp else 16.dp
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(contentPadding),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // 用量统计卡片（主页面，独立 ViewModel）
+                        if (wideEnough) {
+                            // 面板够宽：两张用量卡片并排
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    UsageStatsCard(onOpenDetail = onOpenUsageDetail, refreshTrigger = usageSyncTrigger)
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    CommandCodeUsageStatsCard(onOpenDetail = onOpenCcgoUsageDetail, refreshTrigger = usageSyncTrigger)
+                                }
+                            }
+                        } else {
+                            UsageStatsCard(onOpenDetail = onOpenUsageDetail, refreshTrigger = usageSyncTrigger)
+                            CommandCodeUsageStatsCard(onOpenDetail = onOpenCcgoUsageDetail, refreshTrigger = usageSyncTrigger)
+                        }
+                        // 分隔
+                        Text(
+                            text = "服务余额",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = inkMuted(),
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                        if (wideEnough) {
+                            // 面板够宽：服务卡片 FlowRow 双列
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                uiState.cards.forEach { card ->
+                                    Box(modifier = Modifier.fillMaxWidth(0.5f)) {
+                                        DashboardCard(card = card, onClick = { onOpenService(card.service) },
+                                            onOpenCcgoUsageDetail = if (card.service == ServiceType.COMMANDCODE_GO) onOpenCcgoUsageDetail else null)
+                                    }
+                                }
+                            }
+                        } else {
+                            uiState.cards.forEach { card ->
+                                DashboardCard(card = card, onClick = { onOpenService(card.service) },
+                                    onOpenCcgoUsageDetail = if (card.service == ServiceType.COMMANDCODE_GO) onOpenCcgoUsageDetail else null)
+                            }
+                        }
+                        // 底部 footer：填空白 + 提供版本号
+                        DashboardFooter()
                     }
-                    // 底部 footer：填空白 + 提供版本号
-                    DashboardFooter()
                 }
             }
         }

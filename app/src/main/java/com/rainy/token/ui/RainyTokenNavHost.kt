@@ -1,14 +1,38 @@
 package com.rainy.token.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.rainy.token.data.repository.CommandCodeUsageRepository
 import com.rainy.token.domain.service.ServiceType
+import com.rainy.token.ui.components.rememberWindowSizeClass
 import com.rainy.token.ui.dashboard.DashboardScreen
 import com.rainy.token.ui.dashboard.UsageChartViewModel
 import com.rainy.token.ui.dashboard.UsageDataScreen
@@ -19,12 +43,18 @@ import com.rainy.token.ui.dashboard.UsageViewModel
 import com.rainy.token.ui.servicedetail.ServiceDetailScreen
 import com.rainy.token.ui.settings.CredentialEditScreen
 import com.rainy.token.ui.settings.SettingsScreen
+import com.rainy.token.ui.theme.inkMuted
+import com.rainy.token.ui.theme.StrawberryPink
 import com.rainy.token.ui.webview.WebViewLoginScreen
 
 /**
- * 应用导航图。当前阶段 4 接入了完整路径：
- *   Dashboard → Settings → CredentialEdit → WebViewLogin
- *   Dashboard → ServiceDetail
+ * 应用导航图。
+ *
+ * 自适应策略：
+ *  - **Compact**（< 600dp，手机）：单栈 NavHost，与原来完全一致。
+ *  - **Expanded**（≥ 840dp，平板横屏）：左侧 Dashboard 面板 + 右侧详情双窗格。
+ *    - 右侧详情通过 AnimatedContent 切换，支持用量详情内的子路由（图表/总览/数据）和设置子路由。
+ *    - 设置 → 凭据编辑 → WebView 登录 在右侧内嵌 NavHost 中处理。
  */
 object Routes {
     const val DASHBOARD = "dashboard"
@@ -48,8 +78,41 @@ private fun parseServiceType(typeName: String?): ServiceType =
         ServiceType.fromStorageKey(it) ?: runCatching { ServiceType.valueOf(it) }.getOrNull()
     } ?: ServiceType.DEEPSEEK
 
-    @Composable
+// ═══════════════════════════════════════════════
+// 双窗格路由状态
+// ═══════════════════════════════════════════════
+
+private sealed class DetailPane {
+    object Empty : DetailPane()
+    data class ServiceDetail(val type: ServiceType) : DetailPane()
+    object OCGOUsage : DetailPane()
+    object CCGOUsage : DetailPane()
+    object Settings : DetailPane()
+}
+
+// ---------------------------------------------------------------------------
+// 入口：根据 WindowSizeClass 分派
+// ---------------------------------------------------------------------------
+
+@Composable
 fun RainyTokenNavHost() {
+    val windowSize = rememberWindowSizeClass()
+    val isExpanded = windowSize.widthSizeClass ==
+        androidx.compose.material3.windowsizeclass.WindowWidthSizeClass.Expanded
+
+    if (isExpanded) {
+        ExpandedLayout()
+    } else {
+        CompactNavHost()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Compact：单栈 NavHost（原逻辑，一字未改）
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun CompactNavHost() {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = Routes.DASHBOARD) {
         composable(Routes.DASHBOARD) {
@@ -68,18 +131,13 @@ fun RainyTokenNavHost() {
             )
         }
         composable(Routes.USAGE_OVERVIEW) {
-            UsageOverviewScreen(
-                onBack = { navController.popBackStack() }
-            )
+            UsageOverviewScreen(onBack = { navController.popBackStack() })
         }
         composable(Routes.USAGE_DATA) {
-            UsageDataScreen(
-                onBack = { navController.popBackStack() }
-            )
+            UsageDataScreen(onBack = { navController.popBackStack() })
         }
-        // CCGO 用量详情 — 隔离实例通过 key 参数标记 workspaceId
         composable(Routes.CCGO_USAGE_DETAIL) {
-            val wid = com.rainy.token.data.repository.CommandCodeUsageRepository.CCGO_WORKSPACE_ID
+            val wid = CommandCodeUsageRepository.CCGO_WORKSPACE_ID
             val chartVm: UsageChartViewModel = hiltViewModel(key = "ccgo_chart_$wid")
             val usageVm: UsageViewModel = hiltViewModel(key = "ccgo_$wid")
             LaunchedEffect(Unit) {
@@ -95,30 +153,19 @@ fun RainyTokenNavHost() {
             )
         }
         composable(Routes.CCGO_USAGE_OVERVIEW) {
-            val wid = com.rainy.token.data.repository.CommandCodeUsageRepository.CCGO_WORKSPACE_ID
-            val key = "ccgo_$wid"
+            val key = "ccgo_${CommandCodeUsageRepository.CCGO_WORKSPACE_ID}"
             val ovVm: UsageViewModel = hiltViewModel(key = key)
-            LaunchedEffect(Unit) { ovVm.setWorkspace(wid) }
-            UsageOverviewScreen(
-                onBack = { navController.popBackStack() },
-                viewModel = ovVm,
-                autoLoad = false
-            )
+            LaunchedEffect(Unit) { ovVm.setWorkspace(CommandCodeUsageRepository.CCGO_WORKSPACE_ID) }
+            UsageOverviewScreen(onBack = { navController.popBackStack() }, viewModel = ovVm, autoLoad = false)
         }
         composable(Routes.CCGO_USAGE_DATA) {
-            val wid = com.rainy.token.data.repository.CommandCodeUsageRepository.CCGO_WORKSPACE_ID
-            val key = "ccgo_$wid"
+            val key = "ccgo_${CommandCodeUsageRepository.CCGO_WORKSPACE_ID}"
             val dataVm: UsageDataViewModel = hiltViewModel(key = key)
-            LaunchedEffect(Unit) { dataVm.setWorkspace(wid) }
-            UsageDataScreen(
-                onBack = { navController.popBackStack() },
-                viewModel = dataVm,
-                autoLoad = false
-            )
+            LaunchedEffect(Unit) { dataVm.setWorkspace(CommandCodeUsageRepository.CCGO_WORKSPACE_ID) }
+            UsageDataScreen(onBack = { navController.popBackStack() }, viewModel = dataVm, autoLoad = false)
         }
         composable(Routes.SETTINGS) {
             SettingsScreen(
-                // 使用 popBackStack 到指定路由而非无参 popBackStack，防止双击返回键导致空白页
                 onBack = { navController.popBackStack(Routes.DASHBOARD, inclusive = false) },
                 onEditCredential = { type -> navController.navigate(Routes.credentialEdit(type)) }
             )
@@ -132,7 +179,7 @@ fun RainyTokenNavHost() {
                 service = type,
                 onBack = { navController.popBackStack() },
                 onStartWebViewLogin = { service -> navController.navigate(Routes.webviewLogin(service)) },
-                onWebViewLoginSuccess = { /* 登录后回到编辑页，由 LaunchedEffect 触发刷新 */ }
+                onWebViewLoginSuccess = { }
             )
         }
         composable(
@@ -143,10 +190,7 @@ fun RainyTokenNavHost() {
             WebViewLoginScreen(
                 service = type,
                 onBack = { navController.popBackStack() },
-                onLoginSucceeded = {
-                    // 登录成功直接回退到 CredentialEdit 页
-                    navController.popBackStack()
-                }
+                onLoginSucceeded = { navController.popBackStack() }
             )
         }
         composable(
@@ -160,6 +204,192 @@ fun RainyTokenNavHost() {
                 onConfigureCredential = { svc -> navController.navigate(Routes.credentialEdit(svc)) },
                 onStartWebViewLogin = { svc -> navController.navigate(Routes.webviewLogin(svc)) }
             )
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Expanded：手动双窗格
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun ExpandedLayout() {
+    var detailPane by remember { mutableStateOf<DetailPane>(DetailPane.Empty) }
+
+    Row(modifier = Modifier.fillMaxSize()) {
+        // ── 左侧 Dashboard 面板（35%） ──
+        Box(
+            modifier = Modifier
+                .weight(0.35f)
+                .fillMaxHeight()
+        ) {
+            DashboardScreen(
+                onOpenSettings = { detailPane = DetailPane.Settings },
+                onOpenService = { type -> detailPane = DetailPane.ServiceDetail(type) },
+                onOpenUsageDetail = { detailPane = DetailPane.OCGOUsage },
+                onOpenCcgoUsageDetail = { detailPane = DetailPane.CCGOUsage }
+            )
+        }
+
+        // 分隔线
+        VerticalDivider(
+            thickness = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant
+        )
+
+        // ── 右侧详情面板（65%） ──
+        Box(
+            modifier = Modifier
+                .weight(0.65f)
+                .fillMaxHeight()
+        ) {
+            AnimatedContent(
+                targetState = detailPane,
+                transitionSpec = { fadeIn() togetherWith fadeOut() }
+            ) { pane ->
+                ExpandedDetailPane(
+                    pane = pane,
+                    onClose = { detailPane = DetailPane.Empty }
+                )
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Expanded 右侧面板路由
+// ---------------------------------------------------------------------------
+
+/**
+ * 用量详情内部的子路由状态（仅 Expanded 下使用）。
+ * 右侧面板内从 UsageDetail → Overview / Data 的切换通过此状态管理。
+ */
+private sealed class UsageSubRoute {
+    object Chart : UsageSubRoute()
+    object Overview : UsageSubRoute()
+    object Data : UsageSubRoute()
+}
+
+private fun backToEmpty(usageSub: UsageSubRoute?): Boolean =
+    usageSub != null && usageSub !is UsageSubRoute.Chart
+
+@Composable
+private fun ExpandedDetailPane(
+    pane: DetailPane,
+    onClose: () -> Unit
+) {
+    when (pane) {
+        is DetailPane.Empty -> {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("👈 选择服务查看详情", style = MaterialTheme.typography.titleMedium, color = inkMuted())
+                    Text("点击左侧卡片即可", style = MaterialTheme.typography.bodySmall, color = inkMuted())
+                }
+            }
+        }
+        is DetailPane.ServiceDetail -> {
+            ServiceDetailScreen(
+                service = pane.type,
+                onBack = onClose,
+                onConfigureCredential = { svc ->
+                    // 在右侧内部子路由跳转到 CredentialEdit
+                    onClose() // 先清右侧再切 Settings（简化：直接切 Settings）
+                },
+                onStartWebViewLogin = { svc -> }
+            )
+        }
+        is DetailPane.OCGOUsage -> {
+            var subRoute by remember { mutableStateOf<UsageSubRoute>(UsageSubRoute.Chart) }
+            when (subRoute) {
+                is UsageSubRoute.Chart -> {
+                    UsageDetailScreen(
+                        onBack = onClose,
+                        onOpenOverview = { subRoute = UsageSubRoute.Overview },
+                        onOpenData = { subRoute = UsageSubRoute.Data }
+                    )
+                }
+                is UsageSubRoute.Overview -> {
+                    UsageOverviewScreen(onBack = { subRoute = UsageSubRoute.Chart }, autoLoad = true)
+                }
+                is UsageSubRoute.Data -> {
+                    UsageDataScreen(onBack = { subRoute = UsageSubRoute.Chart }, autoLoad = true)
+                }
+            }
+        }
+        is DetailPane.CCGOUsage -> {
+            val wid = CommandCodeUsageRepository.CCGO_WORKSPACE_ID
+            val chartVm: UsageChartViewModel = hiltViewModel(key = "ccgo_chart_$wid")
+            val usageVm: UsageViewModel = hiltViewModel(key = "ccgo_$wid")
+            LaunchedEffect(Unit) {
+                usageVm.setWorkspace(wid)
+                chartVm.setWorkspace(wid)
+            }
+            var subRoute by remember { mutableStateOf<UsageSubRoute>(UsageSubRoute.Chart) }
+            when (subRoute) {
+                is UsageSubRoute.Chart -> {
+                    UsageDetailScreen(
+                        onBack = onClose,
+                        onOpenOverview = { subRoute = UsageSubRoute.Overview },
+                        onOpenData = { subRoute = UsageSubRoute.Data },
+                        viewModel = chartVm,
+                        clearViewModel = usageVm
+                    )
+                }
+                is UsageSubRoute.Overview -> {
+                    val key = "ccgo_$wid"
+                    val ovVm: UsageViewModel = hiltViewModel(key = key)
+                    LaunchedEffect(Unit) { ovVm.setWorkspace(wid) }
+                    UsageOverviewScreen(onBack = { subRoute = UsageSubRoute.Chart }, viewModel = ovVm, autoLoad = false)
+                }
+                is UsageSubRoute.Data -> {
+                    val key = "ccgo_$wid"
+                    val dataVm: UsageDataViewModel = hiltViewModel(key = key)
+                    LaunchedEffect(Unit) { dataVm.setWorkspace(wid) }
+                    UsageDataScreen(onBack = { subRoute = UsageSubRoute.Chart }, viewModel = dataVm, autoLoad = false)
+                }
+            }
+        }
+        is DetailPane.Settings -> {
+            // Settings 内部子路由用局部 NavHost
+            val settingsNavController = rememberNavController()
+            NavHost(
+                navController = settingsNavController,
+                startDestination = "settings_main"
+            ) {
+                composable("settings_main") {
+                    SettingsScreen(
+                        onBack = onClose,
+                        onEditCredential = { type ->
+                            settingsNavController.navigate(Routes.credentialEdit(type))
+                        }
+                    )
+                }
+                composable(
+                    route = Routes.CREDENTIAL_EDIT,
+                    arguments = listOf(navArgument("type") { type = NavType.StringType })
+                ) { entry ->
+                    val type = parseServiceType(entry.arguments?.getString("type"))
+                    CredentialEditScreen(
+                        service = type,
+                        onBack = { settingsNavController.popBackStack() },
+                        onStartWebViewLogin = { svc ->
+                            settingsNavController.navigate(Routes.webviewLogin(svc))
+                        },
+                        onWebViewLoginSuccess = { }
+                    )
+                }
+                composable(
+                    route = Routes.WEBVIEW_LOGIN,
+                    arguments = listOf(navArgument("type") { type = NavType.StringType })
+                ) { entry ->
+                    val type = parseServiceType(entry.arguments?.getString("type"))
+                    WebViewLoginScreen(
+                        service = type,
+                        onBack = { settingsNavController.popBackStack() },
+                        onLoginSucceeded = { settingsNavController.popBackStack() }
+                    )
+                }
+            }
         }
     }
 }

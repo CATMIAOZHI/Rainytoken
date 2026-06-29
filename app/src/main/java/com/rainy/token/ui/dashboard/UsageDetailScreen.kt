@@ -2,13 +2,17 @@ package com.rainy.token.ui.dashboard
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -65,7 +69,7 @@ import java.util.Locale
 /**
  * 用量详情页 —— 统计图表。
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun UsageDetailScreen(
     onBack: () -> Unit,
@@ -122,125 +126,176 @@ fun UsageDetailScreen(
                 Text("加载中…", color = InkMuted)
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(innerPadding).padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item {
-                    Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp), Alignment.CenterVertically) {
-                        Box {
-                            TextButton(onClick = { granularityExpanded = true }) {
-                                Text(state.granularity.label, color = StrawberryPink)
-                                Icon(Icons.Filled.ArrowDropDown, null, tint = StrawberryPink)
-                            }
-                            DropdownMenu(granularityExpanded, { granularityExpanded = false }) {
-                                ChartGranularity.entries.forEach { g ->
-                                    DropdownMenuItem(text = { Text(g.label) }, onClick = {
-                                        granularityExpanded = false
-                                        when (g) {
-                                            ChartGranularity.CUSTOM_DAY_HOURLY -> showCustomDayPicker = true
-                                            ChartGranularity.CUSTOM_MONTH_DAILY -> showCustomMonthPicker = true
-                                            ChartGranularity.CUSTOM_RANGE_DAILY -> showCustomRangeStart = true
-                                            else -> viewModel.setGranularity(g)
-                                        }
-                                    })
+            BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+                // 容器自身宽度 > 700dp 时图表并排（自适应父容器，而非全局窗口）
+                val wideEnough = maxWidth > 700.dp
+                val hPad = if (wideEnough) 24.dp else 16.dp
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(horizontal = hPad),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item {
+                        Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp), Alignment.CenterVertically) {
+                            Box {
+                                TextButton(onClick = { granularityExpanded = true }) {
+                                    Text(state.granularity.label, color = StrawberryPink)
+                                    Icon(Icons.Filled.ArrowDropDown, null, tint = StrawberryPink)
+                                }
+                                DropdownMenu(granularityExpanded, { granularityExpanded = false }) {
+                                    ChartGranularity.entries.forEach { g ->
+                                        DropdownMenuItem(text = { Text(g.label) }, onClick = {
+                                            granularityExpanded = false
+                                            when (g) {
+                                                ChartGranularity.CUSTOM_DAY_HOURLY -> showCustomDayPicker = true
+                                                ChartGranularity.CUSTOM_MONTH_DAILY -> showCustomMonthPicker = true
+                                                ChartGranularity.CUSTOM_RANGE_DAILY -> showCustomRangeStart = true
+                                                else -> viewModel.setGranularity(g)
+                                            }
+                                        })
+                                    }
                                 }
                             }
-                        }
-                        TextButton(onClick = {
-                            viewModel.toggleUtc8()
-                            scope.launch {
-                                snackbarHostState.showSnackbar(
-                                    if (state.useUtc8) "已切换到 UTC+8，图表按北京时间显示" else "已切换到 UTC+0，图表按世界协调时显示",
-                                    duration = SnackbarDuration.Short
+                            TextButton(onClick = {
+                                viewModel.toggleUtc8()
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        if (state.useUtc8) "已切换到 UTC+8，图表按北京时间显示" else "已切换到 UTC+0，图表按世界协调时显示",
+                                        duration = SnackbarDuration.Short
+                                    )
+                                }
+                            }) {
+                                Text(
+                                    if (state.useUtc8) "UTC+8」" else "UTC+0」",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (state.useUtc8) StrawberryPink else InkMuted,
+                                    fontWeight = if (state.useUtc8) FontWeight.SemiBold else FontWeight.Normal
+                                )
+                                Text(
+                                    " 点击切换",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = InkMuted.copy(alpha = 0.5f),
+                                    fontWeight = FontWeight.Normal
                                 )
                             }
-                        }) {
-                            Text(
-                                if (state.useUtc8) "UTC+8」" else "UTC+0」",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (state.useUtc8) StrawberryPink else InkMuted,
-                                fontWeight = if (state.useUtc8) FontWeight.SemiBold else FontWeight.Normal
-                            )
-                            Text(
-                                " 点击切换",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = InkMuted.copy(alpha = 0.5f),
-                                fontWeight = FontWeight.Normal
-                            )
-                        }
-                        Spacer(Modifier.weight(1f))
-                        Box {
-                            val label = if (state.selectedModels.isEmpty()) "全部模型" else "${state.selectedModels.size} 个模型"
-                            TextButton(onClick = { modelExpanded = true }) {
-                                Text(label, color = StrawberryPink, style = MaterialTheme.typography.bodySmall)
-                                Icon(Icons.Filled.ArrowDropDown, null, tint = StrawberryPink)
-                            }
-                            DropdownMenu(modelExpanded, { modelExpanded = false }) {
-                                DropdownMenuItem(
-                                    text = { Text("全部模型", fontWeight = FontWeight.Bold) },
-                                    onClick = { modelExpanded = false; viewModel.selectAllModels() })
-                                state.allModels.forEach { model ->
-                                    DropdownMenuItem(text = {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Checkbox(state.selectedModels.isEmpty() || model in state.selectedModels, { viewModel.toggleModel(model) })
-                                            Text(model, modifier = Modifier.padding(start = 4.dp))
-                                        }
-                                    }, onClick = { viewModel.toggleModel(model) })
+                            Spacer(Modifier.weight(1f))
+                            Box {
+                                val label = if (state.selectedModels.isEmpty()) "全部模型" else "${state.selectedModels.size} 个模型"
+                                TextButton(onClick = { modelExpanded = true }) {
+                                    Text(label, color = StrawberryPink, style = MaterialTheme.typography.bodySmall)
+                                    Icon(Icons.Filled.ArrowDropDown, null, tint = StrawberryPink)
+                                }
+                                DropdownMenu(modelExpanded, { modelExpanded = false }) {
+                                    DropdownMenuItem(
+                                        text = { Text("全部模型", fontWeight = FontWeight.Bold) },
+                                        onClick = { modelExpanded = false; viewModel.selectAllModels() })
+                                    state.allModels.forEach { model ->
+                                        DropdownMenuItem(text = {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Checkbox(state.selectedModels.isEmpty() || model in state.selectedModels, { viewModel.toggleModel(model) })
+                                                Text(model, modifier = Modifier.padding(start = 4.dp))
+                                            }
+                                        }, onClick = { viewModel.toggleModel(model) })
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                // 图表1
-                item {
-                    val models = state.selectedModels.ifEmpty { state.allModels.toSet() }
-                    val costTotal = state.buckets.sumOf { it.totalCost.toDouble() / 100_000_000.0 }
-                    ChartCard("消耗金额 (USD)", "$${String.format(Locale.US, "%.4f", costTotal)}", { showCostDetail = true }) {
-                        StackedBarChart(state.buckets,
-                            { it.totalCost.toDouble() / 100_000_000.0 },
-                            { bucket -> models.mapIndexedNotNull { idx, m -> val v = bucket.byModel[m]?.cost ?: return@mapIndexedNotNull null; v.toDouble() / 100_000_000.0 to modelColors[idx % modelColors.size] } },
-                            { bucket -> models.mapNotNull { if (bucket.byModel[it] != null) it else null } },
-                            formatValue = { "$${String.format(Locale.US, "%.4f", it)}" },
-                            granularity = state.granularity,
-                            legendItems = models.mapIndexed { idx, m ->
-                                m to modelColors[idx % modelColors.size]
-                            },
-                            useUtc8 = state.useUtc8
-                        )
+                    if (wideEnough) {
+                        // 面板够宽：前两张图表并排
+                        item {
+                            val models = state.selectedModels.ifEmpty { state.allModels.toSet() }
+                            val costTotal = state.buckets.sumOf { it.totalCost.toDouble() / 100_000_000.0 }
+                            val reqTotal = state.buckets.sumOf { it.totalRequests }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    ChartCard("消耗金额 (USD)", "$${String.format(Locale.US, "%.4f", costTotal)}", { showCostDetail = true }) {
+                                        StackedBarChart(state.buckets,
+                                            { it.totalCost.toDouble() / 100_000_000.0 },
+                                            { bucket -> models.mapIndexedNotNull { idx, m -> val v = bucket.byModel[m]?.cost ?: return@mapIndexedNotNull null; v.toDouble() / 100_000_000.0 to modelColors[idx % modelColors.size] } },
+                                            { bucket -> models.mapNotNull { if (bucket.byModel[it] != null) it else null } },
+                                            formatValue = { "$${String.format(Locale.US, "%.4f", it)}" },
+                                            granularity = state.granularity,
+                                            legendItems = models.mapIndexed { idx, m ->
+                                                m to modelColors[idx % modelColors.size]
+                                            },
+                                            useUtc8 = state.useUtc8
+                                        )
+                                    }
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    ChartCard("API 请求次数", "${reqTotal}次", { showReqDetail = true }) {
+                                        LineChart(state.buckets, { it.totalRequests.toFloat() }, StrawberryPink, { "${it.toInt()}次" }, state.granularity, useUtc8 = state.useUtc8)
+                                    }
+                                }
+                            }
+                        }
+                        item {
+                            val tokTotal = state.buckets.sumOf { it.cacheHitTokens + it.inputTokens + it.outputTokens }
+                            ChartCard("Token 消耗", formatTokenComma(tokTotal), { showTokenDetail = true }) {
+                                StackedBarChart(state.buckets,
+                                    { (it.cacheHitTokens + it.inputTokens + it.outputTokens).toDouble() },
+                                    { bucket -> listOfNotNull(bucket.outputTokens.toDouble() to tokenColors[2], bucket.inputTokens.toDouble() to tokenColors[1], bucket.cacheHitTokens.toDouble() to tokenColors[0]) },
+                                    { listOf("输出", "输入(未命中)", "命中缓存") },
+                                    formatValue = { formatTokenComma(it.toLong()) },
+                                    granularity = state.granularity,
+                                    tooltipReversed = true,
+                                    useUtc8 = state.useUtc8
+                                )
+                            }
+                            ChartLegend(listOf("输入(未命中)" to tokenColors[1], "命中缓存" to tokenColors[0], "输出" to tokenColors[2]))
+                        }
+                    } else {
+                        // 窄面板：三张图表纵向堆叠
+                        item {
+                            val models = state.selectedModels.ifEmpty { state.allModels.toSet() }
+                            val costTotal = state.buckets.sumOf { it.totalCost.toDouble() / 100_000_000.0 }
+                            ChartCard("消耗金额 (USD)", "$${String.format(Locale.US, "%.4f", costTotal)}", { showCostDetail = true }) {
+                                StackedBarChart(state.buckets,
+                                    { it.totalCost.toDouble() / 100_000_000.0 },
+                                    { bucket -> models.mapIndexedNotNull { idx, m -> val v = bucket.byModel[m]?.cost ?: return@mapIndexedNotNull null; v.toDouble() / 100_000_000.0 to modelColors[idx % modelColors.size] } },
+                                    { bucket -> models.mapNotNull { if (bucket.byModel[it] != null) it else null } },
+                                    formatValue = { "$${String.format(Locale.US, "%.4f", it)}" },
+                                    granularity = state.granularity,
+                                    legendItems = models.mapIndexed { idx, m ->
+                                        m to modelColors[idx % modelColors.size]
+                                    },
+                                    useUtc8 = state.useUtc8
+                                )
+                            }
+                        }
+                        item {
+                            val reqTotal = state.buckets.sumOf { it.totalRequests }
+                            ChartCard("API 请求次数", "${reqTotal}次", { showReqDetail = true }) {
+                                LineChart(state.buckets, { it.totalRequests.toFloat() }, StrawberryPink, { "${it.toInt()}次" }, state.granularity, useUtc8 = state.useUtc8)
+                            }
+                        }
+                        item {
+                            val tokTotal = state.buckets.sumOf { it.cacheHitTokens + it.inputTokens + it.outputTokens }
+                            ChartCard("Token 消耗", formatTokenComma(tokTotal), { showTokenDetail = true }) {
+                                StackedBarChart(state.buckets,
+                                    { (it.cacheHitTokens + it.inputTokens + it.outputTokens).toDouble() },
+                                    { bucket -> listOfNotNull(bucket.outputTokens.toDouble() to tokenColors[2], bucket.inputTokens.toDouble() to tokenColors[1], bucket.cacheHitTokens.toDouble() to tokenColors[0]) },
+                                    { listOf("输出", "输入(未命中)", "命中缓存") },
+                                    formatValue = { formatTokenComma(it.toLong()) },
+                                    granularity = state.granularity,
+                                    tooltipReversed = true,
+                                    useUtc8 = state.useUtc8
+                                )
+                            }
+                            ChartLegend(listOf("输入(未命中)" to tokenColors[1], "命中缓存" to tokenColors[0], "输出" to tokenColors[2]))
+                        }
                     }
-                }
-                // 图表2
-                item {
-                    val reqTotal = state.buckets.sumOf { it.totalRequests }
-                    ChartCard("API 请求次数", "${reqTotal}次", { showReqDetail = true }) {
-                        LineChart(state.buckets, { it.totalRequests.toFloat() }, StrawberryPink, { "${it.toInt()}次" }, state.granularity, useUtc8 = state.useUtc8)
+                    item {
+                        TextButton(onClick = onOpenOverview, modifier = Modifier.fillMaxWidth()) {
+                            Text("📋 总统计", color = StrawberryPink, fontWeight = FontWeight.Bold)
+                        }
                     }
+                    item { Spacer(Modifier.height(32.dp)) }
                 }
-                // 图表3
-                item {
-                    val tokTotal = state.buckets.sumOf { it.cacheHitTokens + it.inputTokens + it.outputTokens }
-                    ChartCard("Token 消耗", formatTokenComma(tokTotal), { showTokenDetail = true }) {
-                        StackedBarChart(state.buckets,
-                            { (it.cacheHitTokens + it.inputTokens + it.outputTokens).toDouble() },
-                            { bucket -> listOfNotNull(bucket.outputTokens.toDouble() to tokenColors[2], bucket.inputTokens.toDouble() to tokenColors[1], bucket.cacheHitTokens.toDouble() to tokenColors[0]) },
-                            { listOf("输出", "输入(未命中)", "命中缓存") },
-                            formatValue = { formatTokenComma(it.toLong()) },
-                            granularity = state.granularity,
-                            tooltipReversed = true,
-                            useUtc8 = state.useUtc8
-                        )
-                    }
-                    ChartLegend(listOf("输入(未命中)" to tokenColors[1], "命中缓存" to tokenColors[0], "输出" to tokenColors[2]))
-                }
-                // 总统计入口
-                item {
-                    TextButton(onClick = onOpenOverview, modifier = Modifier.fillMaxWidth()) {
-                        Text("📋 总统计", color = StrawberryPink, fontWeight = FontWeight.Bold)
-                    }
-                }
-                item { Spacer(Modifier.height(32.dp)) }
             }
         }
         // 自定义日期选择器
@@ -253,7 +308,6 @@ fun UsageDetailScreen(
             val utc = ZoneOffset.UTC; val sd = Instant.ofEpochMilli(customRangeStartMs).atOffset(utc).toLocalDate().atStartOfDay(utc).toInstant().toEpochMilli()
             val ed = Instant.ofEpochMilli(ms).atOffset(utc).toLocalDate().atStartOfDay(utc).toInstant().toEpochMilli() + 86400_000L - 1
             viewModel.setCustomRange(sd, ed); showCustomRangeEnd = false }, { showCustomRangeEnd = false })
-        // 详情弹窗
         val models = state.selectedModels.ifEmpty { state.allModels.toSet() }
         if (showCostDetail) ChartDetailDialog("消费明细", { showCostDetail = false }) {
             models.forEach { model -> val t = state.buckets.sumOf { it.byModel[model]?.cost ?:0L }; if (t>0) DetailRow(model, "$${String.format(Locale.US, "%.4f", t/100_000_000.0)}") }
@@ -266,7 +320,6 @@ fun UsageDetailScreen(
             DetailRow("输入(未命中)", formatTokenComma(state.buckets.sumOf { it.inputTokens }))
             DetailRow("输出", formatTokenComma(state.buckets.sumOf { it.outputTokens }))
         }
-        // 清除数据警告弹窗（仅 CCGO）
         if (showClearDialog && clearViewModel != null) {
             val cd = clearCountdown
             androidx.compose.material3.AlertDialog(
@@ -301,7 +354,6 @@ fun UsageDetailScreen(
                     }
                 }
             )
-            // 倒计时启动
             LaunchedEffect(showClearDialog) {
                 if (!showClearDialog) return@LaunchedEffect
                 clearCountdown = 3

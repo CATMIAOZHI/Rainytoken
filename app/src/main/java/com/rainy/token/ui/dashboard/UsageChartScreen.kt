@@ -125,13 +125,14 @@ fun UsageChartScreen(
                 Text("加载中…", color = InkMuted)
             }
         } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+            BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+                // 容器自身宽度 > 700dp 时图表并排
+                val wideEnough = maxWidth > 700.dp
+                val hPad = if (wideEnough) 24.dp else 16.dp
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(horizontal = hPad),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                 // ─── 顶部控制：粒度 + 模型 ───
                 item {
                     Row(
@@ -195,90 +196,166 @@ fun UsageChartScreen(
                     }
                 }
 
-                // ─── 图表1：消耗金额（按模型堆叠柱状图） ───
-                item {
-                    val models = state.selectedModels.ifEmpty { state.allModels.toSet() }
-                    val costTotal = state.buckets.sumOf { it.totalCost.toDouble() / 100_000_000.0 }
-                    ChartCard(
-                        title = "消耗金额 (USD)",
-                        summary = "$${String.format(Locale.US, "%.4f", costTotal)}",
-                        onSummaryClick = { showCostDetail = true }
-                    ) {
-                        StackedBarChart(
-                            buckets = state.buckets,
-                            valueSelector = { it.totalCost.toDouble() / 100_000_000.0 },
-                            stackSelector = { bucket ->
-                                models.mapIndexedNotNull { idx, model ->
-                                    val v = bucket.byModel[model]?.cost ?: return@mapIndexedNotNull null
-                                    v.toDouble() / 100_000_000.0 to modelColors[idx % modelColors.size]
+                if (wideEnough) {
+                    // 面板够宽：前两张图表并排，第三张独立
+                    item {
+                        val models = state.selectedModels.ifEmpty { state.allModels.toSet() }
+                        val costTotal = state.buckets.sumOf { it.totalCost.toDouble() / 100_000_000.0 }
+                        val reqTotal = state.buckets.sumOf { it.totalRequests }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                ChartCard("消耗金额 (USD)", "$${String.format(Locale.US, "%.4f", costTotal)}", { showCostDetail = true }) {
+                                    StackedBarChart(
+                                        buckets = state.buckets,
+                                        valueSelector = { it.totalCost.toDouble() / 100_000_000.0 },
+                                        stackSelector = { bucket ->
+                                            models.mapIndexedNotNull { idx, model ->
+                                                val v = bucket.byModel[model]?.cost ?: return@mapIndexedNotNull null
+                                                v.toDouble() / 100_000_000.0 to modelColors[idx % modelColors.size]
+                                            }
+                                        },
+                                        stackLabels = { bucket ->
+                                            models.mapNotNull { model ->
+                                                if (bucket.byModel[model] != null) model else null
+                                            }
+                                        },
+                                        formatValue = { "$${String.format(Locale.US, "%.4f", it)}" },
+                                        granularity = state.granularity,
+                                        legendItems = models.mapIndexed { idx, m ->
+                                            m to modelColors[idx % modelColors.size]
+                                        }
+                                    )
                                 }
-                            },
-                            stackLabels = { bucket ->
-                                models.mapNotNull { model ->
-                                    if (bucket.byModel[model] != null) model else null
-                                }
-                            },
-                            formatValue = { "$${String.format(Locale.US, "%.4f", it)}" },
-                            granularity = state.granularity,
-                            legendItems = models.mapIndexed { idx, m ->
-                                m to modelColors[idx % modelColors.size]
                             }
+                            Box(modifier = Modifier.weight(1f)) {
+                                ChartCard("API 请求次数", "${reqTotal}次", { showReqDetail = true }) {
+                                    LineChart(
+                                        buckets = state.buckets,
+                                        valueSelector = { it.totalRequests.toFloat() },
+                                        lineColor = StrawberryPink,
+                                        formatValue = { "${it.toInt()}次" },
+                                        granularity = state.granularity
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    // 第三张图表独立一行
+                    item {
+                        val tokTotal = state.buckets.sumOf { it.cacheHitTokens + it.inputTokens + it.outputTokens }
+                        ChartCard("Token 消耗", formatTokenComma(tokTotal), { showTokenDetail = true }) {
+                            StackedBarChart(
+                                buckets = state.buckets,
+                                valueSelector = { (it.cacheHitTokens + it.inputTokens + it.outputTokens).toDouble() },
+                                stackSelector = { bucket ->
+                                    listOfNotNull(
+                                        bucket.outputTokens.toDouble() to tokenColors[2],
+                                        bucket.inputTokens.toDouble() to tokenColors[1],
+                                        bucket.cacheHitTokens.toDouble() to tokenColors[0]
+                                    )
+                                },
+                                stackLabels = { listOf("输出", "输入(未命中)", "命中缓存") },
+                                formatValue = { formatTokenComma(it.toLong()) },
+                                granularity = state.granularity,
+                                tooltipReversed = true
+                            )
+                        }
+                        ChartLegend(
+                            items = listOf(
+                                "输入(未命中)" to tokenColors[1],
+                                "命中缓存" to tokenColors[0],
+                                "输出" to tokenColors[2]
+                            )
                         )
                     }
-                }
+                } else {
+                    // 手机：三张图表纵向堆叠（原逻辑不变）
+                    item {
+                        val models = state.selectedModels.ifEmpty { state.allModels.toSet() }
+                        val costTotal = state.buckets.sumOf { it.totalCost.toDouble() / 100_000_000.0 }
+                        ChartCard(
+                            title = "消耗金额 (USD)",
+                            summary = "$${String.format(Locale.US, "%.4f", costTotal)}",
+                            onSummaryClick = { showCostDetail = true }
+                        ) {
+                            StackedBarChart(
+                                buckets = state.buckets,
+                                valueSelector = { it.totalCost.toDouble() / 100_000_000.0 },
+                                stackSelector = { bucket ->
+                                    models.mapIndexedNotNull { idx, model ->
+                                        val v = bucket.byModel[model]?.cost ?: return@mapIndexedNotNull null
+                                        v.toDouble() / 100_000_000.0 to modelColors[idx % modelColors.size]
+                                    }
+                                },
+                                stackLabels = { bucket ->
+                                    models.mapNotNull { model ->
+                                        if (bucket.byModel[model] != null) model else null
+                                    }
+                                },
+                                formatValue = { "$${String.format(Locale.US, "%.4f", it)}" },
+                                granularity = state.granularity,
+                                legendItems = models.mapIndexed { idx, m ->
+                                    m to modelColors[idx % modelColors.size]
+                                }
+                            )
+                        }
+                    }
 
-                // ─── 图表2：API 请求次数 ───
-                item {
-                    val reqTotal = state.buckets.sumOf { it.totalRequests }
-                    ChartCard(
-                        title = "API 请求次数",
-                        summary = "${reqTotal}次",
-                        onSummaryClick = { showReqDetail = true }
-                    ) {
-                        LineChart(
-                            buckets = state.buckets,
-                            valueSelector = { it.totalRequests.toFloat() },
-                            lineColor = StrawberryPink,
-                            formatValue = { "${it.toInt()}次" },
-                            granularity = state.granularity
-                        )
+                    item {
+                        val reqTotal = state.buckets.sumOf { it.totalRequests }
+                        ChartCard(
+                            title = "API 请求次数",
+                            summary = "${reqTotal}次",
+                            onSummaryClick = { showReqDetail = true }
+                        ) {
+                            LineChart(
+                                buckets = state.buckets,
+                                valueSelector = { it.totalRequests.toFloat() },
+                                lineColor = StrawberryPink,
+                                formatValue = { "${it.toInt()}次" },
+                                granularity = state.granularity
+                            )
+                        }
                     }
-                }
 
-                // ─── 图表3：Token 消耗（底→顶：输出 / 未命中输入 / 命中缓存） ───
-                item {
-                    val tokTotal = state.buckets.sumOf { it.cacheHitTokens + it.inputTokens + it.outputTokens }
-                    ChartCard(
-                        title = "Token 消耗",
-                        summary = formatTokenComma(tokTotal),
-                        onSummaryClick = { showTokenDetail = true }
-                    ) {
-                        StackedBarChart(
-                            buckets = state.buckets,
-                            valueSelector = { (it.cacheHitTokens + it.inputTokens + it.outputTokens).toDouble() },
-                            stackSelector = { bucket ->
-                                listOfNotNull(
-                                    bucket.outputTokens.toDouble() to tokenColors[2],       // 输出 — 底
-                                    bucket.inputTokens.toDouble() to tokenColors[1],        // 输入(未命中) — 中
-                                    bucket.cacheHitTokens.toDouble() to tokenColors[0]      // 命中缓存 — 顶
-                                )
-                            },
-                            stackLabels = { listOf("输出", "输入(未命中)", "命中缓存") },
-                            formatValue = { formatTokenComma(it.toLong()) },
-                            granularity = state.granularity,
-                            tooltipReversed = true
+                    item {
+                        val tokTotal = state.buckets.sumOf { it.cacheHitTokens + it.inputTokens + it.outputTokens }
+                        ChartCard(
+                            title = "Token 消耗",
+                            summary = formatTokenComma(tokTotal),
+                            onSummaryClick = { showTokenDetail = true }
+                        ) {
+                            StackedBarChart(
+                                buckets = state.buckets,
+                                valueSelector = { (it.cacheHitTokens + it.inputTokens + it.outputTokens).toDouble() },
+                                stackSelector = { bucket ->
+                                    listOfNotNull(
+                                        bucket.outputTokens.toDouble() to tokenColors[2],
+                                        bucket.inputTokens.toDouble() to tokenColors[1],
+                                        bucket.cacheHitTokens.toDouble() to tokenColors[0]
+                                    )
+                                },
+                                stackLabels = { listOf("输出", "输入(未命中)", "命中缓存") },
+                                formatValue = { formatTokenComma(it.toLong()) },
+                                granularity = state.granularity,
+                                tooltipReversed = true
+                            )
+                        }
+                        ChartLegend(
+                            items = listOf(
+                                "输入(未命中)" to tokenColors[1],
+                                "命中缓存" to tokenColors[0],
+                                "输出" to tokenColors[2]
+                            )
                         )
                     }
-                    ChartLegend(
-                        items = listOf(
-                            "输入(未命中)" to tokenColors[1],
-                            "命中缓存" to tokenColors[0],
-                            "输出" to tokenColors[2]
-                        )
-                    )
                 }
 
                 item { Spacer(Modifier.height(32.dp)) }
+                }
             }
         }
 

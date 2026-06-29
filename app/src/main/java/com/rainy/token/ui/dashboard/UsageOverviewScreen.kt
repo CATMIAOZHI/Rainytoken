@@ -3,6 +3,8 @@ package com.rainy.token.ui.dashboard
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -53,7 +55,7 @@ import java.util.Locale
 /**
  * 总统计页 —— 总览、按模型、按天统计。
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun UsageOverviewScreen(
     onBack: () -> Unit,
@@ -125,7 +127,7 @@ fun UsageOverviewScreen(
             }
             // 总览
             uiState.overview?.let { overview ->
-                item { OverviewCard(overview) }
+                item { OverviewCard(overview, false) }
                 if (overview.cacheReadTokens > 0 || overview.cacheWriteTokens > 0) {
                     item { CacheBreakdownCard(overview) }
                 }
@@ -179,20 +181,37 @@ fun UsageOverviewScreen(
     }
 }
 
-@Composable private fun OverviewCard(overview: OverviewStats) {
+@OptIn(ExperimentalLayoutApi::class)
+@Composable private fun OverviewCard(overview: OverviewStats, isExpanded: Boolean = false) {
     val inputTotal = overview.inputTokens + overview.cacheReadTokens
     Card(Modifier.fillMaxWidth(), RoundedCornerShape(20.dp), CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(0.dp)) {
         Column(Modifier.padding(16.dp)) {
-            Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly) {
-                StatItem("输入 Token", formatTokenCount(inputTotal))
-                StatItem("输出 Token", formatTokenCount(overview.outputTokens))
-                StatItem("推理 Token", formatTokenCount(overview.reasoningTokens))
-            }
-            Spacer(Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly) {
-                StatItem("总计", formatTokenCount(overview.totalTokens))
-                StatItem("总花费", "$${String.format(Locale.US, "%.4f", overview.totalCost / 100_000_000.0)}")
-                StatItem("记录数", "${overview.totalCount}")
+            if (isExpanded) {
+                // 平板：FlowRow 横向排列 6 项统计
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    StatItem("输入 Token", formatTokenCount(inputTotal))
+                    StatItem("输出 Token", formatTokenCount(overview.outputTokens))
+                    StatItem("推理 Token", formatTokenCount(overview.reasoningTokens))
+                    StatItem("总计", formatTokenCount(overview.totalTokens))
+                    StatItem("总花费", "$${String.format(Locale.US, "%.4f", overview.totalCost / 100_000_000.0)}")
+                    StatItem("记录数", "${overview.totalCount}")
+                }
+            } else {
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly) {
+                    StatItem("输入 Token", formatTokenCount(inputTotal))
+                    StatItem("输出 Token", formatTokenCount(overview.outputTokens))
+                    StatItem("推理 Token", formatTokenCount(overview.reasoningTokens))
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly) {
+                    StatItem("总计", formatTokenCount(overview.totalTokens))
+                    StatItem("总花费", "$${String.format(Locale.US, "%.4f", overview.totalCost / 100_000_000.0)}")
+                    StatItem("记录数", "${overview.totalCount}")
+                }
             }
         }
     }

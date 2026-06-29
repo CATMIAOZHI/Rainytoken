@@ -198,11 +198,11 @@ fun UsageDataScreen(
             Card(Modifier.fillMaxWidth(), RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp),
                 CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)) {
-                    HeaderCell("时间", Modifier.weight(1.5f))
-                    HeaderCell("模型", Modifier.weight(1.8f))
-                    HeaderCell("输入(缓存)", Modifier.weight(1.5f))
-                    HeaderCell("输出", Modifier.weight(1.2f))
-                    HeaderCell("成本", Modifier.weight(1.0f))
+                    HeaderCell("时间", Modifier.weight(1.5f), false)
+                    HeaderCell("模型", Modifier.weight(1.8f), false)
+                    HeaderCell("输入(缓存)", Modifier.weight(1.5f), false)
+                    HeaderCell("输出", Modifier.weight(1.2f), false)
+                    HeaderCell("成本", Modifier.weight(1.0f), false)
                 }
             }
 
@@ -218,7 +218,7 @@ fun UsageDataScreen(
             } else {
                 LazyColumn(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     itemsIndexed(state.records, key = { _, r -> r.id }) { idx, record ->
-                        DataRecordRow(record, idx, { rawRecord = it })
+                        DataRecordRow(record, idx, { rawRecord = it }, false)
                     }
                     item { Spacer(Modifier.height(8.dp)) }
                 }
@@ -271,30 +271,35 @@ fun UsageDataScreen(
 }
 
 @Composable
-private fun HeaderCell(text: String, modifier: Modifier) {
-    Text(text, modifier = modifier, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+private fun HeaderCell(text: String, modifier: Modifier, expanded: Boolean = false) {
+    Text(text, modifier = modifier,
+        fontSize = if (expanded) 14.sp else 12.sp,
+        fontWeight = FontWeight.Bold,
         color = inkMuted(), textAlign = TextAlign.Center)
 }
 
 @Composable
-private fun DataRecordRow(record: UsageRecord, idx: Int, onClick: (UsageRecord) -> Unit) {
+private fun DataRecordRow(record: UsageRecord, idx: Int, onClick: (UsageRecord) -> Unit, expanded: Boolean = false) {
     val bg = if (idx % 2 == 0) Color.Transparent else MaterialTheme.colorScheme.surface.copy(alpha = 0.3f)
+    val rowPad = if (expanded) 12.dp else 8.dp
     Card(Modifier.fillMaxWidth().clickable { onClick(record) },
         RoundedCornerShape(0.dp), CardDefaults.cardColors(containerColor = bg)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = rowPad),
             verticalAlignment = Alignment.CenterVertically) {
-            DataCell(formatUtcTimeShort(record.timeCreated), Modifier.weight(1.5f))
-            DataCell(record.model, Modifier.weight(1.8f))
-            DataCell(formatInputWithCache(record), Modifier.weight(1.5f))
-            DataCell("%,d".format(Locale.US, record.outputTokens), Modifier.weight(1.2f))
-            DataCell("$${String.format(Locale.US, "%.4f", record.costUsd)}", Modifier.weight(1.0f))
+            DataCell(formatUtcTimeShort(record.timeCreated), Modifier.weight(1.5f), expanded)
+            DataCell(record.model, Modifier.weight(1.8f), expanded)
+            DataCell(formatInputWithCache(record), Modifier.weight(1.5f), expanded)
+            DataCell("%,d".format(Locale.US, record.outputTokens), Modifier.weight(1.2f), expanded)
+            DataCell("$${String.format(Locale.US, "%.4f", record.costUsd)}", Modifier.weight(1.0f), expanded)
         }
     }
 }
 
 @Composable
-private fun DataCell(text: String, modifier: Modifier) {
-    Text(text, modifier = modifier, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface,
+private fun DataCell(text: String, modifier: Modifier, expanded: Boolean = false) {
+    Text(text, modifier = modifier,
+        fontSize = if (expanded) 13.sp else 11.sp,
+        color = MaterialTheme.colorScheme.onSurface,
         textAlign = TextAlign.Center, maxLines = 1)
 }
 
