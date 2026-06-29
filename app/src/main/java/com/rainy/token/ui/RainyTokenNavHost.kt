@@ -1,6 +1,10 @@
 package com.rainy.token.ui
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,8 +53,8 @@ import com.rainy.token.ui.webview.WebViewLoginScreen
  * 应用导航图。
  *
  * 自适应策略：
- *  - **Compact**（< 600dp，手机）：单栈 NavHost。guardedPop 时间戳围栏（150ms）防连点栈损坏，
- *    popExitTransition=None 消除旧 composable 残留，其余 transition 保留默认动画。
+ *  - **Compact**（< 600dp，手机）：单栈 NavHost。guardedPop 时间戳围栏（200ms）防连点栈损坏，
+ *    popExit=fadeOut(1ms)+popEnter=None 消除过渡动画与连点 pop 的竞态，enter/exit 保留默认动画。
  *  - **Expanded**（≥ 840dp，平板横屏）：左侧 Dashboard + 右侧 when 分支原子切换，
  *    用量子路由用局部 NavHost。
  */
@@ -98,25 +102,61 @@ fun RainyTokenNavHost() {
 }
 
 // ═══════════════════════════════════════════════
-// Compact：单栈 NavHost —— guardedPop 围栏 + popExitTransition=None
+// Compact：单栈 NavHost —— guardedPop 围栏 + popExit/popEnter=None
 // ═══════════════════════════════════════════════
+
+/**
+ * 非 Compose State 的时间戳围栏。
+ *
+ * 为什么不用 mutableStateOf：
+ *   mutableStateOf 写入会触发 CompactNavHost → NavHost 重组。若重组发生在
+ *   AnimatedContent 过渡动画期间，会干扰内部 MutableTransitionState 状态机，
+ *   导致旧 composable 已移除、新 composable 进入动画被中断后未正确启动 → 空白页。
+ *
+ * 连点保护：cooldownMs 内只放行一次 pop。popBackStack() 返回 false 时 reset。
+ */
+private class PopGuard(
+    private val cooldownMs: Long = 200
+) {
+    private var lastPopTime: Long = 0L
+
+    fun tryAcquire(): Boolean {
+        val now = System.currentTimeMillis()
+        if (now - lastPopTime < cooldownMs) return false
+        lastPopTime = now
+        return true
+    }
+
+    fun reset() {
+        lastPopTime = 0L
+    }
+}
 
 @Composable
 private fun CompactNavHost() {
     val navController = rememberNavController()
-    // 时间戳围栏：150ms 内只允许一次 pop，防止连点时旧 composable 残留接收触摸
-    var lastPopTime by remember { mutableStateOf(0L) }
+    // 围栏：200ms 内只允许一次 pop；普通对象持有时间戳，不触发 NavHost 重组
+    val popGuard = remember { PopGuard() }
     val guardedPop: () -> Unit = {
-        val now = System.currentTimeMillis()
-        if (now - lastPopTime >= 150) {
-            lastPopTime = now
-            navController.popBackStack()
+        // 起始页无 previousBackStackEntry，直接跳过，避免无意义的 popBackStack() 调用
+        if (navController.previousBackStackEntry != null && popGuard.tryAcquire()) {
+            // popBackStack() 返回 false = 已在起始页，reset 围栏不浪费冷却
+            if (!navController.popBackStack()) {
+                popGuard.reset()
+            }
         }
     }
     NavHost(
         navController = navController,
         startDestination = Routes.DASHBOARD,
-        popExitTransition = { ExitTransition.None }
+        // popExit=fadeOut(1ms)：极短但非零的退出动画，确保 AnimatedContent 正确执行
+        //   transition 结束帧来移除旧 composable。ExitTransition.None 是字面零帧，
+        //   连续 pop 时上一帧的退出 composable 可能未从 layout 树中清除 → 幽灵残影。
+        // popEnter=None：新 composable 瞬时出现，消除进入动画与连点 pop 的竞态
+        //   （根因：默认 popEnter fadeIn(700ms) 时，第二次 pop 中断进入动画导致
+        //    AnimatedContent 状态不一致 → 空白页）
+        popExitTransition = { fadeOut(animationSpec = tween(1)) },
+        popEnterTransition = { EnterTransition.None }
     ) {
         composable(Routes.DASHBOARD) {
             DashboardScreen(

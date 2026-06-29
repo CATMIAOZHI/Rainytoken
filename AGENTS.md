@@ -68,13 +68,23 @@ Compact（手机）：
             → CCGO: CCGO_USAGE_DETAIL（图表） → CCGO_USAGE_OVERVIEW（总统计）
                                           ↘ CCGO_USAGE_DATA（原始数据）
 
-  返回用 guardedPop()（150ms 时间戳围栏）+ popExitTransition=None。
-  围栏防同一帧/连续帧的第二次 pop，popExitTransition 消旧 composable 残留窗口。
-  其余 transition 保留默认动画（enter/exit/popEnter）。
+  返回用 guardedPop()（200ms 时间戳围栏，PopGuard 非 State 对象）+ popExit=fadeOut(1ms)+popEnter=None。
+围栏防同一帧/连续帧的第二次 pop；popExit=fadeOut(1ms) 确保旧 composable 正确从 layout 树移除
+（ExitTransition.None 是字面零帧，连续 pop 时退出 composable 可能未清除 → 幽灵残影卡在上层），
+popEnter=None 消除进入动画与连点 pop 的竞态（根因：默认 popEnter fadeIn(700ms) 时，
+第二次 pop 中断进入动画导致 AnimatedContent 状态不一致 → 空白页）。
+enter/exit 保留默认动画（仅影响前进导航）。
+PopGuard 额外检查 previousBackStackEntry != null，且 popBackStack() 返回 false 时 reset 围栏。
 
-⚠️ 已知未修复 Bug：快速连点左上角返回 → 仍然会返回到空页面。
-  根因尚未定位（已排除：动画残留、回调竞态、目标路由 no-op）。
-  待查方向：UsageDetailScreen 内部返回链路 + NavController backQueue 状态。
+✅ 已修复：快速连点左上角返回 → 空页面 / 旧页面残影卡在上层。
+根因：① mutableStateOf 写入触发 NavHost 重组，干扰 AnimatedContent 过渡状态机；
+      ② popExitTransition=None 字面零帧，连续 pop 时退出 composable 未从 layout 树清除；
+      ③ popExitTransition=None + 默认 popEnterTransition(700ms) 不匹配，第二次 pop
+        中断进入动画导致 AnimatedContent 状态不一致。
+修复：① PopGuard 用普通对象替代 mutableStateOf，不触发重组；
+      ② popExitTransition=fadeOut(tween(1))，极短非零帧确保 composable 正确移除；
+      ③ popEnterTransition=EnterTransition.None，返回导航瞬时完成；
+      ④ previousBackStackEntry 空值检查 + popBackStack() 返回值检查。
 
 Expanded（平板，≥840dp）：
   ┌─ 左侧 35%: Dashboard（固定） ─┐  ┌─ 右侧 65%: when(pane) 原子切换 ─────┐
