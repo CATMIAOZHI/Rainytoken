@@ -33,13 +33,18 @@ import java.util.Locale
 class OpenCodeGoWidgetProvider : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        if ("miui.appwidget.action.APPWIDGET_UPDATE" == intent.action) {
-            val appWidgetIds = intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)
-            if (appWidgetIds != null) {
-                onUpdate(context, AppWidgetManager.getInstance(context), appWidgetIds)
+        when (intent.action) {
+            ACTION_SWITCH_SERVICE -> {
+                switchDisplayService(context)
+                notifyDataChanged(context)
             }
-        } else {
-            super.onReceive(context, intent)
+            "miui.appwidget.action.APPWIDGET_UPDATE" -> {
+                val appWidgetIds = intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)
+                if (appWidgetIds != null) {
+                    onUpdate(context, AppWidgetManager.getInstance(context), appWidgetIds)
+                }
+            }
+            else -> super.onReceive(context, intent)
         }
     }
 
@@ -48,7 +53,7 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        var hasCachedData = false
+        var selectedHasCachedData = false
 
         for (widgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_opencode_go)
@@ -70,32 +75,33 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
             )
             views.setOnClickPendingIntent(R.id.widget_refresh, refreshPendingIntent)
 
+            val switchPendingIntent = PendingIntent.getBroadcast(
+                context, 2, Intent(context, OpenCodeGoWidgetProvider::class.java).apply { action = ACTION_SWITCH_SERVICE },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.widget_switch, switchPendingIntent)
+
             // 读缓存并填充数据
             runBlocking {
                 try {
                     val dataStore = context.applicationContext.balanceCacheDataStore
                     val cache = BalanceCache(dataStore)
-                    val cached = cache.get(ServiceType.OPENCODE_GO)
+                    val selectedService = currentDisplayService(context)
+                    views.setTextViewText(R.id.widget_switch, shortName(selectedService))
+                    views.setTextViewText(R.id.widget_service_title, "${selectedService.displayName} · 额度")
+                    views.setImageViewResource(R.id.widget_logo, widgetLogo(selectedService))
+                    val cached = cache.get(selectedService)
                     if (cached != null) {
-                        hasCachedData = true
-                        val bal = cached.balance
-                        val extras = bal.extras
-
-                        populateRow(views, R.id.row1_pct, R.id.row1_bar, R.id.row1_reset,
-                            pct = extras["rolling.pct"]?.toIntOrNull(),
-                            resetSec = extras["rolling.resetInSec"]?.toLongOrNull())
-                        populateRow(views, R.id.row2_pct, R.id.row2_bar, R.id.row2_reset,
-                            pct = extras["weekly.pct"]?.toIntOrNull(),
-                            resetSec = extras["weekly.resetInSec"]?.toLongOrNull())
-                        populateRow(views, R.id.row3_pct, R.id.row3_bar, R.id.row3_reset,
-                            pct = extras["monthly.pct"]?.toIntOrNull(),
-                            resetSec = extras["monthly.resetInSec"]?.toLongOrNull())
+                        selectedHasCachedData = true
+                        populateServiceRows(views, selectedService, cached.balance)
 
                         val sdf = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
                         val timeText = "更新 " + sdf.format(Date(cached.fetchedAt))
                         views.setTextViewText(R.id.widget_updated, timeText)
                     } else {
                         setEmptyState(views)
+                        views.setTextViewText(R.id.widget_switch, shortName(selectedService))
+                        views.setTextViewText(R.id.widget_service_title, "${selectedService.displayName} · 额度")
                     }
 
                     // DeepSeek 余额
@@ -116,10 +122,77 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
         }
 
         // 自动刷新：缓存为空 或 超过冷却时间 → 触发后台刷新
-        if (!hasCachedData || shouldAutoRefresh(context)) {
+        if (!selectedHasCachedData || shouldAutoRefresh(context)) {
             markAutoRefreshTime(context)
             context.sendBroadcast(WidgetRefreshReceiver.createIntent(context))
         }
+    }
+
+    private fun populateServiceRows(
+        views: RemoteViews,
+        service: ServiceType,
+        balance: com.rainy.token.domain.model.ServiceBalance
+    ) {
+        val extras = balance.extras
+        when (service) {
+            ServiceType.OPENCODE_GO -> {
+                setRowLabel(views, "5h", "本周", "本月")
+                populateRow(views, R.id.row1_pct, R.id.row1_bar, R.id.row1_reset,
+                    pct = extras["rolling.pct"]?.toIntOrNull(),
+                    resetSec = extras["rolling.resetInSec"]?.toLongOrNull())
+                populateRow(views, R.id.row2_pct, R.id.row2_bar, R.id.row2_reset,
+                    pct = extras["weekly.pct"]?.toIntOrNull(),
+                    resetSec = extras["weekly.resetInSec"]?.toLongOrNull())
+                populateRow(views, R.id.row3_pct, R.id.row3_bar, R.id.row3_reset,
+                    pct = extras["monthly.pct"]?.toIntOrNull(),
+                    resetSec = extras["monthly.resetInSec"]?.toLongOrNull())
+            }
+            ServiceType.COMMANDCODE_GO -> {
+                fun calcPct(used: Double?, cap: Double?): Int? {
+                    if (used == null || cap == null || cap <= 0) return null
+                    return ((used / cap) * 100).toInt().coerceIn(0, 100)
+                }
+                setRowLabel(views, "5h", "本周", "本月")
+                populateRow(views, R.id.row1_pct, R.id.row1_bar, R.id.row1_reset,
+                    pct = calcPct(extras["fiveHour.used"]?.toDoubleOrNull(), extras["fiveHour.cap"]?.toDoubleOrNull()),
+                    resetSec = extras["fiveHour.resetInSec"]?.toLongOrNull())
+                populateRow(views, R.id.row2_pct, R.id.row2_bar, R.id.row2_reset,
+                    pct = calcPct(extras["weekly.used"]?.toDoubleOrNull(), extras["weekly.cap"]?.toDoubleOrNull()),
+                    resetSec = extras["weekly.resetInSec"]?.toLongOrNull())
+                populateRow(views, R.id.row3_pct, R.id.row3_bar, R.id.row3_reset,
+                    pct = calcPct(balance.monthlySpent, balance.totalQuota),
+                    resetSec = extras["monthly.resetInSec"]?.toLongOrNull())
+            }
+            ServiceType.CODEX -> {
+                val windows = (0 until 3).map { index ->
+                    val label = normalizeWindowLabel(extras["window_$index.label"] ?: if (index == 0) "5h" else "Usage")
+                    val remaining = extras["window_$index.remainingPct"]?.toIntOrNull()
+                    val resetAt = extras["window_$index.resetAt"]?.toLongOrNull()?.takeIf { it > 0 }
+                    Triple(label, remaining?.let { (100 - it).coerceIn(0, 100) }, resetAt?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 })
+                }
+                setRowLabel(views, windows.getOrNull(0)?.first ?: "5h", windows.getOrNull(1)?.first ?: "周", windows.getOrNull(2)?.first ?: "月")
+                listOf(
+                    Triple(R.id.row1_pct, R.id.row1_bar, R.id.row1_reset),
+                    Triple(R.id.row2_pct, R.id.row2_bar, R.id.row2_reset),
+                    Triple(R.id.row3_pct, R.id.row3_bar, R.id.row3_reset)
+                ).forEachIndexed { index, ids ->
+                    val window = windows.getOrNull(index)
+                    populateRow(views, ids.first, ids.second, ids.third, pct = window?.second, resetSec = window?.third)
+                }
+            }
+            ServiceType.DEEPSEEK -> setEmptyState(views)
+        }
+    }
+
+    private fun setRowLabel(views: RemoteViews, first: String, second: String, third: String) {
+        views.setTextViewText(R.id.row1_label, first)
+        views.setTextViewText(R.id.row2_label, second)
+        views.setTextViewText(R.id.row3_label, third)
+    }
+
+    private fun normalizeWindowLabel(label: String): String = when (label.lowercase()) {
+        "weekly" -> "每周"
+        else -> label
     }
 
     private fun populateRow(
@@ -175,6 +248,9 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
         private const val AUTO_REFRESH_COOLDOWN_MS = 5 * 60 * 1000L
         private const val PREFS_NAME = "widget_auto_refresh"
         private const val KEY_LAST_AUTO_REFRESH = "last_auto_refresh"
+        private const val KEY_DISPLAY_SERVICE = "display_service"
+        private const val ACTION_SWITCH_SERVICE = "com.rainy.token.action.WIDGET_SWITCH_SERVICE"
+        private val DISPLAY_SERVICES = listOf(ServiceType.OPENCODE_GO, ServiceType.COMMANDCODE_GO, ServiceType.CODEX)
 
         private fun autoRefreshPrefs(context: Context) =
             context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -188,6 +264,30 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
             autoRefreshPrefs(context).edit()
                 .putLong(KEY_LAST_AUTO_REFRESH, System.currentTimeMillis())
                 .apply()
+        }
+
+        fun currentDisplayService(context: Context): ServiceType {
+            val key = autoRefreshPrefs(context).getString(KEY_DISPLAY_SERVICE, ServiceType.OPENCODE_GO.storageKey)
+            return DISPLAY_SERVICES.firstOrNull { it.storageKey == key } ?: ServiceType.OPENCODE_GO
+        }
+
+        private fun switchDisplayService(context: Context) {
+            val current = currentDisplayService(context)
+            val next = DISPLAY_SERVICES[(DISPLAY_SERVICES.indexOf(current).coerceAtLeast(0) + 1) % DISPLAY_SERVICES.size]
+            autoRefreshPrefs(context).edit().putString(KEY_DISPLAY_SERVICE, next.storageKey).apply()
+        }
+
+        private fun shortName(service: ServiceType): String = when (service) {
+            ServiceType.OPENCODE_GO -> "OCGO"
+            ServiceType.COMMANDCODE_GO -> "CCGO"
+            ServiceType.CODEX -> "Codex"
+            ServiceType.DEEPSEEK -> "DS"
+        }
+
+        private fun widgetLogo(service: ServiceType): Int = when (service) {
+            ServiceType.OPENCODE_GO, ServiceType.COMMANDCODE_GO -> R.drawable.ic_opencode_go_logo
+            ServiceType.CODEX -> R.drawable.ic_codex_logo
+            ServiceType.DEEPSEEK -> R.drawable.ic_deepseek_logo
         }
 
         /**
@@ -205,6 +305,17 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
                 }
                 context.sendBroadcast(intent)
+            }
+        }
+
+        fun showRefreshing(context: Context) {
+            val appWidgetManager = AppWidgetManager.getInstance(context)
+            val component = ComponentName(context, OpenCodeGoWidgetProvider::class.java)
+            val ids = appWidgetManager.getAppWidgetIds(component)
+            ids.forEach { id ->
+                val views = RemoteViews(context.packageName, R.layout.widget_opencode_go)
+                views.setTextViewText(R.id.widget_updated, "刷新中…")
+                appWidgetManager.partiallyUpdateAppWidget(id, views)
             }
         }
 

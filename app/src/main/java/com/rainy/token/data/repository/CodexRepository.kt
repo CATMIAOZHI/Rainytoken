@@ -140,7 +140,7 @@ class CodexRepository(
         return result
     }
 
-    private fun durationLabel(seconds: Long?): String = when { seconds == null -> "Usage"; seconds / 60.0 >= 10079 -> "Weekly"; seconds / 60.0 >= 1439 -> "${(seconds / 86400).toInt()}d"; seconds / 60.0 >= 60 -> "${(seconds / 3600).toInt()}h"; else -> "${maxOf(1, (seconds / 60).toInt())}m" }
+    private fun durationLabel(seconds: Long?): String = when { seconds == null -> "Usage"; seconds / 60.0 >= 10079 -> "每周"; seconds / 60.0 >= 1439 -> "${(seconds / 86400).toInt()}d"; seconds / 60.0 >= 60 -> "${(seconds / 3600).toInt()}h"; else -> "${maxOf(1, (seconds / 60).toInt())}m" }
 
     @Serializable data class OAuthRefreshRequest(@kotlinx.serialization.SerialName("grant_type") val grantType: String, @kotlinx.serialization.SerialName("refresh_token") val refreshToken: String, @kotlinx.serialization.SerialName("client_id") val clientId: String, val scope: String)
     @Serializable data class OAuthRefreshResponse(@kotlinx.serialization.SerialName("access_token") val accessToken: String, @kotlinx.serialization.SerialName("refresh_token") val refreshToken: String, @kotlinx.serialization.SerialName("expires_in") val expiresIn: Long, @kotlinx.serialization.SerialName("token_type") val tokenType: String? = null)

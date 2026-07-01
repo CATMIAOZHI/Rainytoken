@@ -5,18 +5,21 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -46,17 +49,30 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rainy.token.domain.model.CredentialStatus
@@ -98,6 +114,17 @@ fun DashboardScreen(
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val cardOrder = remember { mutableStateListOf<String>() }
+    LaunchedEffect(Unit) {
+        val saved = context.getSharedPreferences(DASHBOARD_ORDER_PREFS, android.content.Context.MODE_PRIVATE)
+            .getString(DASHBOARD_ORDER_KEY, null)
+            ?.split(',')
+            ?.filter { it.isNotBlank() }
+            .orEmpty()
+        cardOrder.clear()
+        cardOrder.addAll(saved)
+    }
 
     // 全局刷新触发器——每次 dashboard 刷新完成后 +1，UsageStatsCard 据此同步用量数据
     var usageSyncTrigger by remember { mutableIntStateOf(0) }
@@ -130,7 +157,6 @@ fun DashboardScreen(
                 },
                 actions = {
                     // 添加小组件：优先 requestPinAppWidget，不支持则打开系统小组件选择器
-                    val context = LocalContext.current
                     IconButton(onClick = {
                         val appWidgetManager = AppWidgetManager.getInstance(context)
                         val component = ComponentName(context, OpenCodeGoWidgetProvider::class.java)
@@ -197,62 +223,321 @@ fun DashboardScreen(
                     // 容器自身宽度 > 600dp 时开双列（自适应父容器，而非全局窗口）
                     val wideEnough = maxWidth > 600.dp
                     val contentPadding = if (wideEnough) 16.dp else 16.dp
+                    val scrollState = rememberScrollState()
+                    var viewportHeightPx by remember { mutableIntStateOf(1) }
+                    var viewportTopInWindow by remember { mutableFloatStateOf(0f) }
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
+                            .onSizeChanged { viewportHeightPx = it.height.coerceAtLeast(1) }
+                            .onGloballyPositioned { viewportTopInWindow = it.positionInWindow().y }
+                            .verticalScroll(scrollState)
                             .padding(contentPadding),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // 用量统计卡片（主页面，独立 ViewModel）
-                        if (wideEnough) {
-                            // 面板够宽：两张用量卡片并排
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Box(modifier = Modifier.weight(1f)) {
-                                    UsageStatsCard(onOpenDetail = onOpenUsageDetail, refreshTrigger = usageSyncTrigger)
-                                }
-                                Box(modifier = Modifier.weight(1f)) {
-                                    CommandCodeUsageStatsCard(onOpenDetail = onOpenCcgoUsageDetail, refreshTrigger = usageSyncTrigger)
-                                }
-                            }
-                        } else {
-                            UsageStatsCard(onOpenDetail = onOpenUsageDetail, refreshTrigger = usageSyncTrigger)
-                            CommandCodeUsageStatsCard(onOpenDetail = onOpenCcgoUsageDetail, refreshTrigger = usageSyncTrigger)
-                        }
-                        // 分隔
-                        Text(
-                            text = "服务余额",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = inkMuted(),
-                            modifier = Modifier.padding(top = 8.dp)
+                        val items = rememberDashboardItems(
+                            cards = uiState.cards,
+                            order = cardOrder,
+                            onOpenUsageDetail = onOpenUsageDetail,
+                            onOpenCcgoUsageDetail = onOpenCcgoUsageDetail,
+                            onOpenService = onOpenService,
+                            refreshTrigger = usageSyncTrigger
                         )
-                        if (wideEnough) {
-                            // 面板够宽：服务卡片 FlowRow 双列
-                            FlowRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                uiState.cards.forEach { card ->
-                                    Box(modifier = Modifier.fillMaxWidth(0.5f)) {
-                                        DashboardCard(card = card, onClick = { onOpenService(card.service) },
-                                            onOpenCcgoUsageDetail = if (card.service == ServiceType.COMMANDCODE_GO) onOpenCcgoUsageDetail else null)
-                                    }
-                                }
+                        DraggableDashboardCards(
+                            items = items,
+                            wideEnough = wideEnough,
+                            scrollState = scrollState,
+                            viewportHeightPx = viewportHeightPx,
+                            viewportTopInWindow = viewportTopInWindow,
+                            onOrderChanged = { newOrder ->
+                                cardOrder.clear()
+                                cardOrder.addAll(newOrder)
+                                context.getSharedPreferences(DASHBOARD_ORDER_PREFS, android.content.Context.MODE_PRIVATE)
+                                    .edit()
+                                    .putString(DASHBOARD_ORDER_KEY, newOrder.joinToString(","))
+                                    .apply()
                             }
-                        } else {
-                            uiState.cards.forEach { card ->
-                                DashboardCard(card = card, onClick = { onOpenService(card.service) },
-                                    onOpenCcgoUsageDetail = if (card.service == ServiceType.COMMANDCODE_GO) onOpenCcgoUsageDetail else null)
-                            }
-                        }
+                        )
                         // 底部 footer：填空白 + 提供版本号
                         DashboardFooter()
                     }
                 }
+            }
+        }
+    }
+}
+
+private const val DASHBOARD_ORDER_PREFS = "dashboard_card_order"
+private const val DASHBOARD_ORDER_KEY = "order"
+private const val USAGE_OCGO_CARD_ID = "usage:opencode_go"
+private const val USAGE_CCGO_CARD_ID = "usage:commandcode_go"
+private const val DASHBOARD_CARD_SPACING_DP = 12
+
+private data class DashboardHomeItem(
+    val id: String,
+    val content: @Composable () -> Unit
+)
+
+@Composable
+private fun rememberDashboardItems(
+    cards: List<DashboardCardUi>,
+    order: List<String>,
+    onOpenUsageDetail: () -> Unit,
+    onOpenCcgoUsageDetail: () -> Unit,
+    onOpenService: (ServiceType) -> Unit,
+    refreshTrigger: Int
+): List<DashboardHomeItem> {
+    val defaultItems = buildList {
+        add(DashboardHomeItem(USAGE_OCGO_CARD_ID) {
+            UsageStatsCard(onOpenDetail = onOpenUsageDetail, refreshTrigger = refreshTrigger)
+        })
+        add(DashboardHomeItem(USAGE_CCGO_CARD_ID) {
+            CommandCodeUsageStatsCard(onOpenDetail = onOpenCcgoUsageDetail, refreshTrigger = refreshTrigger)
+        })
+        cards.forEach { card ->
+            add(DashboardHomeItem("service:${card.service.storageKey}") {
+                DashboardCard(
+                    card = card,
+                    onClick = { onOpenService(card.service) },
+                    onOpenCcgoUsageDetail = if (card.service == ServiceType.COMMANDCODE_GO) onOpenCcgoUsageDetail else null
+                )
+            })
+        }
+    }
+    val itemById = defaultItems.associateBy { it.id }
+    val ordered = order.mapNotNull { itemById[it] }
+    return ordered + defaultItems.filterNot { item -> ordered.any { it.id == item.id } }
+}
+
+@Composable
+private fun DraggableDashboardCards(
+    items: List<DashboardHomeItem>,
+    wideEnough: Boolean,
+    scrollState: ScrollState,
+    viewportHeightPx: Int,
+    viewportTopInWindow: Float,
+    onOrderChanged: (List<String>) -> Unit
+) {
+    val columns = if (wideEnough) 2 else 1
+    val gestureKey = remember(items) { items.joinToString("|") { it.id } }
+    var draggingId by remember { mutableStateOf<String?>(null) }
+    val displayOrder = remember { mutableStateListOf<String>() }
+    LaunchedEffect(gestureKey) {
+        if (draggingId == null) {
+            displayOrder.clear()
+            displayOrder.addAll(items.map { it.id })
+        }
+    }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val spacingPx = with(density) { DASHBOARD_CARD_SPACING_DP.dp.toPx() }
+    val edgeScrollZonePx = with(density) { 96.dp.toPx() }
+    val maxAutoScrollPx = with(density) { 26.dp.toPx() }
+    var visualDragOffsetX by remember { mutableFloatStateOf(0f) }
+    var visualDragOffsetY by remember { mutableFloatStateOf(0f) }
+    var dragStartCenterXInWindow by remember { mutableFloatStateOf(-1f) }
+    var dragStartCenterYInWindow by remember { mutableFloatStateOf(-1f) }
+    var dragCenterYInViewport by remember { mutableFloatStateOf(-1f) }
+    var cardTopInViewport by remember { mutableFloatStateOf(0f) }
+    var cardWidthPx by remember { mutableIntStateOf(1) }
+    var cardHeightPx by remember { mutableIntStateOf(1) }
+    var dragFromIndex by remember { mutableIntStateOf(-1) }
+    var dragTargetIndex by remember { mutableIntStateOf(-1) }
+    val itemCenterById = remember { mutableStateMapOf<String, androidx.compose.ui.geometry.Offset>() }
+
+    fun autoScrollDelta(): Float {
+        if (dragCenterYInViewport < 0f || scrollState.maxValue <= 0) return 0f
+        val topZoneEnd = viewportTopInWindow + edgeScrollZonePx
+        val bottomZoneStart = viewportTopInWindow + viewportHeightPx - edgeScrollZonePx
+        return when {
+            dragCenterYInViewport < topZoneEnd -> {
+                -maxAutoScrollPx * ((topZoneEnd - dragCenterYInViewport) / edgeScrollZonePx).coerceIn(0.2f, 1f)
+            }
+            dragCenterYInViewport > bottomZoneStart -> {
+                maxAutoScrollPx * ((dragCenterYInViewport - bottomZoneStart) / edgeScrollZonePx).coerceIn(0.2f, 1f)
+            }
+            else -> 0f
+        }
+    }
+
+    fun updateDragTargetIndex() {
+        val id = draggingId ?: return
+        if (dragFromIndex < 0 || dragStartCenterXInWindow < 0f || dragStartCenterYInWindow < 0f) return
+
+        val dragCenter = androidx.compose.ui.geometry.Offset(
+            x = dragStartCenterXInWindow + visualDragOffsetX,
+            y = dragStartCenterYInWindow + visualDragOffsetY
+        )
+        val targetId = displayOrder
+            .asSequence()
+            .filter { it != id }
+            .minByOrNull { otherId ->
+                val center = itemCenterById[otherId] ?: return@minByOrNull Float.MAX_VALUE
+                val dx = center.x - dragCenter.x
+                val dy = center.y - dragCenter.y
+                dx * dx + dy * dy
+            }
+            ?: return
+        val targetCenter = itemCenterById[targetId] ?: return
+        val activationDistance = minOf(cardWidthPx, cardHeightPx) * 0.45f
+        val dx = targetCenter.x - dragCenter.x
+        val dy = targetCenter.y - dragCenter.y
+        dragTargetIndex = if (dx * dx + dy * dy <= activationDistance * activationDistance) {
+            displayOrder.indexOf(targetId).takeIf { it >= 0 } ?: dragFromIndex
+        } else {
+            dragFromIndex
+        }
+    }
+
+    fun settleDraggedItem() {
+        val id = draggingId ?: return
+        if (dragFromIndex < 0 || dragTargetIndex < 0 || dragFromIndex == dragTargetIndex) return
+        val currentIndex = displayOrder.indexOf(id)
+        if (currentIndex < 0) return
+        displayOrder.add(dragTargetIndex.coerceIn(0, displayOrder.lastIndex), displayOrder.removeAt(currentIndex))
+    }
+
+    fun displacementFor(index: Int): IntOffset {
+        if (draggingId == null || dragFromIndex < 0 || dragTargetIndex < 0 || dragFromIndex == dragTargetIndex) {
+            return IntOffset.Zero
+        }
+        val targetIndex = dragTargetIndex.coerceIn(0, displayOrder.lastIndex)
+        val displacedIndex = when {
+            dragFromIndex < targetIndex && index in (dragFromIndex + 1)..targetIndex -> index - 1
+            dragFromIndex > targetIndex && index in targetIndex until dragFromIndex -> index + 1
+            else -> index
+        }
+        if (displacedIndex == index) return IntOffset.Zero
+        val cellWidth = cardWidthPx + spacingPx
+        val cellHeight = cardHeightPx + spacingPx
+        val fromColumn = index % columns
+        val fromRow = index / columns
+        val toColumn = displacedIndex % columns
+        val toRow = displacedIndex / columns
+        return IntOffset(
+            x = ((toColumn - fromColumn) * cellWidth).roundToInt(),
+            y = ((toRow - fromRow) * cellHeight).roundToInt()
+        )
+    }
+
+    LaunchedEffect(draggingId, dragCenterYInViewport, viewportHeightPx, viewportTopInWindow) {
+        while (draggingId != null) {
+            val delta = autoScrollDelta()
+            if (delta != 0f) {
+                val before = scrollState.value
+                scrollState.scrollBy(delta)
+                val consumed = scrollState.value - before
+                visualDragOffsetY += consumed
+                dragStartCenterYInWindow -= consumed
+                itemCenterById.keys.toList().forEach { id ->
+                    itemCenterById[id] = itemCenterById[id]?.let { center ->
+                        center.copy(y = center.y - consumed)
+                    } ?: return@forEach
+                }
+                dragCenterYInViewport = dragStartCenterYInWindow + visualDragOffsetY
+                updateDragTargetIndex()
+            }
+            delay(16L)
+        }
+    }
+
+    val itemById = items.associateBy { it.id }
+    val displayedItems = displayOrder.mapNotNull { itemById[it] }.ifEmpty { items }
+
+    displayedItems.chunked(columns).forEachIndexed { rowIndex, rowItems ->
+        val rowContainsDraggingItem = draggingId != null && rowItems.any { it.id == draggingId }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .zIndex(if (rowContainsDraggingItem) 10f else 0f),
+            horizontalArrangement = Arrangement.spacedBy(DASHBOARD_CARD_SPACING_DP.dp)
+        ) {
+            rowItems.forEachIndexed { columnIndex, item ->
+                key(item.id) {
+                val itemIndex = rowIndex * columns + columnIndex
+                val isDragging = draggingId == item.id
+                val itemDisplacement = if (isDragging) IntOffset.Zero else displacementFor(itemIndex)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .onSizeChanged {
+                            cardWidthPx = it.width.coerceAtLeast(1)
+                            cardHeightPx = it.height.coerceAtLeast(1)
+                        }
+                        .onGloballyPositioned { coordinates ->
+                            val position = coordinates.positionInWindow()
+                            val size = coordinates.size
+                            if (draggingId == null) {
+                                itemCenterById[item.id] = androidx.compose.ui.geometry.Offset(
+                                    x = position.x + size.width / 2f,
+                                    y = position.y + size.height / 2f
+                                )
+                            }
+                            if (isDragging) {
+                                cardTopInViewport = position.y
+                            }
+                        }
+                        .offset {
+                            if (isDragging) {
+                                IntOffset(visualDragOffsetX.roundToInt(), visualDragOffsetY.roundToInt())
+                            } else {
+                                itemDisplacement
+                            }
+                        }
+                        .zIndex(if (isDragging) 20f else 0f)
+                        .alpha(if (isDragging) 0.92f else 1f)
+                        .pointerInput(gestureKey) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    draggingId = item.id
+                                    visualDragOffsetX = 0f
+                                    visualDragOffsetY = 0f
+                                    dragFromIndex = displayOrder.indexOf(item.id)
+                                    dragTargetIndex = dragFromIndex
+                                    val center = itemCenterById[item.id]
+                                    dragStartCenterXInWindow = center?.x ?: -1f
+                                    dragStartCenterYInWindow = center?.y ?: -1f
+                                    dragCenterYInViewport = (center?.y ?: cardTopInViewport + cardHeightPx / 2f)
+                                },
+                                onDragEnd = {
+                                    settleDraggedItem()
+                                    onOrderChanged(displayOrder.toList())
+                                    draggingId = null
+                                    visualDragOffsetX = 0f
+                                    visualDragOffsetY = 0f
+                                    dragStartCenterXInWindow = -1f
+                                    dragStartCenterYInWindow = -1f
+                                    dragFromIndex = -1
+                                    dragTargetIndex = -1
+                                    dragCenterYInViewport = -1f
+                                },
+                                onDragCancel = {
+                                    displayOrder.clear()
+                                    displayOrder.addAll(items.map { it.id })
+                                    draggingId = null
+                                    visualDragOffsetX = 0f
+                                    visualDragOffsetY = 0f
+                                    dragStartCenterXInWindow = -1f
+                                    dragStartCenterYInWindow = -1f
+                                    dragFromIndex = -1
+                                    dragTargetIndex = -1
+                                    dragCenterYInViewport = -1f
+                                },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    visualDragOffsetX += dragAmount.x
+                                    visualDragOffsetY += dragAmount.y
+                                    dragCenterYInViewport = dragStartCenterYInWindow + visualDragOffsetY
+                                    updateDragTargetIndex()
+                                }
+                            )
+                        }
+                ) {
+                    item.content()
+                }
+                }
+            }
+            repeat(columns - rowItems.size) {
+                Spacer(modifier = Modifier.weight(1f))
             }
         }
     }
@@ -554,7 +839,7 @@ private fun CodexUsageWindows(balance: com.rainy.token.domain.model.ServiceBalan
         .maxOrNull()?.plus(1) ?: 0
 
     val windows = (0 until windowCount).map { i ->
-        val label = extras["window_$i.label"] ?: "Usage"
+        val label = normalizeWindowLabel(extras["window_$i.label"] ?: "Usage")
         val remainingPct = extras["window_$i.remainingPct"]?.toIntOrNull()
         val resetAt = extras["window_$i.resetAt"]?.toLongOrNull()?.takeIf { it > 0 }
         Triple(label, remainingPct, resetAt)
@@ -575,6 +860,11 @@ private fun CodexUsageWindows(balance: com.rainy.token.domain.model.ServiceBalan
             }
         }
     }
+}
+
+private fun normalizeWindowLabel(label: String): String = when (label.lowercase()) {
+    "weekly" -> "每周"
+    else -> label
 }
 
 @Composable

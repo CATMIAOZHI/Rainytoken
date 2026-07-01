@@ -8,6 +8,7 @@ import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * 接收 Widget 刷新按钮广播，后台静默刷新 DeepSeek + OpenCode Go。
@@ -19,28 +20,39 @@ class WidgetRefreshReceiver : BroadcastReceiver() {
         if (intent.action != ACTION) return
 
         val appContext = context.applicationContext
+        if (isRefreshing) return
+        isRefreshing = true
         val pendingResult = goAsync()
         val entryPoint = EntryPointAccessors.fromApplication(
             appContext, WidgetRefreshEntryPoint::class.java
         )
         val useCase = entryPoint.refreshBalanceUseCase()
+        OpenCodeGoWidgetProvider.showRefreshing(appContext)
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val goResult = useCase(ServiceType.OPENCODE_GO)
-                val dsResult = useCase(ServiceType.DEEPSEEK)
-                if (goResult.isSuccess || dsResult.isSuccess) {
+                val selectedService = OpenCodeGoWidgetProvider.currentDisplayService(appContext)
+                val refreshed = withTimeoutOrNull(25_000L) {
+                    val selectedResult = useCase(selectedService)
+                    val dsResult = useCase(ServiceType.DEEPSEEK)
+                    selectedResult.isSuccess || dsResult.isSuccess
+                } == true
+                if (refreshed) {
                     OpenCodeGoWidgetProvider.notifyDataChanged(appContext)
                 }
             } catch (_: Exception) {
                 // 静默，Widget 保留旧数据
             } finally {
+                isRefreshing = false
                 pendingResult.finish()
             }
         }
     }
 
     companion object {
+        @Volatile
+        private var isRefreshing = false
+
         const val ACTION = "com.rainy.token.action.WIDGET_REFRESH"
 
         fun createIntent(context: Context): Intent =

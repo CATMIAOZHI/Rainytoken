@@ -52,17 +52,17 @@ fun ServiceIcon(
             }
         }
         ServiceType.COMMANDCODE_GO -> {
-            // CommandCode Go：暂无官方 logo，用 ⚡ emoji 占位
             Box(
                 modifier = modifier
                     .size(size.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF2D3748)),
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (isSystemInDarkTheme()) Color(0xFF352329) else Color.White),
                 contentAlignment = Alignment.Center
             ) {
-                androidx.compose.material3.Text(
-                    text = "⚡",
-                    fontSize = (size * 0.5).sp
+                Image(
+                    painter = painterResource(id = R.drawable.ic_opencode_go_logo),
+                    contentDescription = "CommandCode Go",
+                    modifier = Modifier.size((size * 0.85).dp, ((size * 0.85f * 30f / 54f)).dp)
                 )
             }
         }
