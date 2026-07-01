@@ -29,6 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -93,7 +94,7 @@ fun UsageDetailScreen(
     var showCustomMonthPicker by remember { mutableStateOf(false) }
     var showCustomRangeStart by remember { mutableStateOf(false) }
     var showCustomRangeEnd by remember { mutableStateOf(false) }
-    var customRangeStartMs by remember { mutableStateOf(0L) }
+    var customRangeStartDate by remember { mutableStateOf<LocalDate?>(null) }
     var showCostDetail by remember { mutableStateOf(false) }
     var showReqDetail by remember { mutableStateOf(false) }
     var showTokenDetail by remember { mutableStateOf(false) }
@@ -299,15 +300,33 @@ fun UsageDetailScreen(
             }
         }
         // 自定义日期选择器
-        if (showCustomDayPicker) DateTimePickerDialog("选择日期", { ms ->
-            val utc = ZoneOffset.UTC; val ds = Instant.ofEpochMilli(ms).atOffset(utc).toLocalDate().atStartOfDay(utc).toInstant().toEpochMilli()
-            viewModel.setCustomDayRange(ds, ds + 86400_000L - 1); showCustomDayPicker = false }, { showCustomDayPicker = false })
-        if (showCustomMonthPicker) DateTimePickerDialog("选择月份（任意一天）", { viewModel.setCustomMonth(it); showCustomMonthPicker = false }, { showCustomMonthPicker = false })
-        if (showCustomRangeStart) DateTimePickerDialog("开始日期", { customRangeStartMs = it; showCustomRangeStart = false; showCustomRangeEnd = true }, { showCustomRangeStart = false })
-        if (showCustomRangeEnd) DateTimePickerDialog("结束日期", { ms ->
-            val utc = ZoneOffset.UTC; val sd = Instant.ofEpochMilli(customRangeStartMs).atOffset(utc).toLocalDate().atStartOfDay(utc).toInstant().toEpochMilli()
-            val ed = Instant.ofEpochMilli(ms).atOffset(utc).toLocalDate().atStartOfDay(utc).toInstant().toEpochMilli() + 86400_000L - 1
-            viewModel.setCustomRange(sd, ed); showCustomRangeEnd = false }, { showCustomRangeEnd = false })
+        if (showCustomDayPicker) DateOnlyPickerDialog("选择日期", { date ->
+            viewModel.setCustomDay(date)
+            showCustomDayPicker = false
+        }, { showCustomDayPicker = false })
+        if (showCustomMonthPicker) DateOnlyPickerDialog("选择月份（任意一天）", { date ->
+            viewModel.setCustomMonth(date)
+            showCustomMonthPicker = false
+        }, { showCustomMonthPicker = false })
+        if (showCustomRangeStart) DateOnlyPickerDialog("开始日期", { date ->
+            customRangeStartDate = date
+            showCustomRangeStart = false
+            showCustomRangeEnd = true
+        }, { showCustomRangeStart = false })
+        if (showCustomRangeEnd) {
+            val startDate = customRangeStartDate
+            DateOnlyPickerDialog(
+                title = "结束日期",
+                onConfirm = { endDate ->
+                    if (startDate != null && !endDate.isBefore(startDate)) {
+                        viewModel.setCustomRange(startDate, endDate)
+                        showCustomRangeEnd = false
+                    }
+                },
+                onDismiss = { showCustomRangeEnd = false },
+                minDate = startDate
+            )
+        }
         val models = state.selectedModels.ifEmpty { state.allModels.toSet() }
         if (showCostDetail) ChartDetailDialog("消费明细", { showCostDetail = false }) {
             models.forEach { model -> val t = state.buckets.sumOf { it.byModel[model]?.cost ?:0L }; if (t>0) DetailRow(model, "$${String.format(Locale.US, "%.4f", t/100_000_000.0)}") }
@@ -422,6 +441,63 @@ internal fun CustomTimeRangeRow(
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DateOnlyPickerDialog(
+    title: String,
+    onConfirm: (LocalDate) -> Unit,
+    onDismiss: () -> Unit,
+    minDate: LocalDate? = null
+) {
+    val utc = remember { ZoneOffset.UTC }
+    val minDateStartMs = remember(minDate) { minDate?.atStartOfDay(utc)?.toInstant()?.toEpochMilli() }
+    val selectableDates = remember(minDateStartMs) {
+        object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                return minDateStartMs == null || utcTimeMillis >= minDateStartMs
+            }
+        }
+    }
+    val dateState = rememberDatePickerState(selectableDates = selectableDates)
+
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val millis = dateState.selectedDateMillis ?: return@TextButton
+                    onConfirm(Instant.ofEpochMilli(millis).atOffset(utc).toLocalDate())
+                },
+                enabled = dateState.selectedDateMillis != null
+            ) {
+                Text("确定")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    ) {
+        Column {
+            Text(
+                text = title,
+                modifier = Modifier.padding(start = 24.dp, top = 20.dp, end = 24.dp),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            if (minDate != null) {
+                Text(
+                    text = "结束日期不能早于开始日期 ${minDate.formatDateLabel()}",
+                    modifier = Modifier.padding(start = 24.dp, top = 8.dp, end = 24.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkMuted
+                )
+            }
+            DatePicker(state = dateState)
+        }
+    }
+}
+
+private fun LocalDate.formatDateLabel(): String =
+    String.format(Locale.US, "%04d-%02d-%02d", year, monthValue, dayOfMonth)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

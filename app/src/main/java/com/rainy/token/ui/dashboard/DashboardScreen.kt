@@ -299,7 +299,11 @@ private fun rememberDashboardItems(
                 DashboardCard(
                     card = card,
                     onClick = { onOpenService(card.service) },
-                    onOpenCcgoUsageDetail = if (card.service == ServiceType.COMMANDCODE_GO) onOpenCcgoUsageDetail else null
+                    onOpenUsageDetail = when (card.service) {
+                        ServiceType.OPENCODE_GO -> onOpenUsageDetail
+                        ServiceType.COMMANDCODE_GO -> onOpenCcgoUsageDetail
+                        else -> null
+                    }
                 )
             })
         }
@@ -544,7 +548,7 @@ private fun DraggableDashboardCards(
 }
 
 @Composable
-private fun DashboardCard(card: DashboardCardUi, onClick: () -> Unit, onOpenCcgoUsageDetail: (() -> Unit)? = null) {
+private fun DashboardCard(card: DashboardCardUi, onClick: () -> Unit, onOpenUsageDetail: (() -> Unit)? = null) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -578,10 +582,10 @@ private fun DashboardCard(card: DashboardCardUi, onClick: () -> Unit, onOpenCcgo
             // ─── 主体：服务特定的主信息 ───
             BalanceMainArea(card)
 
-            // CCGO 卡片底部：用量详情入口（仅当有凭证且非 CCGO 未配置状态时显示）
-            if (onOpenCcgoUsageDetail != null && card.credentialState != com.rainy.token.domain.model.CredentialStatus.State.NOT_CONFIGURED) {
+            // 用量服务卡片底部：用量详情入口（仅当有凭证时显示）
+            if (onOpenUsageDetail != null && card.credentialState != com.rainy.token.domain.model.CredentialStatus.State.NOT_CONFIGURED) {
                 Spacer(modifier = Modifier.height(8.dp))
-                TextButton(onClick = onOpenCcgoUsageDetail) {
+                TextButton(onClick = onOpenUsageDetail) {
                     Text("查看用量详情", color = StrawberryPink)
                     Spacer(modifier = Modifier.width(2.dp))
                     Icon(

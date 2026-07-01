@@ -64,6 +64,9 @@ import com.rainy.token.data.local.ChartGranularity
 import com.rainy.token.ui.theme.InkMuted
 import com.rainy.token.ui.theme.StrawberryPink
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.Date
 import java.util.Locale
 
@@ -103,7 +106,7 @@ fun UsageChartScreen(
     var showCustomMonthPicker by remember { mutableStateOf(false) }
     var showCustomRangeStart by remember { mutableStateOf(false) }
     var showCustomRangeEnd by remember { mutableStateOf(false) }
-    var customRangeStartMs by remember { mutableStateOf(0L) }
+    var customRangeStartDate by remember { mutableStateOf<LocalDate?>(null) }
     var showCostDetail by remember { mutableStateOf(false) }
     var showReqDetail by remember { mutableStateOf(false) }
     var showTokenDetail by remember { mutableStateOf(false) }
@@ -364,10 +367,7 @@ fun UsageChartScreen(
             DateTimePickerDialog(
                 title = "选择日期",
                 onConfirm = { ms ->
-                    val utc = java.time.ZoneOffset.UTC
-                    val dayStart = java.time.Instant.ofEpochMilli(ms).atOffset(utc).toLocalDate()
-                        .atStartOfDay(utc).toInstant().toEpochMilli()
-                    viewModel.setCustomDayRange(dayStart, dayStart + 86400_000L - 1)
+                    viewModel.setCustomDay(ms.toUtcLocalDate())
                     showCustomDayPicker = false
                 },
                 onDismiss = { showCustomDayPicker = false }
@@ -377,7 +377,7 @@ fun UsageChartScreen(
             DateTimePickerDialog(
                 title = "选择月份（任意一天）",
                 onConfirm = { ms ->
-                    viewModel.setCustomMonth(ms)
+                    viewModel.setCustomMonth(ms.toUtcLocalDate())
                     showCustomMonthPicker = false
                 },
                 onDismiss = { showCustomMonthPicker = false }
@@ -387,7 +387,7 @@ fun UsageChartScreen(
             DateTimePickerDialog(
                 title = "开始日期",
                 onConfirm = { ms ->
-                    customRangeStartMs = ms
+                    customRangeStartDate = ms.toUtcLocalDate()
                     showCustomRangeStart = false
                     showCustomRangeEnd = true
                 },
@@ -398,13 +398,12 @@ fun UsageChartScreen(
             DateTimePickerDialog(
                 title = "结束日期",
                 onConfirm = { ms ->
-                    val utc = java.time.ZoneOffset.UTC
-                    val startDay = java.time.Instant.ofEpochMilli(customRangeStartMs).atOffset(utc).toLocalDate()
-                        .atStartOfDay(utc).toInstant().toEpochMilli()
-                    val endDay = java.time.Instant.ofEpochMilli(ms).atOffset(utc).toLocalDate()
-                        .atStartOfDay(utc).toInstant().toEpochMilli() + 86400_000L - 1
-                    viewModel.setCustomRange(startDay, endDay)
-                    showCustomRangeEnd = false
+                    val startDate = customRangeStartDate ?: return@DateTimePickerDialog
+                    val endDate = ms.toUtcLocalDate()
+                    if (!endDate.isBefore(startDate)) {
+                        viewModel.setCustomRange(startDate, endDate)
+                        showCustomRangeEnd = false
+                    }
                 },
                 onDismiss = { showCustomRangeEnd = false }
             )
@@ -485,6 +484,9 @@ fun UsageChartScreen(
 // ═══════════════════════════════════════════
 // 图表卡片容器
 // ═══════════════════════════════════════════
+
+private fun Long.toUtcLocalDate(): LocalDate =
+    Instant.ofEpochMilli(this).atOffset(ZoneOffset.UTC).toLocalDate()
 
 @Composable
 internal fun ChartCard(

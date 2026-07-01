@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneOffset
 import javax.inject.Inject
 import javax.inject.Provider
@@ -157,33 +158,32 @@ class UsageChartViewModel @Inject constructor(
             }
         }
     }
-
-    fun setCustomDayRange(from: Long, to: Long) {
+    fun setCustomDay(date: LocalDate) {
         _state.update { it.copy(granularity = ChartGranularity.CUSTOM_DAY_HOURLY) }
-        _customDayRange = from to to
+        _customDay = date
         load()
     }
 
-    fun setCustomMonth(monthStartMs: Long) {
+    fun setCustomMonth(monthDate: LocalDate) {
         _state.update { it.copy(granularity = ChartGranularity.CUSTOM_MONTH_DAILY) }
-        _customMonthStart = monthStartMs
+        _customMonth = monthDate.withDayOfMonth(1)
         load()
     }
 
-    fun setCustomRange(from: Long, to: Long) {
+    fun setCustomRange(fromDate: LocalDate, toDate: LocalDate) {
+        if (toDate.isBefore(fromDate)) return
         _state.update { it.copy(granularity = ChartGranularity.CUSTOM_RANGE_DAILY) }
-        _customRange = from to to
+        _customRange = fromDate to toDate
         load()
     }
 
-    private var _customDayRange: Pair<Long, Long> = 0L to 0L
-    private var _customMonthStart: Long = 0L
-    private var _customRange: Pair<Long, Long> = 0L to 0L
+    private var _customDay: LocalDate? = null
+    private var _customMonth: LocalDate? = null
+    private var _customRange: Pair<LocalDate, LocalDate>? = null
 
     private fun timeRangeFor(g: ChartGranularity): Pair<Long?, Long?> {
         val now = System.currentTimeMillis()
-        val useUtc8 = _state.value.useUtc8
-        val zoneOffset = if (useUtc8) ZoneOffset.ofHours(8) else ZoneOffset.UTC
+        val zoneOffset = if (_state.value.useUtc8) ZoneOffset.ofHours(8) else ZoneOffset.UTC
         val today = Instant.ofEpochMilli(now).atOffset(zoneOffset).toLocalDate()
         val todayMidnight = today.atStartOfDay(zoneOffset).toInstant().toEpochMilli()
         return when (g) {
@@ -192,36 +192,35 @@ class UsageChartViewModel @Inject constructor(
             ChartGranularity.LAST_24H_HOURLY -> now - 24 * 3600_000L to null
             ChartGranularity.TODAY_HOURLY -> todayMidnight to todayMidnight + 86400_000L - 1
             ChartGranularity.YESTERDAY_HOURLY -> todayMidnight - 86400_000L to todayMidnight - 1
-            ChartGranularity.LAST_7D_DAILY -> {
-                todayMidnight - 6 * 86400_000L to todayMidnight + 86400_000L - 1
-            }
-            ChartGranularity.CUSTOM_DAY_HOURLY -> {
-                if (_customDayRange.first == 0L) todayMidnight to todayMidnight + 86400_000L - 1
-                else _customDayRange.first to _customDayRange.second
-            }
-            ChartGranularity.THIS_MONTH_DAILY -> {
-                val firstOfMonth = today.withDayOfMonth(1).atStartOfDay(zoneOffset).toInstant().toEpochMilli()
-                val lastOfMonth = today.withDayOfMonth(today.lengthOfMonth())
-                    .atStartOfDay(zoneOffset).toInstant().toEpochMilli() + 86400_000L - 1
-                firstOfMonth to lastOfMonth
-            }
+            ChartGranularity.LAST_7D_DAILY -> todayMidnight - 6 * 86400_000L to todayMidnight + 86400_000L - 1
+            ChartGranularity.CUSTOM_DAY_HOURLY -> dayRange(_customDay ?: today, zoneOffset)
+            ChartGranularity.THIS_MONTH_DAILY -> monthRange(today.withDayOfMonth(1), zoneOffset)
             ChartGranularity.CUSTOM_MONTH_DAILY -> {
-                if (_customMonthStart == 0L) null to null
-                else {
-                    val targetMonth = Instant.ofEpochMilli(_customMonthStart).atOffset(zoneOffset).toLocalDate()
-                        .withDayOfMonth(1)
-                    val firstOfMonth = targetMonth.atStartOfDay(zoneOffset).toInstant().toEpochMilli()
-                    val lastOfMonth = targetMonth.withDayOfMonth(targetMonth.lengthOfMonth())
-                        .atStartOfDay(zoneOffset).toInstant().toEpochMilli() + 86400_000L - 1
-                    firstOfMonth to lastOfMonth
-                }
+                val month = _customMonth ?: return null to null
+                monthRange(month, zoneOffset)
             }
             ChartGranularity.CUSTOM_RANGE_DAILY -> {
-                if (_customRange.first == 0L) null to null
-                else _customRange.first to _customRange.second
+                val range = _customRange ?: return null to null
+                val from = range.first.atStartOfDay(zoneOffset).toInstant().toEpochMilli()
+                val to = range.second.plusDays(1).atStartOfDay(zoneOffset).toInstant().toEpochMilli() - 1
+                from to to
             }
         }
     }
+
+    private fun dayRange(date: LocalDate, zoneOffset: ZoneOffset): Pair<Long, Long> {
+        val from = date.atStartOfDay(zoneOffset).toInstant().toEpochMilli()
+        val to = date.plusDays(1).atStartOfDay(zoneOffset).toInstant().toEpochMilli() - 1
+        return from to to
+    }
+
+    private fun monthRange(month: LocalDate, zoneOffset: ZoneOffset): Pair<Long, Long> {
+        val firstDay = month.withDayOfMonth(1)
+        val from = firstDay.atStartOfDay(zoneOffset).toInstant().toEpochMilli()
+        val to = firstDay.plusMonths(1).atStartOfDay(zoneOffset).toInstant().toEpochMilli() - 1
+        return from to to
+    }
+
 
     private fun fillGaps(
         buckets: List<ChartBucket>,
