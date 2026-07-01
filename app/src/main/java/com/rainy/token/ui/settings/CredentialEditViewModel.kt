@@ -21,6 +21,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import javax.inject.Inject
 import javax.inject.Provider
 
@@ -131,7 +134,7 @@ class CredentialEditViewModel @Inject constructor(
      */
     fun testAndSaveApiKey() {
         val type = serviceType ?: return
-        if (type != ServiceType.DEEPSEEK && type != ServiceType.COMMANDCODE_GO) {
+        if (type != ServiceType.DEEPSEEK && type != ServiceType.COMMANDCODE_GO && type != ServiceType.CODEX) {
             _uiState.update { it.copy(message = "暂不支持测试此服务") }
             return
         }
@@ -166,9 +169,9 @@ class CredentialEditViewModel @Inject constructor(
                     // 在错误信息里露出 Key 的首尾字符，便于区分"带空格"还是"Key 真的失效"
                     val preview = maskedKeyPreview(trimmedKey)
                     val reason = when (err) {
-                        is RepositoryError.InvalidCredential -> "DeepSeek 拒绝该 Key (401/403)，请检查是否完整复制（当前: '$preview'）"
+                        is RepositoryError.InvalidCredential -> "服务拒绝该凭据 (401/403)，请检查是否完整复制（当前: '$preview'）"
                         is RepositoryError.RateLimited -> "请求过于频繁 (429)，稍后再试"
-                        is RepositoryError.ServerError -> "DeepSeek 服务端错误 (${err.code})，凭据本身没问题"
+                        is RepositoryError.ServerError -> "服务端错误 (${err.code})，凭据本身没问题"
                         is RepositoryError.Network -> "网络错误：${err.cause?.message ?: "未知"}"
                         else -> "未知错误：${err.message ?: err::class.simpleName}"
                     }
@@ -272,8 +275,58 @@ class CredentialEditViewModel @Inject constructor(
         }
     }
 
+    fun updateCodexAuthJson(value: String) {
+        _uiState.update { it.copy(codexAuthJson = value) }
+    }
+
     /**
-     * 保存 CommandCode Go 的 API Key + session cookie。
+     * 保存 Codex auth.json 完整内容，解析并存储为 CodexCredential。
+     * 支持两种格式：
+     * 1. 完整 {"tokens": {"access_token": "...", "refresh_token": "...", ...}}
+     * 2. 扁平 {"access_token": "...", "refresh_token": "...", ...}
+     */
+    fun saveCodexAuthJson() {
+        val type = serviceType ?: return
+        val current = _uiState.value
+        val text = current.codexAuthJson.trim()
+        if (text.isBlank()) {
+            _uiState.update { it.copy(message = "请粘贴 auth.json 内容") }
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val parsed = Json.parseToJsonElement(text).jsonObject
+                val tokens = parsed["tokens"]?.jsonObject ?: parsed
+                val accessToken = tokens["access_token"]?.jsonPrimitive?.content
+                val refreshToken = tokens["refresh_token"]?.jsonPrimitive?.content
+                val accountId = tokens["account_id"]?.jsonPrimitive?.content ?: ""
+                val expiresAt = tokens["expiresAt"]?.jsonPrimitive?.content?.toLongOrNull()
+                    ?: tokens["expires_at"]?.jsonPrimitive?.content?.toLongOrNull()
+                    ?: System.currentTimeMillis() + 10L * 24 * 3600 * 1000
+
+                if (accessToken.isNullOrBlank() || refreshToken.isNullOrBlank()) {
+                    _uiState.update { it.copy(message = "auth.json 缺少 access_token 或 refresh_token") }
+                    return@launch
+                }
+
+                val newCred = Credential.CodexCredential(
+                    service = ServiceType.CODEX,
+                    accessToken = accessToken,
+                    refreshToken = refreshToken,
+                    accountId = accountId,
+                    expiresAt = expiresAt,
+                    lastVerifiedAt = System.currentTimeMillis()
+                )
+                credentialRepository.save(newCred)
+                _uiState.update { it.copy(message = "已保存 Codex 凭据，token 到期后会自动刷新", hasExisting = true) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(message = "解析失败：${e.message ?: "JSON 格式错误"}") }
+            }
+        }
+    }
+
+    /**
+     * 保存 Codex auth.json 并立即测试连接。
      * API Key 存 token 字段，cookie 字符串解析后存 cookies 列表。
      */
     fun saveCommandCodeGoCredential() {
@@ -441,5 +494,6 @@ data class CredentialEditUiState(
     val workspaceId: String = "",
     val cookieCount: Int = 0,
     val hasExisting: Boolean = false,
+    val codexAuthJson: String = "",
     val message: String? = null
 )

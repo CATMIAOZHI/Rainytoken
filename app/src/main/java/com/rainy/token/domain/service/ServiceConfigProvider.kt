@@ -54,6 +54,12 @@ object ServiceConfigProvider {
             method = FetchMethod.REST_API,
             loginUrl = "", // API Key 模式不需要登录 URL
             displayUnit = "$"
+        ),
+        ServiceType.CODEX to ServiceConfig(
+            type = ServiceType.CODEX,
+            method = FetchMethod.REST_API,
+            loginUrl = "",
+            displayUnit = "%"
         )
     )
 

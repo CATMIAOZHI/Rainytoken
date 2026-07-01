@@ -364,6 +364,12 @@ private fun BalanceMainArea(card: DashboardCardUi) {
             Spacer(modifier = Modifier.height(12.dp))
             CommandCodeGoUsageWindows(balance)
         }
+        card.service == ServiceType.CODEX -> {
+            // Codex / ChatGPT Plus 卡片：显示用量窗口（5h / Weekly）
+            CodexMainBalance(balance)
+            Spacer(modifier = Modifier.height(12.dp))
+            CodexUsageWindows(balance)
+        }
         else -> {
             // DeepSeek 等：主数字 + 单位
             Row(verticalAlignment = Alignment.Bottom) {
@@ -503,6 +509,75 @@ private fun CommandCodeGoUsageWindows(balance: com.rainy.token.domain.model.Serv
 }
 
 @Composable
+private fun CodexMainBalance(balance: com.rainy.token.domain.model.ServiceBalance) {
+    val plan = balance.extras["plan"]?.let {
+        when (it) { "plus" -> "Plus"; "pro" -> "Pro"; "free" -> "Free"; else -> it.replaceFirstChar { c -> c.uppercaseChar() } }
+    } ?: "—"
+    Row(verticalAlignment = Alignment.Bottom) {
+        Text(
+            text = formatAmount(balance.amount),
+            style = MaterialTheme.typography.displayMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = "%",
+            style = MaterialTheme.typography.titleLarge,
+            color = inkMuted(),
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = 6.dp, start = 2.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "5h 剩余",
+            style = MaterialTheme.typography.titleMedium,
+            color = inkMuted(),
+            modifier = Modifier.padding(bottom = 6.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "· $plan",
+            style = MaterialTheme.typography.bodySmall,
+            color = inkMuted(),
+            modifier = Modifier.padding(bottom = 6.dp)
+        )
+    }
+}
+
+@Composable
+private fun CodexUsageWindows(balance: com.rainy.token.domain.model.ServiceBalance) {
+    val extras = balance.extras
+    // 从 extras 里动态提取窗口数据，数量不固定（通常 2 个：5h + Weekly）
+    val windowCount = extras.keys
+        .mapNotNull { key -> key.removePrefix("window_").substringBefore('.').toIntOrNull() }
+        .distinct()
+        .maxOrNull()?.plus(1) ?: 0
+
+    val windows = (0 until windowCount).map { i ->
+        val label = extras["window_$i.label"] ?: "Usage"
+        val remainingPct = extras["window_$i.remainingPct"]?.toIntOrNull()
+        val resetAt = extras["window_$i.resetAt"]?.toLongOrNull()?.takeIf { it > 0 }
+        Triple(label, remainingPct, resetAt)
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (windows.isEmpty()) {
+            CompactUsageRowEmpty(label = "Usage", resetInSec = null)
+        } else {
+            windows.forEach { (label, remainingPct, resetAt) ->
+                if (remainingPct != null) {
+                    // remainingPct 是剩余百分比，CompactUsageRow 需要的是已用百分比
+                    val usedPct = (100 - remainingPct).coerceIn(0, 100)
+                    CompactUsageRow(label = label, pct = usedPct, resetInSec = resetAt?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 })
+                } else {
+                    CompactUsageRowEmpty(label = label, resetInSec = resetAt?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 })
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun CompactUsageRowEmpty(label: String, resetInSec: Long?) {
     Column {
         Row(
@@ -626,6 +701,7 @@ private fun secondaryLine(card: DashboardCardUi): String = when (card.service) {
     ServiceType.DEEPSEEK -> "REST API · ¥"
     ServiceType.OPENCODE_GO -> "WebView 抓取 · 5h 配额"
     ServiceType.COMMANDCODE_GO -> "JSON API · \$"
+    ServiceType.CODEX -> "ChatGPT Plus · Codex 额度"
 }
 
 private fun footerText(card: DashboardCardUi): String {

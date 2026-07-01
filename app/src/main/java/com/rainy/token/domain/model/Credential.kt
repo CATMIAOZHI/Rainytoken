@@ -8,6 +8,7 @@ import kotlinx.serialization.Serializable
  *
  * - [ApiKeyCredential] 用于 DeepSeek（API Key 形式）
  * - [SessionCredential] 用于 OpenCode Zen/Go（用户登录 dashboard 后粘贴的值）
+ * - [CodexCredential] 用于 Codex / ChatGPT Plus（完整 OAuth 凭据，含自动刷新）
  */
 @Serializable
 sealed class Credential {
@@ -40,6 +41,21 @@ sealed class Credential {
         val authCookie: String? = null,
         /** OpenCode Go 专用：workspace ID */
         val workspaceId: String? = null,
+        override val lastVerifiedAt: Long = 0L
+    ) : Credential()
+
+    /**
+     * 用于 Codex / ChatGPT Plus：完整 OAuth 凭据，支持自动刷新。
+     * 用户从 auth.json 粘贴整个 tokens 对象。
+     */
+    @Serializable
+    data class CodexCredential(
+        override val service: ServiceType,
+        val accessToken: String,
+        val refreshToken: String,
+        val accountId: String,
+        /** 过期时间（epoch millis） */
+        val expiresAt: Long,
         override val lastVerifiedAt: Long = 0L
     ) : Credential()
 }

@@ -81,5 +81,25 @@ fun ServiceIcon(
                 )
             }
         }
+        ServiceType.CODEX -> {
+            // ChatGPT 官方 favicon logo
+            Box(
+                modifier = modifier
+                    .size(size.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (isSystemInDarkTheme()) Color(0xFF2D3748) else Color(0xFF10A37F)),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_codex_logo),
+                    contentDescription = "Codex / ChatGPT",
+                    modifier = Modifier
+                        .size((size * 0.6).dp),
+                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(
+                        if (isSystemInDarkTheme()) Color.White else Color.White
+                    )
+                )
+            }
+        }
     }
 }

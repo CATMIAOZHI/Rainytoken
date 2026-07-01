@@ -1,5 +1,6 @@
 package com.rainy.token.domain.usecase
 
+import com.rainy.token.data.repository.CodexRepository
 import com.rainy.token.data.repository.CommandCodeGoRepository
 import com.rainy.token.data.repository.DeepSeekRepository
 import com.rainy.token.data.repository.OpenCodeGoRepository
@@ -20,11 +21,13 @@ import javax.inject.Provider
 class RefreshBalanceUseCase @Inject constructor(
     private val deepSeekRepositoryProvider: Provider<DeepSeekRepository>,
     private val openCodeGoRepositoryProvider: Provider<OpenCodeGoRepository>,
-    private val commandCodeGoRepositoryProvider: Provider<CommandCodeGoRepository>
+    private val commandCodeGoRepositoryProvider: Provider<CommandCodeGoRepository>,
+    private val codexRepositoryProvider: Provider<CodexRepository>
 ) {
     suspend operator fun invoke(service: ServiceType): Result<ServiceBalance> = when (service) {
         ServiceType.DEEPSEEK -> deepSeekRepositoryProvider.get().fetchBalance()
         ServiceType.OPENCODE_GO -> openCodeGoRepositoryProvider.get().fetchBalance()
         ServiceType.COMMANDCODE_GO -> commandCodeGoRepositoryProvider.get().fetchBalance()
+        ServiceType.CODEX -> codexRepositoryProvider.get().fetchBalance()
     }
 }

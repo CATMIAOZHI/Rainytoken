@@ -106,6 +106,8 @@ class ServiceDetailViewModel @Inject constructor(
                     credential.copy(lastVerifiedAt = System.currentTimeMillis())
                 is com.rainy.token.domain.model.Credential.SessionCredential ->
                     credential.copy(lastVerifiedAt = System.currentTimeMillis())
+                is com.rainy.token.domain.model.Credential.CodexCredential ->
+                    credential.copy(lastVerifiedAt = System.currentTimeMillis())
             }
             credentialRepository.save(updated)
             loadFromCache()

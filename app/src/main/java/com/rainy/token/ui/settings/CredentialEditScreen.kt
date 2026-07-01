@@ -71,6 +71,7 @@ fun CredentialEditScreen(
     var showCookieHelp by remember { mutableStateOf(false) }
     var showGoHelp by remember { mutableStateOf(false) }
     var showOpenCcgoHelp by remember { mutableStateOf(false) }
+    var showCodexHelp by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.message) {
         uiState.message?.let { msg ->
@@ -120,6 +121,14 @@ fun CredentialEditScreen(
                         onSave = viewModel::saveCommandCodeGoCredential,
                         onTestAndSave = viewModel::testAndSaveCommandCodeGo,
                         onShowHelp = { showOpenCcgoHelp = true }
+                    )
+                } else if (service == ServiceType.CODEX) {
+                    CodexAuthJsonForm(
+                        authJson = uiState.codexAuthJson,
+                        hasExisting = uiState.hasExisting,
+                        onAuthJsonChange = viewModel::updateCodexAuthJson,
+                        onSave = viewModel::saveCodexAuthJson,
+                        onShowHelp = { showCodexHelp = true }
                     )
                 } else {
                     ApiKeyForm(
@@ -247,6 +256,40 @@ fun CredentialEditScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showOpenCcgoHelp = false }) {
+                    Text("我知道了")
+                }
+            }
+        )
+    }
+
+    if (showCodexHelp) {
+        AlertDialog(
+            onDismissRequest = { showCodexHelp = false },
+            title = { Text("如何获取 Codex auth.json？") },
+            text = {
+                Column {
+                    Text("1. 在终端运行 codex-oauth-proxy 或")
+                    Text("   codex-proxy，完成 ChatGPT 登录")
+                    Text("")
+                    Text("2. 凭证文件保存在：")
+                    Text("   ~/.config/codex-oauth-proxy/auth.json")
+                    Text("")
+                    Text("3. 用文本编辑器打开该文件，")
+                    Text("   复制全部内容粘贴到上方输入框")
+                    Text("")
+                    Text("   JSON 格式示例：")
+                    Text("   {\"tokens\": {")
+                    Text("     \"access_token\": \"...\",")
+                    Text("     \"refresh_token\": \"...\",")
+                    Text("     \"expiresAt\": 1783727108252")
+                    Text("   }}")
+                    Text("")
+                    Text("提示：导入后 APP 会自动刷新 token，")
+                    Text("不需要手动更新。")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showCodexHelp = false }) {
                     Text("我知道了")
                 }
             }
@@ -410,6 +453,36 @@ Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) {
             Text(text = "测试并保存")
         }
     }
+
+@Composable
+private fun CodexAuthJsonForm(
+    authJson: String,
+    hasExisting: Boolean,
+    onAuthJsonChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onShowHelp: () -> Unit
+) {
+    Text(text = "Codex / ChatGPT Plus 凭据", style = MaterialTheme.typography.titleMedium)
+    Text(
+        text = "从 codex-oauth-proxy 的 auth.json 复制完整内容粘贴到下方。APP 会自动解析并支持自动刷新。",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline
+    )
+    OutlinedTextField(
+        value = authJson,
+        onValueChange = onAuthJsonChange,
+        label = { Text("auth.json 完整内容") },
+        placeholder = { Text("粘贴 {\"tokens\": {...}} 完整 JSON") },
+        modifier = Modifier.fillMaxWidth(),
+        minLines = 6
+    )
+    Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) {
+        Text(if (hasExisting) "更新凭据" else "导入并保存")
+    }
+    OutlinedButton(onClick = onShowHelp, modifier = Modifier.fillMaxWidth()) {
+        Text(text = "如何获取 auth.json？")
+    }
+}
 
 @Composable
 private fun ManualCookieForm(

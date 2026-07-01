@@ -9,6 +9,7 @@ import com.rainy.token.data.local.UsageCache
 import com.rainy.token.data.local.usageCacheDataStore
 import com.rainy.token.data.repository.CredentialRepository
 import com.rainy.token.data.repository.DeepSeekRepository
+import com.rainy.token.data.repository.CodexRepository
 import com.rainy.token.data.repository.CommandCodeGoRepository
 import com.rainy.token.data.repository.CommandCodeUsageRepository
 import com.rainy.token.data.repository.OpenCodeGoRepository
@@ -135,6 +136,17 @@ object NetworkModule {
         credentialRepository: CredentialRepository,
         balanceCache: BalanceCache
     ): DeepSeekRepository = DeepSeekRepository(deepSeekApi, credentialRepository, balanceCache)
+
+    /**
+     * Codex / ChatGPT Plus 额度仓库：用 OkHttp 调 chatgpt.com 后台 API。
+     */
+    @Provides
+    @Singleton
+    fun provideCodexRepository(
+        okHttpClient: OkHttpClient,
+        credentialRepository: CredentialRepository,
+        balanceCache: BalanceCache
+    ): CodexRepository = CodexRepository(okHttpClient, credentialRepository, balanceCache)
 
     /** 余额缓存 DataStore（计划 7.1） */
     @Provides
