@@ -79,6 +79,20 @@ class CredentialEditViewModel @Inject constructor(
                     authCookie = (existing as? Credential.SessionCredential)?.authCookie.orEmpty(),
                     workspaceId = (existing as? Credential.SessionCredential)?.workspaceId.orEmpty(),
                     cookieCount = (existing as? Credential.SessionCredential)?.cookies?.size ?: 0,
+                    codexAuthJson = if (existing is Credential.CodexCredential) {
+                        buildString {
+                            appendLine("{")
+                            appendLine("  \"access_token\": \"${existing.accessToken}\",")
+                            appendLine("  \"refresh_token\": \"${existing.refreshToken}\",")
+                            append("  \"account_id\": \"${existing.accountId}\"")
+                            if (existing.expiresAt > 0) {
+                                appendLine(",")
+                                append("  \"expires_at\": ${existing.expiresAt}")
+                            }
+                            appendLine()
+                            append("}")
+                        }
+                    } else "",
                     hasExisting = existing != null
                 )
             }
