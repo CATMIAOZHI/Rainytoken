@@ -1,9 +1,9 @@
 package com.rainy.token.ui
 
 import androidx.compose.animation.AnimatedContentTransitionScope
-import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -54,7 +54,7 @@ import com.rainy.token.ui.webview.WebViewLoginScreen
  *
  * 自适应策略：
  *  - **Compact**（< 600dp，手机）：单栈 NavHost。guardedPop 时间戳围栏（200ms）防连点栈损坏，
- *    popExit=fadeOut(1ms)+popEnter=None 消除过渡动画与连点 pop 的竞态，enter/exit 保留默认动画。
+ *    enter/exit/popEnter/popExit 显式使用同一套滑动过渡，避免默认淡入淡出与返回动画混用。
  *  - **Expanded**（≥ 840dp，平板横屏）：左侧 Dashboard + 右侧 when 分支原子切换，
  *    用量子路由用局部 NavHost。
  */
@@ -149,14 +149,32 @@ private fun CompactNavHost() {
     NavHost(
         navController = navController,
         startDestination = Routes.DASHBOARD,
-        // popExit=fadeOut(1ms)：极短但非零的退出动画，确保 AnimatedContent 正确执行
-        //   transition 结束帧来移除旧 composable。ExitTransition.None 是字面零帧，
-        //   连续 pop 时上一帧的退出 composable 可能未从 layout 树中清除 → 幽灵残影。
-        // popEnter=None：新 composable 瞬时出现，消除进入动画与连点 pop 的竞态
-        //   （根因：默认 popEnter fadeIn(700ms) 时，第二次 pop 中断进入动画导致
-        //    AnimatedContent 状态不一致 → 空白页）
-        popExitTransition = { fadeOut(animationSpec = tween(1)) },
-        popEnterTransition = { EnterTransition.None }
+        enterTransition = {
+            slideIntoContainer(
+                AnimatedContentTransitionScope.SlideDirection.Left,
+                animationSpec = tween(220)
+            ) + fadeIn(animationSpec = tween(90))
+        },
+        exitTransition = {
+            slideOutOfContainer(
+                AnimatedContentTransitionScope.SlideDirection.Left,
+                animationSpec = tween(220)
+            ) + fadeOut(animationSpec = tween(90))
+        },
+        // Navigation Compose 会把 pop 过渡绑定到 Android 13+ predictive back 手势进度，
+        // 因此这里使用同一套滑动动画，避免默认淡入淡出与返回动画混用。
+        popExitTransition = {
+            slideOutOfContainer(
+                AnimatedContentTransitionScope.SlideDirection.Right,
+                animationSpec = tween(220)
+            ) + fadeOut(animationSpec = tween(90))
+        },
+        popEnterTransition = {
+            slideIntoContainer(
+                AnimatedContentTransitionScope.SlideDirection.Right,
+                animationSpec = tween(220)
+            ) + fadeIn(animationSpec = tween(90))
+        }
     ) {
         composable(Routes.DASHBOARD) {
             DashboardScreen(

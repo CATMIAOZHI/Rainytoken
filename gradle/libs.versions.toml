@@ -11,7 +11,7 @@ activityCompose = "1.9.3"
 composeBom = "2024.10.01"
 
 # Navigation
-navigationCompose = "2.8.4"
+navigationCompose = "2.9.8"
 
 # Network (Retrofit 2.11.0 配 OkHttp 4.12.0 — 稳定组合，避开 Retrofit 3.x + OkHttp 5.x 的前沿兼容性问题)
 retrofit = "2.11.0"

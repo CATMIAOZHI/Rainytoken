@@ -53,7 +53,6 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -346,7 +345,7 @@ private fun DraggableDashboardCards(
     var cardHeightPx by remember { mutableIntStateOf(1) }
     var dragFromIndex by remember { mutableIntStateOf(-1) }
     var dragTargetIndex by remember { mutableIntStateOf(-1) }
-    val itemCenterById = remember { mutableStateMapOf<String, androidx.compose.ui.geometry.Offset>() }
+    val itemCenterById = remember { HashMap<String, androidx.compose.ui.geometry.Offset>() }
 
     fun autoScrollDelta(): Float {
         if (dragCenterYInViewport < 0f || scrollState.maxValue <= 0) return 0f

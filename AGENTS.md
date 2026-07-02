@@ -2,9 +2,9 @@
 
 ## 项目概述
 
-Android（Jetpack Compose + Kotlin）APP，统一查询 DeepSeek、OpenCode Go、CommandCode Go 三项服务的余额/配额。
+Android（Jetpack Compose + Kotlin）APP，统一查询 DeepSeek、OpenCode Go、CommandCode Go、Codex / ChatGPT Plus 的余额/配额。
 DeepSeek 走 REST API，OpenCode Go 通过 OkHttp 抓取 dashboard HTML 解析 SSR hydration 数据。
-CommandCode Go 走 JSON API 抓取用量数据。APP 名为「雨晴Token」（粉色调品牌），配套桌面小组件。
+CommandCode Go 走 JSON API 抓取用量数据，Codex / ChatGPT Plus 通过 auth.json 刷新 token 后查询 wham 用量。APP 名为「雨晴Token」（粉色调品牌），配套桌面小组件。
 
 ## 技术栈
 
@@ -76,7 +76,7 @@ CommandCode Go 走 JSON API 抓取用量数据。APP 名为「雨晴Token」（�
 > - `visualDragOffsetX/Y` —— 视觉跟手偏移，持续累计
 > - `dragStartCenterX/YInWindow` —— 拖动开始时卡片中心在窗口位置，作为偏移基准
 > - `dragFromIndex` / `dragTargetIndex` —— 真实 index 和目标 index，不触发重组
-> - `itemCenterById` —— 拖动中冻结的格子中心坐标表
+> - `itemCenterById` —— 拖动中冻结的格子中心坐标表；使用普通 `HashMap`，不要改回 Compose StateMap（滚动/返回动画期间 `onGloballyPositioned` 高频写入会触发重组卡顿）
 > - `displayOrder` —— 真实布局顺序，拖动中不改
 > - `cardOrder`（外层 SharedPreferences）—— 持久化的用户偏好顺序
 
@@ -92,23 +92,12 @@ Compact（手机）：
             → CCGO: CCGO_USAGE_DETAIL（图表） → CCGO_USAGE_OVERVIEW（总统计）
                                           ↘ CCGO_USAGE_DATA（原始数据）
 
-  返回用 guardedPop()（200ms 时间戳围栏，PopGuard 非 State 对象）+ popExit=fadeOut(1ms)+popEnter=None。
-围栏防同一帧/连续帧的第二次 pop；popExit=fadeOut(1ms) 确保旧 composable 正确从 layout 树移除
-（ExitTransition.None 是字面零帧，连续 pop 时退出 composable 可能未清除 → 幽灵残影卡在上层），
-popEnter=None 消除进入动画与连点 pop 的竞态（根因：默认 popEnter fadeIn(700ms) 时，
-第二次 pop 中断进入动画导致 AnimatedContent 状态不一致 → 空白页）。
-enter/exit 保留默认动画（仅影响前进导航）。
+  返回用 guardedPop()（200ms 时间戳围栏，PopGuard 非 State 对象）+ Android predictive back。
+Manifest 开启 `android:enableOnBackInvokedCallback="true"`；`navigation-compose` 保持 2.9.x 以上，使用后续 predictive back 修复。
+Compact 根 `NavHost` 必须显式配置 `enterTransition` / `exitTransition` / `popEnterTransition` / `popExitTransition` 四项：
+前进统一左滑，返回统一右滑，避免只配置 pop 时短时间返回混入默认淡入淡出。
+当前页面背景/渐变层不适合 `scaleOut` 或长透明淡出类返回动画，容易出现透明背景和文字叠影；若要改动画，先处理 destination 的不透明背景层。
 PopGuard 额外检查 previousBackStackEntry != null，且 popBackStack() 返回 false 时 reset 围栏。
-
-✅ 已修复：快速连点左上角返回 → 空页面 / 旧页面残影卡在上层。
-根因：① mutableStateOf 写入触发 NavHost 重组，干扰 AnimatedContent 过渡状态机；
-      ② popExitTransition=None 字面零帧，连续 pop 时退出 composable 未从 layout 树清除；
-      ③ popExitTransition=None + 默认 popEnterTransition(700ms) 不匹配，第二次 pop
-        中断进入动画导致 AnimatedContent 状态不一致。
-修复：① PopGuard 用普通对象替代 mutableStateOf，不触发重组；
-      ② popExitTransition=fadeOut(tween(1))，极短非零帧确保 composable 正确移除；
-      ③ popEnterTransition=EnterTransition.None，返回导航瞬时完成；
-      ④ previousBackStackEntry 空值检查 + popBackStack() 返回值检查。
 
 Expanded（平板，≥840dp）：
   ┌─ 左侧 35%: Dashboard（固定） ─┐  ┌─ 右侧 65%: when(pane) 原子切换 ─────┐

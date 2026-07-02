@@ -30,7 +30,7 @@ Android AI 余额与用量查询 APP —— 统一查看 DeepSeek、OpenCode Go�
 |------|------|
 | 📊 **仪表盘** | DeepSeek 余额（¥）+ 各服务用量/余额卡片；OCGO/CCGO 卡片可直达用量详情；长按拖动自由排序（持久化）；下拉全局刷新 · 平板自适应双窗格布局 |
 | 📈 **用量图表** | 3 张 Canvas 手绘图表 — 消耗金额 / API 请求次数 / Token 消耗（OCGO & CCGO 双数据源）；支持 UTC+0/UTC+8 时区切换和自定义日/月/范围；自动降级（近5h无数据→12h→7天→当月）；平板并排展示 |
-| 📱 **平板适配** | 全局 `BoxWithConstraints` 自适应容器宽度；≥600dp 卡片双列，≥700dp 图表并排；双窗格 35/65 左右分栏（Expanded 模式） |
+| 📱 **平板适配** | 全局 `BoxWithConstraints` 自适应容器宽度；≥600dp 卡片双列，≥700dp 图表并排；双窗格 35/65 左右分栏（Expanded 模式）；支持 Android 13+ 预见性返回手势 |
 | 📋 **详细数据** | 原始记录分页浏览，支持时间 + 模型筛选，点击查看完整字段 |
 | 🔍 **多粒度筛选** | 5小时 / 12小时(10分钟桶) / 24小时 / 今天 / 昨天 / 最近7天 / 当月 / 自定义日·月·范围 |
 | 🏷️ **模型筛选** | 多选 / 单选 / 全选，动态图例自适应换行 |
@@ -172,7 +172,7 @@ chmod +x ./setup_android_env.sh
 
 - ✅ API Key / Session 凭据存入 **Android Keystore**（AES-256 GCM 加密）
 - ✅ 网络请求仅向 DeepSeek / OpenCode 官方 API 发出
-- ✅ `allowBackup="false"`，拒绝应用数据被备份
+- ✅ API Key / Session 由 Android Keystore 加密；应用数据备份规则由 `data_extraction_rules.xml` / `backup_rules.xml` 控制
 - ✅ 签名密钥固定，每次 Release 可覆盖安装
 - ✅ GitHub Secrets 加密存储签名密钥，CI 中解码使用
 
