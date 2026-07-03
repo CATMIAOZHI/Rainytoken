@@ -229,7 +229,8 @@ fun UsageChartScreen(
                                         granularity = state.granularity,
                                         legendItems = models.mapIndexed { idx, m ->
                                             m to modelColors[idx % modelColors.size]
-                                        }
+                                        },
+                                        useUtc8 = state.useUtc8
                                     )
                                 }
                             }
@@ -240,7 +241,8 @@ fun UsageChartScreen(
                                         valueSelector = { it.totalRequests.toFloat() },
                                         lineColor = StrawberryPink,
                                         formatValue = { "${it.toInt()}次" },
-                                        granularity = state.granularity
+                                        granularity = state.granularity,
+                                        useUtc8 = state.useUtc8
                                     )
                                 }
                             }
@@ -263,7 +265,8 @@ fun UsageChartScreen(
                                 stackLabels = { listOf("输出", "输入(未命中)", "命中缓存") },
                                 formatValue = { formatTokenComma(it.toLong()) },
                                 granularity = state.granularity,
-                                tooltipReversed = true
+                                tooltipReversed = true,
+                                useUtc8 = state.useUtc8
                             )
                         }
                         ChartLegend(
@@ -302,7 +305,8 @@ fun UsageChartScreen(
                                 granularity = state.granularity,
                                 legendItems = models.mapIndexed { idx, m ->
                                     m to modelColors[idx % modelColors.size]
-                                }
+                                },
+                                useUtc8 = state.useUtc8
                             )
                         }
                     }
@@ -319,7 +323,8 @@ fun UsageChartScreen(
                                 valueSelector = { it.totalRequests.toFloat() },
                                 lineColor = StrawberryPink,
                                 formatValue = { "${it.toInt()}次" },
-                                granularity = state.granularity
+                                granularity = state.granularity,
+                                useUtc8 = state.useUtc8
                             )
                         }
                     }
@@ -344,7 +349,8 @@ fun UsageChartScreen(
                                 stackLabels = { listOf("输出", "输入(未命中)", "命中缓存") },
                                 formatValue = { formatTokenComma(it.toLong()) },
                                 granularity = state.granularity,
-                                tooltipReversed = true
+                                tooltipReversed = true,
+                                useUtc8 = state.useUtc8
                             )
                         }
                         ChartLegend(
@@ -756,7 +762,7 @@ internal fun LineChart(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Row(Modifier.padding(8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(formatChartTime(bucket.ts, granularity, 0, 1).first, style = MaterialTheme.typography.labelSmall)
+                        Text(formatChartTime(bucket.ts, granularity, 0, 1, useUtc8).first, style = MaterialTheme.typography.labelSmall)
                         Text(formatValue(valueSelector(bucket)), style = MaterialTheme.typography.bodySmall, color = StrawberryPink)
                     }
                 }
