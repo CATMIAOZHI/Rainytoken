@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -106,13 +107,13 @@ fun ServiceIcon(
                 modifier = modifier
                     .size(size.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(if (isSystemInDarkTheme()) Color(0xFF1A1A1A) else Color.White),
+                    .background(if (isSystemInDarkTheme()) Color(0xFFF5F5F5) else Color.White),
                 contentAlignment = Alignment.Center
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.ic_ollama_logo),
                     contentDescription = "Ollama Pro",
-                    modifier = Modifier.size((size * 0.85).dp)
+                    modifier = Modifier.fillMaxSize()
                 )
             }
         }
