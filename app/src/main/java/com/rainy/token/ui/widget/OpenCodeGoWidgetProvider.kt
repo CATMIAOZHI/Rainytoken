@@ -182,7 +182,7 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
             }
             ServiceType.DEEPSEEK -> setEmptyState(views)
             ServiceType.OLLAMA -> {
-                setRowLabel(views, "Session", "每周", "Plan")
+                setRowLabel(views, "5h", "每周", "Plan")
                 populateRow(views, R.id.row1_pct, R.id.row1_bar, R.id.row1_reset,
                     pct = extras["session.pct"]?.toIntOrNull(),
                     resetSec = extras["session.resetAt"]?.toLongOrNull()?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 })
@@ -303,7 +303,7 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
             ServiceType.OPENCODE_GO, ServiceType.COMMANDCODE_GO -> R.drawable.ic_opencode_go_logo
             ServiceType.CODEX -> R.drawable.ic_codex_logo
             ServiceType.DEEPSEEK -> R.drawable.ic_deepseek_logo
-            ServiceType.OLLAMA -> R.drawable.ic_opencode_go_logo // 复用，后续可换 Ollama logo
+            ServiceType.OLLAMA -> R.drawable.ic_ollama_logo
         }
 
         /**

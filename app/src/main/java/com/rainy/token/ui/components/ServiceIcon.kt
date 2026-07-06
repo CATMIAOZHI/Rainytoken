@@ -102,18 +102,17 @@ fun ServiceIcon(
             }
         }
         ServiceType.OLLAMA -> {
-            // Ollama 暂用 emoji 占位
             Box(
                 modifier = modifier
                     .size(size.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF000000),
-                    ),
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (isSystemInDarkTheme()) Color(0xFF1A1A1A) else Color.White),
                 contentAlignment = Alignment.Center
             ) {
-                androidx.compose.material3.Text(
-                    text = "🦙",
-                    fontSize = (size * 0.5).sp
+                Image(
+                    painter = painterResource(id = R.drawable.ic_ollama_logo),
+                    contentDescription = "Ollama Pro",
+                    modifier = Modifier.size((size * 0.85).dp)
                 )
             }
         }

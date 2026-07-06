@@ -138,7 +138,7 @@ fun ServiceDetailScreen(
                     // Codex 详情：暂无专用详情卡片，用通用余额展示即可
                 }
                 ServiceType.OLLAMA -> {
-                    // Ollama 详情：暂无专用详情卡片，用通用余额展示即可
+                    item { OllamaUsageCard(uiState.state) }
                 }
             }
 
@@ -397,6 +397,59 @@ private fun formatResetInSec(sec: Long): String {
         days > 0 -> "$days 天 $hours 小时"
         hours > 0 -> "$hours 小时 $minutes 分"
         else -> "$minutes 分"
+    }
+}
+
+/**
+ * Ollama Pro 专属：5h + 每周用量窗口卡。
+ */
+@Composable
+private fun OllamaUsageCard(state: State) {
+    val balance = when (state) {
+        is State.Fresh -> state.data
+        is State.Stale -> state.data
+        is State.Error -> state.cached
+        else -> null
+    }
+    val extras = balance?.extras ?: return
+    val plan = extras["plan"] ?: "—"
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "用量窗口",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = inkMuted()
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = plan,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = StrawberryPink,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            UsageWindowRow(
+                label = "5 小时",
+                pct = extras["session.pct"]?.toIntOrNull(),
+                resetInSec = extras["session.resetAt"]?.toLongOrNull()?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 }
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Spacer(modifier = Modifier.height(14.dp))
+            UsageWindowRow(
+                label = "每周",
+                pct = extras["weekly.pct"]?.toIntOrNull(),
+                resetInSec = extras["weekly.resetAt"]?.toLongOrNull()?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 }
+            )
+        }
     }
 }
 

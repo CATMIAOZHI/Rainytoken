@@ -892,7 +892,7 @@ private fun OllamaMainBalance(balance: com.rainy.token.domain.model.ServiceBalan
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "Session 已用",
+            text = "5h 已用",
             style = MaterialTheme.typography.titleMedium,
             color = inkMuted(),
             modifier = Modifier.padding(bottom = 6.dp)
@@ -918,12 +918,12 @@ private fun OllamaUsageWindows(balance: com.rainy.token.domain.model.ServiceBala
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (sessionPct != null) {
             CompactUsageRow(
-                label = "Session",
+                label = "5h",
                 pct = sessionPct.toInt().coerceIn(0, 100),
                 resetInSec = sessionResetAt?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 }
             )
         } else {
-            CompactUsageRowEmpty(label = "Session", resetInSec = null)
+            CompactUsageRowEmpty(label = "5h", resetInSec = null)
         }
         if (weeklyPct != null) {
             CompactUsageRow(
