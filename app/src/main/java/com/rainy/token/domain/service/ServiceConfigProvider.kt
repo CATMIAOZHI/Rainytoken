@@ -60,6 +60,12 @@ object ServiceConfigProvider {
             method = FetchMethod.REST_API,
             loginUrl = "",
             displayUnit = "%"
+        ),
+        ServiceType.OLLAMA to ServiceConfig(
+            type = ServiceType.OLLAMA,
+            method = FetchMethod.WEBVIEW_SCRAPER,
+            loginUrl = "https://ollama.com/settings",
+            displayUnit = "%"
         )
     )
 

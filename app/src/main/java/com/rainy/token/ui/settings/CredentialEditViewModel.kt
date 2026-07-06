@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.rainy.token.data.repository.CommandCodeGoRepository
 import com.rainy.token.data.repository.CredentialRepository
 import com.rainy.token.data.repository.OpenCodeGoRepository
+import com.rainy.token.data.repository.OllamaRepository
 import com.rainy.token.data.repository.RepositoryError
 import com.rainy.token.domain.model.CookieEntry
 import com.rainy.token.domain.model.Credential
@@ -39,7 +40,8 @@ class CredentialEditViewModel @Inject constructor(
     private val credentialRepository: CredentialRepository,
     private val openCodeGoRepositoryProvider: Provider<OpenCodeGoRepository>,
     private val commandCodeGoRepositoryProvider: Provider<CommandCodeGoRepository>,
-    private val refreshBalanceUseCaseProvider: Provider<RefreshBalanceUseCase>
+    private val refreshBalanceUseCaseProvider: Provider<RefreshBalanceUseCase>,
+    private val ollamaRepositoryProvider: Provider<OllamaRepository>
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CredentialEditUiState())
@@ -93,6 +95,7 @@ class CredentialEditViewModel @Inject constructor(
                             append("}")
                         }
                     } else "",
+                    ollamaCookie = (existing as? Credential.SessionCredential)?.ollamaCookie.orEmpty(),
                     hasExisting = existing != null
                 )
             }
@@ -427,6 +430,73 @@ class CredentialEditViewModel @Inject constructor(
         }
     }
 
+    fun updateOllamaCookie(value: String) {
+        _uiState.update { it.copy(ollamaCookie = value) }
+    }
+
+    /**
+     * 保存 Ollama Pro 的 Cookie 字符串。
+     */
+    fun saveOllamaCredential() {
+        val type = serviceType ?: return
+        val current = _uiState.value
+        if (current.ollamaCookie.isBlank()) {
+            _uiState.update { it.copy(message = "Cookie 不能为空") }
+            return
+        }
+        viewModelScope.launch {
+            doSaveOllama(current.ollamaCookie.trim())
+            _uiState.update { it.copy(message = "已保存凭据", hasExisting = true) }
+        }
+    }
+
+    /**
+     * 保存并立即测试 Ollama Cloud 连接。
+     */
+    fun testAndSaveOllama() {
+        val type = serviceType ?: return
+        val current = _uiState.value
+        if (current.ollamaCookie.isBlank()) {
+            _uiState.update { it.copy(message = "Cookie 不能为空") }
+            return
+        }
+        viewModelScope.launch {
+            val previous = credentialRepository.get(type)
+            doSaveOllama(current.ollamaCookie.trim())
+            val result = ollamaRepositoryProvider.get().fetchBalance()
+            if (result.isSuccess) {
+                val bal = result.getOrNull()
+                _uiState.update {
+                    it.copy(
+                        message = "连接成功！Session: ${bal?.amount ?: 0}% · ${bal?.extras?.get("plan") ?: "—"}",
+                        hasExisting = true
+                    )
+                }
+            } else {
+                if (previous != null) credentialRepository.save(previous) else credentialRepository.remove(type)
+                _uiState.update {
+                    it.copy(
+                        message = "测试失败：${result.exceptionOrNull()?.message}",
+                        hasExisting = previous != null
+                    )
+                }
+            }
+        }
+    }
+
+    private suspend fun doSaveOllama(cookie: String) {
+        val type = serviceType ?: return
+        val existing = credentialRepository.get(type) as? Credential.SessionCredential
+        val updated = (existing ?: Credential.SessionCredential(
+            service = type,
+            cookies = emptyList()
+        )).copy(
+            ollamaCookie = cookie,
+            lastVerifiedAt = System.currentTimeMillis()
+        )
+        credentialRepository.save(updated)
+    }
+
     fun deleteCredential() {
         val type = serviceType ?: return
         viewModelScope.launch {
@@ -439,7 +509,8 @@ class CredentialEditViewModel @Inject constructor(
                     cookieInput = "",
                     authCookie = "",
                     workspaceId = "",
-                    cookieCount = 0
+                    cookieCount = 0,
+                    ollamaCookie = ""
                 )
             }
         }
@@ -509,5 +580,6 @@ data class CredentialEditUiState(
     val cookieCount: Int = 0,
     val hasExisting: Boolean = false,
     val codexAuthJson: String = "",
+    val ollamaCookie: String = "",
     val message: String? = null
 )

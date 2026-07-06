@@ -14,6 +14,7 @@ import com.rainy.token.data.repository.CommandCodeGoRepository
 import com.rainy.token.data.repository.CommandCodeUsageRepository
 import com.rainy.token.data.repository.OpenCodeGoRepository
 import com.rainy.token.data.repository.OpenCodeUsageRepository
+import com.rainy.token.data.repository.OllamaRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -147,6 +148,17 @@ object NetworkModule {
         credentialRepository: CredentialRepository,
         balanceCache: BalanceCache
     ): CodexRepository = CodexRepository(okHttpClient, credentialRepository, balanceCache)
+
+    /**
+     * Ollama Pro Cloud 用量仓库：Cookie 认证 + OkHttp 抓 settings HTML 解析。
+     */
+    @Provides
+    @Singleton
+    fun provideOllamaRepository(
+        okHttpClient: OkHttpClient,
+        credentialRepository: CredentialRepository,
+        balanceCache: BalanceCache
+    ): OllamaRepository = OllamaRepository(okHttpClient, credentialRepository, balanceCache)
 
     /** 余额缓存 DataStore（计划 7.1） */
     @Provides

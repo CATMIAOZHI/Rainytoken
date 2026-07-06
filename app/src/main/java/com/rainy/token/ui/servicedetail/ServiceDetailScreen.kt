@@ -137,6 +137,9 @@ fun ServiceDetailScreen(
                 ServiceType.CODEX -> {
                     // Codex 详情：暂无专用详情卡片，用通用余额展示即可
                 }
+                ServiceType.OLLAMA -> {
+                    // Ollama 详情：暂无专用详情卡片，用通用余额展示即可
+                }
             }
 
             // 错误信息（如有）
@@ -651,6 +654,7 @@ private fun mainCardLabel(service: ServiceType): String = when (service) {
     ServiceType.OPENCODE_GO -> "5h 实时用量"
     ServiceType.COMMANDCODE_GO -> "月度余额"
     ServiceType.CODEX -> "5h 剩余额度"
+    ServiceType.OLLAMA -> "Session 用量"
 }
 
 private fun stateToChip(state: State): StatusStyle = when (state) {

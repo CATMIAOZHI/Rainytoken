@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -140,8 +141,19 @@ fun CredentialEditScreen(
                     )
                 }
                 } else {
-                    // OpenCode Go：用户粘贴 auth cookie + workspaceId（自动抓取）
-                        if (service == ServiceType.OPENCODE_GO) {
+                    // Ollama Pro：用户粘贴完整 Cookie 字符串
+                        if (service == ServiceType.OLLAMA) {
+                            OllamaCookieForm(
+                                cookie = uiState.ollamaCookie,
+                                loginUrl = uiState.loginUrl,
+                                hasExisting = uiState.hasExisting,
+                                onCookieChange = viewModel::updateOllamaCookie,
+                                onSave = { viewModel.saveOllamaCredential() },
+                                onTestAndSave = { viewModel.testAndSaveOllama() },
+                                onCopyLoginUrl = { copyToClipboard(context, uiState.loginUrl) },
+                                onOpenLoginUrl = { openInBrowser(context, uiState.loginUrl) }
+                            )
+                        } else if (service == ServiceType.OPENCODE_GO) {
                             OpenCodeGoForm(
                                 authCookie = uiState.authCookie,
                                 workspaceId = uiState.workspaceId,
@@ -294,6 +306,65 @@ fun CredentialEditScreen(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun OllamaCookieForm(
+    cookie: String,
+    loginUrl: String,
+    hasExisting: Boolean,
+    onCookieChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onTestAndSave: () -> Unit,
+    onCopyLoginUrl: () -> Unit,
+    onOpenLoginUrl: () -> Unit
+) {
+    Text(text = "Ollama Pro 凭据", style = MaterialTheme.typography.titleMedium)
+    Text(
+        text = "需要从浏览器复制完整 Cookie。登录 ollama.com/settings 后，在 DevTools → Network → 请求头里找到 Cookie 行复制。",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline
+    )
+    OutlinedTextField(
+        value = cookie,
+        onValueChange = onCookieChange,
+        label = { Text("Cookie") },
+        placeholder = { Text("aid=xxx; __Secure-session=yyy") },
+        singleLine = false,
+        minLines = 2,
+        maxLines = 4,
+        visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Password),
+        modifier = Modifier.fillMaxWidth()
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        OutlinedButton(
+            onClick = onSave,
+            modifier = Modifier.weight(1f),
+            enabled = cookie.isNotBlank()
+        ) {
+            Text(text = if (hasExisting) "更新凭据" else "保存凭据")
+        }
+        OutlinedButton(
+            onClick = onTestAndSave,
+            modifier = Modifier.weight(1f),
+            enabled = cookie.isNotBlank()
+        ) {
+            Text(text = "测试并保存")
+        }
+    }
+    OutlinedButton(
+        onClick = onOpenLoginUrl,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(text = "在浏览器中打开 Ollama Settings")
+    }
+    TextButton(onClick = onCopyLoginUrl, modifier = Modifier.fillMaxWidth()) {
+        Text(text = "复制登录 URL 到剪贴板")
     }
 }
 

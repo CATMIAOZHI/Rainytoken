@@ -41,6 +41,8 @@ sealed class Credential {
         val authCookie: String? = null,
         /** OpenCode Go 专用：workspace ID */
         val workspaceId: String? = null,
+        /** Ollama Pro 专用：完整的 Cookie 字符串（用户从浏览器 DevTools 复制） */
+        val ollamaCookie: String? = null,
         override val lastVerifiedAt: Long = 0L
     ) : Credential()
 

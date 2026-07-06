@@ -658,6 +658,12 @@ private fun BalanceMainArea(card: DashboardCardUi) {
             Spacer(modifier = Modifier.height(12.dp))
             CodexUsageWindows(balance)
         }
+        card.service == ServiceType.OLLAMA -> {
+            // Ollama Pro 卡片：Session + Weekly 用量百分比
+            OllamaMainBalance(balance)
+            Spacer(modifier = Modifier.height(12.dp))
+            OllamaUsageWindows(balance)
+        }
         else -> {
             // DeepSeek 等：主数字 + 单位
             Row(verticalAlignment = Alignment.Bottom) {
@@ -865,6 +871,72 @@ private fun CodexUsageWindows(balance: com.rainy.token.domain.model.ServiceBalan
     }
 }
 
+@Composable
+private fun OllamaMainBalance(balance: com.rainy.token.domain.model.ServiceBalance) {
+    val plan = balance.extras["plan"]?.let {
+        when (it.lowercase()) { "pro" -> "Pro"; "max" -> "Max"; "free" -> "Free"; else -> it }
+    } ?: "—"
+    Row(verticalAlignment = Alignment.Bottom) {
+        Text(
+            text = formatAmount(balance.amount),
+            style = MaterialTheme.typography.displayMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = "%",
+            style = MaterialTheme.typography.titleLarge,
+            color = inkMuted(),
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = 6.dp, start = 2.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "Session 已用",
+            style = MaterialTheme.typography.titleMedium,
+            color = inkMuted(),
+            modifier = Modifier.padding(bottom = 6.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "· $plan",
+            style = MaterialTheme.typography.bodySmall,
+            color = inkMuted(),
+            modifier = Modifier.padding(bottom = 6.dp)
+        )
+    }
+}
+
+@Composable
+private fun OllamaUsageWindows(balance: com.rainy.token.domain.model.ServiceBalance) {
+    val extras = balance.extras
+    val sessionPct = extras["session.pct"]?.toFloatOrNull()
+    val weeklyPct = extras["weekly.pct"]?.toFloatOrNull()
+    val sessionResetAt = extras["session.resetAt"]?.toLongOrNull()
+    val weeklyResetAt = extras["weekly.resetAt"]?.toLongOrNull()
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (sessionPct != null) {
+            CompactUsageRow(
+                label = "Session",
+                pct = sessionPct.toInt().coerceIn(0, 100),
+                resetInSec = sessionResetAt?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 }
+            )
+        } else {
+            CompactUsageRowEmpty(label = "Session", resetInSec = null)
+        }
+        if (weeklyPct != null) {
+            CompactUsageRow(
+                label = "每周",
+                pct = weeklyPct.toInt().coerceIn(0, 100),
+                resetInSec = weeklyResetAt?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 }
+            )
+        } else {
+            CompactUsageRowEmpty(label = "每周", resetInSec = null)
+        }
+    }
+}
+
 private fun normalizeWindowLabel(label: String): String = when (label.lowercase()) {
     "weekly" -> "每周"
     else -> label
@@ -995,6 +1067,7 @@ private fun secondaryLine(card: DashboardCardUi): String = when (card.service) {
     ServiceType.OPENCODE_GO -> "WebView 抓取 · 5h 配额"
     ServiceType.COMMANDCODE_GO -> "JSON API · \$"
     ServiceType.CODEX -> "ChatGPT Plus · Codex 额度"
+    ServiceType.OLLAMA -> "Cookie 抓取 · Cloud 配额"
 }
 
 private fun footerText(card: DashboardCardUi): String {

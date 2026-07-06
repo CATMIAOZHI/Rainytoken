@@ -181,6 +181,20 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                 }
             }
             ServiceType.DEEPSEEK -> setEmptyState(views)
+            ServiceType.OLLAMA -> {
+                setRowLabel(views, "Session", "每周", "Plan")
+                populateRow(views, R.id.row1_pct, R.id.row1_bar, R.id.row1_reset,
+                    pct = extras["session.pct"]?.toIntOrNull(),
+                    resetSec = extras["session.resetAt"]?.toLongOrNull()?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 })
+                populateRow(views, R.id.row2_pct, R.id.row2_bar, R.id.row2_reset,
+                    pct = extras["weekly.pct"]?.toIntOrNull(),
+                    resetSec = extras["weekly.resetAt"]?.toLongOrNull()?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 })
+                // Plan 信息放在第三行
+                val plan = extras["plan"] ?: "—"
+                views.setTextViewText(R.id.row3_pct, plan)
+                views.setProgressBar(R.id.row3_bar, 100, 0, false)
+                views.setTextViewText(R.id.row3_reset, "")
+            }
         }
     }
 
@@ -250,7 +264,7 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
         private const val KEY_LAST_AUTO_REFRESH = "last_auto_refresh"
         private const val KEY_DISPLAY_SERVICE = "display_service"
         private const val ACTION_SWITCH_SERVICE = "com.rainy.token.action.WIDGET_SWITCH_SERVICE"
-        private val DISPLAY_SERVICES = listOf(ServiceType.OPENCODE_GO, ServiceType.COMMANDCODE_GO, ServiceType.CODEX)
+        private val DISPLAY_SERVICES = listOf(ServiceType.OPENCODE_GO, ServiceType.COMMANDCODE_GO, ServiceType.CODEX, ServiceType.OLLAMA)
 
         private fun autoRefreshPrefs(context: Context) =
             context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -282,12 +296,14 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
             ServiceType.COMMANDCODE_GO -> "CCGO"
             ServiceType.CODEX -> "Codex"
             ServiceType.DEEPSEEK -> "DS"
+            ServiceType.OLLAMA -> "Ollama"
         }
 
         private fun widgetLogo(service: ServiceType): Int = when (service) {
             ServiceType.OPENCODE_GO, ServiceType.COMMANDCODE_GO -> R.drawable.ic_opencode_go_logo
             ServiceType.CODEX -> R.drawable.ic_codex_logo
             ServiceType.DEEPSEEK -> R.drawable.ic_deepseek_logo
+            ServiceType.OLLAMA -> R.drawable.ic_opencode_go_logo // 复用，后续可换 Ollama logo
         }
 
         /**

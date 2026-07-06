@@ -101,5 +101,21 @@ fun ServiceIcon(
                 )
             }
         }
+        ServiceType.OLLAMA -> {
+            // Ollama 暂用 emoji 占位
+            Box(
+                modifier = modifier
+                    .size(size.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF000000),
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.compose.material3.Text(
+                    text = "🦙",
+                    fontSize = (size * 0.5).sp
+                )
+            }
+        }
     }
 }
