@@ -91,9 +91,14 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                     views.setTextViewText(R.id.widget_switch, shortName(selectedService))
                     views.setTextViewText(R.id.widget_service_title, "${selectedService.displayName} · 额度")
                     views.setImageViewResource(R.id.widget_logo, widgetLogo(selectedService))
-                    // 所有服务 logo 统一 12dp 高，wrap_content 宽度自适应比例
-                    views.setViewLayoutWidth(R.id.widget_logo, -2f, TypedValue.COMPLEX_UNIT_DIP) // wrap_content
-                    views.setViewLayoutHeight(R.id.widget_logo, 12f, TypedValue.COMPLEX_UNIT_DIP)
+                    // Ollama logo 是正方形，XML 默认 22x12 是给宽扁 logo 的
+                    if (selectedService == ServiceType.OLLAMA) {
+                        views.setViewLayoutWidth(R.id.widget_logo, 12f, TypedValue.COMPLEX_UNIT_DIP)
+                        views.setViewLayoutHeight(R.id.widget_logo, 12f, TypedValue.COMPLEX_UNIT_DIP)
+                    } else {
+                        views.setViewLayoutWidth(R.id.widget_logo, 22f, TypedValue.COMPLEX_UNIT_DIP)
+                        views.setViewLayoutHeight(R.id.widget_logo, 12f, TypedValue.COMPLEX_UNIT_DIP)
+                    }
                     val cached = cache.get(selectedService)
                     if (cached != null) {
                         selectedHasCachedData = true
