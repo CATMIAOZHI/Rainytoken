@@ -333,9 +333,7 @@ private fun OllamaCookieForm(
         placeholder = { Text("aid=xxx; __Secure-session=yyy") },
         singleLine = false,
         minLines = 2,
-        maxLines = 4,
-        visualTransformation = PasswordVisualTransformation(),
-        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Password),
+        maxLines = 6,
         modifier = Modifier.fillMaxWidth()
     )
     Row(
