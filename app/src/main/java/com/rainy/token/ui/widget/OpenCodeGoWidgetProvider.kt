@@ -14,6 +14,7 @@ import com.rainy.token.R
 import com.rainy.token.data.cache.BalanceCache
 import com.rainy.token.data.cache.balanceCacheDataStore
 import com.rainy.token.domain.service.ServiceType
+import com.rainy.token.ui.components.normalizeWindowLabel
 import kotlinx.coroutines.runBlocking
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -216,11 +217,6 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
         views.setTextViewText(R.id.row1_label, first)
         views.setTextViewText(R.id.row2_label, second)
         views.setTextViewText(R.id.row3_label, third)
-    }
-
-    private fun normalizeWindowLabel(label: String): String = when (label.lowercase()) {
-        "weekly" -> "每周"
-        else -> label
     }
 
     private fun populateRow(

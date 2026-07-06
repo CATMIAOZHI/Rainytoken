@@ -51,6 +51,8 @@ import com.rainy.token.ui.components.ServiceIcon
 import com.rainy.token.ui.components.StatusChip
 import com.rainy.token.ui.components.StatusLevel
 import com.rainy.token.ui.components.StatusStyle
+import com.rainy.token.ui.components.formatAmount
+import com.rainy.token.ui.components.formatResetInSec
 import com.rainy.token.ui.theme.inkMuted
 import com.rainy.token.ui.theme.StrawberryPink
 import java.text.SimpleDateFormat
@@ -388,18 +390,6 @@ private fun UsageWindowRow(label: String, pct: Int?, resetInSec: Long?) {
     }
 }
 
-private fun formatResetInSec(sec: Long): String {
-    if (sec <= 0) return "—"
-    val days = sec / 86400
-    val hours = (sec % 86400) / 3600
-    val minutes = (sec % 3600) / 60
-    return when {
-        days > 0 -> "$days 天 $hours 小时"
-        hours > 0 -> "$hours 小时 $minutes 分"
-        else -> "$minutes 分"
-    }
-}
-
 /**
  * Ollama Pro 专属：5h + 每周用量窗口卡。
  */
@@ -721,9 +711,4 @@ private fun stateToChip(state: State): StatusStyle = when (state) {
 private fun formatTime(epochMillis: Long): String {
     val sdf = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
     return sdf.format(Date(epochMillis))
-}
-
-private fun formatAmount(value: Double): String {
-    return if (value % 1.0 == 0.0) value.toInt().toString()
-    else String.format(Locale.US, "%.2f", value)
 }

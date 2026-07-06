@@ -24,6 +24,9 @@ import com.rainy.token.domain.model.ServiceBalance
 import com.rainy.token.domain.service.ServiceType
 import com.rainy.token.ui.components.StatusStyle
 import com.rainy.token.ui.components.StatusLevel
+import com.rainy.token.ui.components.formatAmount
+import com.rainy.token.ui.components.formatResetInSec
+import com.rainy.token.ui.components.normalizeWindowLabel
 import com.rainy.token.ui.theme.StrawberryPink
 import com.rainy.token.ui.theme.StatusOrange
 import com.rainy.token.ui.theme.inkMuted
@@ -353,11 +356,6 @@ internal fun OllamaUsageWindows(balance: ServiceBalance) {
 
 // ── Shared UI components ──
 
-internal fun normalizeWindowLabel(label: String): String = when (label.lowercase()) {
-    "weekly" -> "每周"
-    else -> label
-}
-
 @Composable
 internal fun CompactUsageRowEmpty(label: String, resetInSec: Long?) {
     Column {
@@ -452,18 +450,6 @@ internal fun CompactUsageRow(label: String, pct: Int, resetInSec: Long?) {
 
 // ── Dashboard utility functions ──
 
-internal fun formatResetInSec(sec: Long): String {
-    if (sec <= 0) return "—"
-    val days = sec / 86400
-    val hours = (sec % 86400) / 3600
-    val minutes = (sec % 3600) / 60
-    return when {
-        days > 0 -> "$days 天 $hours 小时"
-        hours > 0 -> "$hours 小时 $minutes 分"
-        else -> "$minutes 分"
-    }
-}
-
 internal fun DashboardCardUi.statusBadgeStyle(): StatusStyle = when {
     credentialState == CredentialStatus.State.NOT_CONFIGURED ->
         StatusStyle("未配置", StatusLevel.WARNING)
@@ -503,9 +489,4 @@ internal fun footerText(card: DashboardCardUi): String {
         diffMin < 1440 -> "${diffMin / 60} 小时前更新"
         else -> "$timeStr 更新"
     }
-}
-
-internal fun formatAmount(value: Double): String {
-    return if (value % 1.0 == 0.0) value.toInt().toString()
-    else String.format(Locale.US, "%.2f", value)
 }
