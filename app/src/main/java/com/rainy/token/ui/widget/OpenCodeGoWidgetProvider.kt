@@ -184,10 +184,10 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
             ServiceType.OLLAMA -> {
                 setRowLabel(views, "5h", "每周", "Plan")
                 populateRow(views, R.id.row1_pct, R.id.row1_bar, R.id.row1_reset,
-                    pct = extras["session.pct"]?.toIntOrNull(),
+                    pct = extras["session.pct"]?.toFloatOrNull()?.toInt(),
                     resetSec = extras["session.resetAt"]?.toLongOrNull()?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 })
                 populateRow(views, R.id.row2_pct, R.id.row2_bar, R.id.row2_reset,
-                    pct = extras["weekly.pct"]?.toIntOrNull(),
+                    pct = extras["weekly.pct"]?.toFloatOrNull()?.toInt(),
                     resetSec = extras["weekly.resetAt"]?.toLongOrNull()?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 })
                 // Plan 信息放在第三行
                 val plan = extras["plan"] ?: "—"

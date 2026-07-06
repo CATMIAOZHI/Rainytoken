@@ -438,7 +438,7 @@ private fun OllamaUsageCard(state: State) {
             Spacer(modifier = Modifier.height(12.dp))
             UsageWindowRow(
                 label = "5 小时",
-                pct = extras["session.pct"]?.toIntOrNull(),
+                pct = extras["session.pct"]?.toFloatOrNull()?.toInt(),
                 resetInSec = extras["session.resetAt"]?.toLongOrNull()?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 }
             )
             Spacer(modifier = Modifier.height(14.dp))
@@ -446,7 +446,7 @@ private fun OllamaUsageCard(state: State) {
             Spacer(modifier = Modifier.height(14.dp))
             UsageWindowRow(
                 label = "每周",
-                pct = extras["weekly.pct"]?.toIntOrNull(),
+                pct = extras["weekly.pct"]?.toFloatOrNull()?.toInt(),
                 resetInSec = extras["weekly.resetAt"]?.toLongOrNull()?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 }
             )
         }
