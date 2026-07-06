@@ -4,7 +4,7 @@
 
 [![Release](https://github.com/CATMIAOZHI/Rainytoken/actions/workflows/release.yml/badge.svg)](https://github.com/CATMIAOZHI/Rainytoken/actions)
 [![Version](https://img.shields.io/github/v/release/CATMIAOZHI/Rainytoken?color=ff85a2)](https://github.com/CATMIAOZHI/Rainytoken/releases)
-Android AI 余额与用量查询 APP —— 统一查看 DeepSeek、OpenCode Go、CommandCode Go 的余额与用量配额。粉色调品牌 UI，配套桌面小组件。
+Android AI 余额与用量查询 APP —— 统一查看 DeepSeek、OpenCode Go、CommandCode Go、Codex / ChatGPT Plus、Ollama Pro 的余额与用量配额。粉色调品牌 UI，配套桌面小组件。
 🐱 雨晴Token — AI Balance & Usage Quota Query | the Rainy Family tools.
 
 ---
@@ -34,7 +34,7 @@ Android AI 余额与用量查询 APP —— 统一查看 DeepSeek、OpenCode Go�
 | 📋 **详细数据** | 原始记录分页浏览，支持时间 + 模型筛选，点击查看完整字段 |
 | 🔍 **多粒度筛选** | 5小时 / 12小时(10分钟桶) / 24小时 / 今天 / 昨天 / 最近7天 / 当月 / 自定义日·月·范围 |
 | 🏷️ **模型筛选** | 多选 / 单选 / 全选，动态图例自适应换行 |
-| 📱 **桌面小组件** | 不打开 APP 也能看用量；支持三服务切换（OCGO/CCGO/Codex）+ DeepSeek 余额；可拖入负一屏；划到即自动刷新（MIUI 曝光刷新） |
+| 📱 **桌面小组件** | 不打开 APP 也能看用量；支持四服务切换（OCGO/CCGO/Codex/Ollama）+ DeepSeek 余额；可拖入负一屏；划到即自动刷新（MIUI 曝光刷新） |
 | 🔄 **自动同步** | 首页下拉自动同步用量；无缓存时启动自动全量同步；CCGO 详情页支持手动清除并重新同步 |
 | 🌙 **深色模式** | 全局自适应 — App 内文字/图标/背景自动切换，小组件独立适配暗色布局 |
 | ➕ **一键添桌面** | APP 内点 + 直接添加小组件，不用去系统列表翻 |
@@ -47,7 +47,7 @@ Android AI 余额与用量查询 APP —— 统一查看 DeepSeek、OpenCode Go�
 
 前往 [Releases](https://github.com/CATMIAOZHI/Rainytoken/releases) 下载最新 APK。
 
-> ⚠️ 需要配置 DeepSeek API Key、OpenCode Go 登录凭据、CommandCode Go API Key 或 Codex auth.json 才能拉取数据。
+> ⚠️ 需要配置 DeepSeek API Key、OpenCode Go 登录凭据、CommandCode Go API Key、Codex auth.json 或 Ollama Pro Cookie 才能拉取数据。
 
 ---
 
@@ -76,8 +76,8 @@ Android AI 余额与用量查询 APP —— 统一查看 DeepSeek、OpenCode Go�
 │                       │                           │
 │  ┌────────────────────▼─────────────────────────┐ │
 │  │         Repository + Network                  │ │
-│  │  DeepSeekApi（Retrofit）· OpenCodeGo 网页抓取 │
-│  │  · OpenCodeUsageRepository · CommandCodeUsageRepository · CodexRepository（OkHttp 调 chatgpt.com）│ │
+│  │  DeepSeekApi（Retrofit）· OpenCodeGo 网页抓取
+│  │  · OpenCodeUsageRepository · CommandCodeUsageRepository · CodexRepository · OllamaRepository（OkHttp）│ │
 │  └────────────────────┬────────────────────────┘ │
 │                       │                           │
 │  ┌────────────────────▼─────────────────────────┐ │
@@ -100,7 +100,7 @@ Rainytoken/
 │   │   ├── cache/          # BalanceCache（DataStore）
 │   │   ├── local/          # UsageCache（DataStore + 内存缓存）、UsageRecord、ChartBucket
 │   │   ├── remote/         # DeepSeekApi（Retrofit）+ OpenCodeGo 抓取 + UsageRepository
-│   │   └── repository/     # DeepSeek / OpenCodeGo / CommandCode / Codex / Credential Repository
+│   │   └── repository/     # DeepSeek / OpenCodeGo / CommandCode / Codex / Ollama / Credential Repository
 │   ├── domain/
 │   │   ├── model/          # ServiceBalance、Credential 等
 │   │   ├── service/        # ServiceType 枚举
@@ -161,7 +161,7 @@ chmod +x ./setup_android_env.sh
 | `com.squareup.retrofit2:retrofit` | DeepSeek REST API |
 | `com.squareup.okhttp3:okhttp` | OpenCode Go 网页抓取 |
 | `org.jetbrains.kotlinx:kotlinx-serialization-json` | JSON 序列化 |
-| `org.jsoup:jsoup` | HTML 解析（SSR hydration 数据提取） |
+| `org.jsoup:jsoup` | HTML 解析（已引入但实际未使用，HTML 解析全用正则） |
 | `androidx.datastore:datastore-preferences` | 本地缓存 |
 | `com.google.dagger:hilt-android` | 依赖注入 |
 | `com.google.devtools.ksp:symbol-processing-api` | KSP 注解处理 |

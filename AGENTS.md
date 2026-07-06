@@ -2,9 +2,9 @@
 
 ## 项目概述
 
-Android（Jetpack Compose + Kotlin）APP，统一查询 DeepSeek、OpenCode Go、CommandCode Go、Codex / ChatGPT Plus 的余额/配额。
+Android（Jetpack Compose + Kotlin）APP，统一查询 DeepSeek、OpenCode Go、CommandCode Go、Codex / ChatGPT Plus、Ollama Pro 的余额/配额。
 DeepSeek 走 REST API，OpenCode Go 通过 OkHttp 抓取 dashboard HTML 解析 SSR hydration 数据。
-CommandCode Go 走 JSON API 抓取用量数据，Codex / ChatGPT Plus 通过 auth.json 刷新 token 后查询 wham 用量。APP 名为「雨晴Token」（粉色调品牌），配套桌面小组件。
+CommandCode Go 走 JSON API 抓取用量数据，Codex / ChatGPT Plus 通过 auth.json 刷新 token 后查询 wham 用量。Ollama Pro 通过 Cookie 抓取 settings 页 HTML 解析用量百分比。APP 名为「雨晴Token」（粉色调品牌），配套桌面小组件。
 
 ## 技术栈
 
@@ -24,6 +24,7 @@ CommandCode Go 走 JSON API 抓取用量数据，Codex / ChatGPT Plus 通过 aut
 - ✅ OpenCode Go — OkHttp 抓 dashboard HTML，解析 `rollingUsage`/`weeklyUsage`/`monthlyUsage`
 - ✅ CommandCode Go — JSON API 抓取用量数据，`CommandCodeUsageRepository` 解析（workspaceId = `"commandcode"`）
 - ✅ Codex / ChatGPT Plus — 粘贴完整 auth.json（含 refresh_token），调 `chatgpt.com/backend-api/wham/usage`；token 过期前 60 分钟自动刷新
+- ✅ Ollama Pro — Cookie 认证，OkHttp 抓 `ollama.com/settings` HTML，正则解析 plan/session(5h)/weekly 百分比 + `data-time` 重置时间 + `data-model` 模型级请求次数；无官方 API（ollama/ollama#12532）
 - ✅ 文案统一：所有服务标签均使用中文（"每周"统一代替 "weekly"/"Weekly"/"weekly"）
 - ❌ OpenCode Zen / 小米 MiMo — 未实现
 
@@ -39,7 +40,7 @@ CommandCode Go 走 JSON API 抓取用量数据，Codex / ChatGPT Plus 通过 aut
 **凭据回显红线**：
 
 > ⚠️ `CredentialEditViewModel.load()` 首次加载已有凭据时，需针对每种 `Credential` 子类显式编写回显分支。
-> 当前覆盖：`ApiKeyCredential`（API Key 输入框）、`SessionCredential`（Cookie 输入框）、`CodexCredential`（auth.json 输入框）。
+> 当前覆盖：`ApiKeyCredential`（API Key 输入框）、`SessionCredential`（Cookie 输入框 / `ollamaCookie` 字段）、`CodexCredential`（auth.json 输入框）。
 > 新增凭据类型（如 OpenCode Zen / MiMo）时必须同步添加对应的 `load()` 回显分支，否则用户保存后看不到已存内容。
 
 **ViewModel 加载机制红线**：
@@ -60,7 +61,7 @@ CommandCode Go 走 JSON API 抓取用量数据，Codex / ChatGPT Plus 通过 aut
 **首页布局**：
 
 > Dashboard 使用 `PullToRefreshBox` → `Column` + `verticalScroll`（非 `LazyColumn`）。
-> 页面仅 7 个 item，`LazyColumn` 的 dispose/recompose 会导致用量卡片的 `LaunchedEffect` 反复触发，产生卡顿。
+> 页面仅 8 个 item，`LazyColumn` 的 dispose/recompose 会导致用量卡片的 `LaunchedEffect` 反复触发，产生卡顿。
 > 
 > **自适应断点**：容器宽度 > 600dp 时卡片双列（`BoxWithConstraints`），≤600dp 时单列。
 > OCGO / CCGO 服务余额卡底部均提供「查看用量详情」入口，未配置凭据时不显示。
@@ -110,7 +111,7 @@ Expanded（平板，≥840dp）：
 
 **桌面小组件（Widget）**：
 - 显示当前选中服务的用量+DeepSeek 余额
-- 支持三服务切换：OCGO / CCGO / Codex（右上角 ↻ 按钮旁的切换按钮循环切换）
+- 支持四服务切换：OCGO / CCGO / Codex / Ollama（右上角 ↻ 按钮旁的切换按钮循环切换）
 - 右上角 ↻ 手动刷新按钮（后台广播 → `WidgetRefreshReceiver` → EntryPoints 获取 `RefreshBalanceUseCase`）
 - 刷新逻辑：只刷新当前选中服务 + DeepSeek，不再串行刷全部服务；25s 超时保护；`isRefreshing` 互斥锁防连续点击
 - 点击刷新后立即更新 Widget 右上角时间为"刷新中..."（`showRefreshing()`），再后台请求网络
@@ -149,6 +150,7 @@ DashboardViewModel.refresh()
   → RefreshBalanceUseCase(service)
     → DeepSeekRepository.fetchBalance()    / OpenCodeGoRepository.fetchBalance()
     → CommandCodeGoRepository.fetchBalance() / CodexRepository.fetchBalance()
+    → OllamaRepository.fetchBalance()
   → BalanceCache.put(service, result)
   → OpenCodeGoWidgetProvider.notifyDataChanged(context)
 
@@ -169,7 +171,7 @@ CCGO 清除按钮（详情页顶栏）：
 
 Widget 刷新按钮：
   ↻ → PendingIntent.getBroadcast() → WidgetRefreshReceiver
-    → EntryPoints → RefreshBalanceUseCase(DEEPSEEK + OPENCODE_GO)
+    → EntryPoints → RefreshBalanceUseCase(selectedService + DEEPSEEK)
     → notifyDataChanged()
 
 MIUI 曝光刷新（用户划到负一屏/桌面）：
