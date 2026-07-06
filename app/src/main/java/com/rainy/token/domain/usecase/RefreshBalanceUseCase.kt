@@ -5,6 +5,7 @@ import com.rainy.token.data.repository.CommandCodeGoRepository
 import com.rainy.token.data.repository.DeepSeekRepository
 import com.rainy.token.data.repository.OllamaRepository
 import com.rainy.token.data.repository.OpenCodeGoRepository
+import com.rainy.token.data.repository.retryOnTransientError
 import com.rainy.token.domain.model.ServiceBalance
 import com.rainy.token.domain.service.ServiceType
 import javax.inject.Inject
@@ -19,6 +20,8 @@ import javax.inject.Provider
  *    注入同一 UseCase 时的"could not be resolved"误报（KSP 已知 issue）。
  *    Provider 让 Hilt 推迟创建 Repository 实例到第一次 .get() 时，KSP 不需要在
  *    编译期解析所有构造器签名。
+ *  - **重试策略**：对 Network 和 5xx ServerError 自动指数退避重试（最多 2 次），
+ *    401/403/429/ParseError 不重试。
  */
 class RefreshBalanceUseCase @Inject constructor(
     private val deepSeekRepositoryProvider: Provider<DeepSeekRepository>,
@@ -28,10 +31,10 @@ class RefreshBalanceUseCase @Inject constructor(
     private val ollamaRepositoryProvider: Provider<OllamaRepository>
 ) {
     suspend operator fun invoke(service: ServiceType): Result<ServiceBalance> = when (service) {
-        ServiceType.DEEPSEEK -> deepSeekRepositoryProvider.get().fetchBalance()
-        ServiceType.OPENCODE_GO -> openCodeGoRepositoryProvider.get().fetchBalance()
-        ServiceType.COMMANDCODE_GO -> commandCodeGoRepositoryProvider.get().fetchBalance()
-        ServiceType.CODEX -> codexRepositoryProvider.get().fetchBalance()
-        ServiceType.OLLAMA -> ollamaRepositoryProvider.get().fetchBalance()
+        ServiceType.DEEPSEEK -> retryOnTransientError { deepSeekRepositoryProvider.get().fetchBalance() }
+        ServiceType.OPENCODE_GO -> retryOnTransientError { openCodeGoRepositoryProvider.get().fetchBalance() }
+        ServiceType.COMMANDCODE_GO -> retryOnTransientError { commandCodeGoRepositoryProvider.get().fetchBalance() }
+        ServiceType.CODEX -> retryOnTransientError { codexRepositoryProvider.get().fetchBalance() }
+        ServiceType.OLLAMA -> retryOnTransientError { ollamaRepositoryProvider.get().fetchBalance() }
     }
 }
