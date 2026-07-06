@@ -68,17 +68,17 @@ fun ServiceIcon(
             }
         }
         ServiceType.DEEPSEEK -> {
-            // DeepSeek 官方无开放 logo 资源 —— 用蓝鲸 emoji 占位
             Box(
                 modifier = modifier
                     .size(size.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF4A6CF7)),
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.White),
                 contentAlignment = Alignment.Center
             ) {
-                androidx.compose.material3.Text(
-                    text = "🐋",
-                    fontSize = (size * 0.5).sp
+                Image(
+                    painter = painterResource(id = R.drawable.ic_deepseek_logo),
+                    contentDescription = "DeepSeek",
+                    modifier = Modifier.fillMaxSize()
                 )
             }
         }
