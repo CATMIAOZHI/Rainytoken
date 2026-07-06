@@ -3,91 +3,81 @@ package com.rainy.token.data.local
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
 /**
- * 用量记录本地缓存（DataStore，非 Room）。
+ * 用量记录本地缓存（Room 实现）。
  *
- * 所有记录序列化为 JSON 列表存入 DataStore。
- * 约 3700 条记录，每条约 300 字节 → ~1.1MB，DataStore 可承受。
+ * 接口与旧 DataStore 版本完全一致，内部改为 Room DAO 查询。
+ * 首次访问时自动从旧 DataStore JSON 迁移数据到 Room。
  */
 class UsageCache(
+    private val context: Context,
+    private val dao: UsageDao,
     private val dataStore: DataStore<Preferences>,
     private val json: Json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 ) {
-    private val cacheKey = stringPreferencesKey("usage_cache_v1")
+    private val migrationMutex = Mutex()
+    @Volatile private var migrated = false
 
-    // ── 内存缓存：避免每次都反序列化整个 JSON ──
-    @Volatile private var cachedAll: List<UsageRecord>? = null
-    @Volatile private var cachedIds: Set<String>? = null
-
-    /** 读取全量（优先内存缓存） */
-    private suspend fun loadAll(): List<UsageRecord> {
-        cachedAll?.let { return it }
-        val records = readFromStore()
-        cachedAll = records
-        cachedIds = records.map { it.id }.toSet()
-        return records
-    }
-
-    private suspend fun readFromStore(): List<UsageRecord> {
-        val raw = dataStore.data.map { it[cacheKey] }.first() ?: return emptyList()
-        return runCatching {
-            json.decodeFromString(ListSerializer(UsageRecord.serializer()), raw)
-        }.getOrDefault(emptyList())
-    }
-
-    /** 写入后清空内存缓存 */
-    private fun invalidateCache() {
-        cachedAll = null
-        cachedIds = null
-    }
-
-    suspend fun getAll(): List<UsageRecord> = loadAll()
-
-    fun getAllFlow(): Flow<List<UsageRecord>> =
-        dataStore.data.map { prefs ->
-            val raw = prefs[cacheKey] ?: return@map emptyList()
-            runCatching {
-                json.decodeFromString(ListSerializer(UsageRecord.serializer()), raw)
-            }.getOrDefault(emptyList())
+    /** 确保旧数据已迁移到 Room（仅执行一次） */
+    private suspend fun ensureMigrated() {
+        if (migrated) return
+        migrationMutex.withLock {
+            if (migrated) return
+            migrateDataStoreToRoom(context, dataStore, dao, json)
+            migrated = true
         }
+    }
+
+    suspend fun getAll(): List<UsageRecord> {
+        ensureMigrated()
+        return dao.getAll().map { it.toDomain() }
+    }
+
+    fun getAllFlow(): Flow<List<UsageRecord>> = flow {
+        ensureMigrated()
+        emit(dao.getAll().map { it.toDomain() })
+    }
 
     suspend fun insertAll(newRecords: List<UsageRecord>) {
-        val current = loadAll().toMutableList()
-        val existingIds = cachedIds ?: current.map { it.id }.toSet()
-        val toAdd = newRecords.filter { it.id !in existingIds }
-        if (toAdd.isEmpty()) return
-        current.addAll(toAdd)
-        persist(current)
+        ensureMigrated()
+        if (newRecords.isEmpty()) return
+        val entities = newRecords.map { it.toEntity() }
+        dao.insertAll(entities)
     }
 
-    suspend fun getLatest(): UsageRecord? = loadAll().maxByOrNull { it.timeCreated }
+    suspend fun getLatest(): UsageRecord? {
+        ensureMigrated()
+        return dao.getLatest()?.toDomain()
+    }
 
     suspend fun getAllIds(): Set<String> {
-        cachedIds?.let { return it }
-        return loadAll().map { it.id }.toSet()
+        ensureMigrated()
+        return dao.getAllIds().toSet()
     }
 
     /** 按 workspaceId 删除所有记录。用于修复旧数据格式问题后重新全量同步。 */
     suspend fun deleteByWorkspaceId(workspaceId: String) {
-        val current = loadAll().toMutableList()
-        val removed = current.removeAll { it.workspaceId == workspaceId }
-        if (removed) persist(current)
+        ensureMigrated()
+        dao.deleteByWorkspaceId(workspaceId)
     }
 
-    suspend fun count(): Int = loadAll().size
+    suspend fun count(): Int {
+        ensureMigrated()
+        return dao.count()
+    }
 
     /** 按 workspaceId 统计记录数。 */
-    suspend fun count(workspaceId: String): Int = loadAll().count { it.workspaceId == workspaceId }
+    suspend fun count(workspaceId: String): Int {
+        ensureMigrated()
+        return dao.countByWorkspace(workspaceId)
+    }
 
     /** 获取过滤后的原始记录列表（供图表等聚合使用） */
     suspend fun getRecords(
@@ -95,24 +85,20 @@ class UsageCache(
         fromTs: Long? = null,
         toTs: Long? = null
     ): List<UsageRecord> {
-        return filterByTime(loadAll().filter { it.workspaceId == workspaceId }, fromTs, toTs)
+        ensureMigrated()
+        val entities = when {
+            fromTs != null && toTs != null -> dao.getByWorkspaceAndTime(workspaceId, fromTs, toTs)
+            fromTs != null -> dao.getByWorkspaceFrom(workspaceId, fromTs)
+            toTs != null -> dao.getByWorkspaceTo(workspaceId, toTs)
+            else -> dao.getByWorkspace(workspaceId)
+        }
+        return entities.map { it.toDomain() }
     }
 
     /** 获取所有不同模型名称 */
     suspend fun getDistinctModels(workspaceId: String): List<String> {
-        return loadAll()
-            .filter { it.workspaceId == workspaceId }
-            .map { it.model }
-            .distinct()
-            .sorted()
-    }
-
-    /** 按时间范围过滤记录 */
-    private fun filterByTime(records: List<UsageRecord>, fromTs: Long?, toTs: Long?): List<UsageRecord> {
-        var result = records
-        if (fromTs != null) result = result.filter { it.timeCreated >= fromTs }
-        if (toTs != null) result = result.filter { it.timeCreated <= toTs }
-        return result
+        ensureMigrated()
+        return dao.getDistinctModels(workspaceId)
     }
 
     suspend fun getStatsByModel(
@@ -120,14 +106,15 @@ class UsageCache(
         fromTs: Long? = null,
         toTs: Long? = null
     ): List<ModelStats> {
-        return filterByTime(loadAll().filter { it.workspaceId == workspaceId }, fromTs, toTs)
+        val records = getRecords(workspaceId, fromTs, toTs)
+        return records
             .groupBy { it.model }
-            .map { (model, records) ->
+            .map { (model, recs) ->
                 ModelStats(
                     model = model,
-                    totalTokens = records.sumOf { it.totalTokens },
-                    totalCost = records.sumOf { it.cost },
-                    count = records.size
+                    totalTokens = recs.sumOf { it.totalTokens },
+                    totalCost = recs.sumOf { it.cost },
+                    count = recs.size
                 )
             }
             .sortedByDescending { it.totalTokens }
@@ -139,14 +126,15 @@ class UsageCache(
         fromTs: Long? = null,
         toTs: Long? = null
     ): List<DailyStats> {
-        return filterByTime(loadAll().filter { it.workspaceId == workspaceId }, fromTs, toTs)
+        val records = getRecords(workspaceId, fromTs, toTs)
+        return records
             .groupBy { it.timeCreated / 86_400_000L * 86_400_000L }
-            .map { (dayTs, records) ->
+            .map { (dayTs, recs) ->
                 DailyStats(
                     dayTs = dayTs,
-                    totalTokens = records.sumOf { it.totalTokens },
-                    totalCost = records.sumOf { it.cost },
-                    count = records.size
+                    totalTokens = recs.sumOf { it.totalTokens },
+                    totalCost = recs.sumOf { it.cost },
+                    count = recs.size
                 )
             }
             .sortedByDescending { it.dayTs }
@@ -158,7 +146,7 @@ class UsageCache(
         fromTs: Long? = null,
         toTs: Long? = null
     ): OverviewStats? {
-        val records = filterByTime(loadAll().filter { it.workspaceId == workspaceId }, fromTs, toTs)
+        val records = getRecords(workspaceId, fromTs, toTs)
         if (records.isEmpty()) return null
         return OverviewStats(
             totalTokens = records.sumOf { it.inputTokens + it.cacheReadTokens + it.outputTokens },
@@ -172,12 +160,6 @@ class UsageCache(
             cacheWrite5mTokens = records.sumOf { it.cacheWrite5mTokens },
             cacheWrite1hTokens = records.sumOf { it.cacheWrite1hTokens }
         )
-    }
-
-    private suspend fun persist(list: List<UsageRecord>) {
-        val raw = json.encodeToString(ListSerializer(UsageRecord.serializer()), list)
-        dataStore.edit { it[cacheKey] = raw }
-        invalidateCache()
     }
 }
 
@@ -234,7 +216,7 @@ data class OverviewStats(
     val cacheWriteTokens: Long get() = cacheWrite5mTokens + cacheWrite1hTokens
 }
 
-/** DataStore 委托 */
-val Context.usageCacheDataStore: DataStore<Preferences> by preferencesDataStore(
+/** DataStore 委托 — 保留用于数据迁移，迁移完成后旧 key 会被清除 */
+val Context.usageCacheDataStore: DataStore<Preferences> by androidx.datastore.preferences.preferencesDataStore(
     name = "usage_cache"
 )

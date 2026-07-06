@@ -33,6 +33,9 @@ workRuntimeKtx = "2.9.1"
 hilt = "2.59.2"
 hiltNavigationCompose = "1.2.0"
 
+# Room
+room = "2.7.1"
+
 # Test
 junit = "4.13.2"
 junitVersion = "1.2.1"
@@ -81,6 +84,11 @@ androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx"
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
 androidx-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
+
+# Room
+room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 
 # Test
 junit = { group = "junit", name = "junit", version.ref = "junit" }

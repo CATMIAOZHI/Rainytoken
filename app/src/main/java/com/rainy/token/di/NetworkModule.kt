@@ -6,6 +6,8 @@ import com.rainy.token.data.cache.balanceCacheDataStore
 import com.rainy.token.data.remote.DeepSeekApi
 import com.rainy.token.data.local.SecureStorage
 import com.rainy.token.data.local.UsageCache
+import com.rainy.token.data.local.UsageDao
+import com.rainy.token.data.local.UsageDatabase
 import com.rainy.token.data.local.usageCacheDataStore
 import com.rainy.token.data.repository.CredentialRepository
 import com.rainy.token.data.repository.DeepSeekRepository
@@ -80,10 +82,24 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun provideUsageDatabase(
+        @ApplicationContext context: Context
+    ): UsageDatabase = UsageDatabase.getInstance(context)
+
+    @Provides
+    @Singleton
+    fun provideUsageDao(
+        database: UsageDatabase
+    ): UsageDao = database.usageDao()
+
+    @Provides
+    @Singleton
     fun provideUsageCache(
+        @ApplicationContext context: Context,
+        dao: UsageDao,
         @Named(DataStoreQualifiers.USAGE_CACHE) dataStore: DataStore<Preferences>,
         json: Json
-    ): UsageCache = UsageCache(dataStore, json)
+    ): UsageCache = UsageCache(context, dao, dataStore, json)
 
     // ---- Repositories ----
 
