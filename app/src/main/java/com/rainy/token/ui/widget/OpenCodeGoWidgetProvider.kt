@@ -191,18 +191,23 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
             }
             ServiceType.DEEPSEEK -> setEmptyState(views)
             ServiceType.OLLAMA -> {
-                setRowLabel(views, "5h", "每周", "Plan")
+                setRowLabel(views, "5h", "每周", "")
                 populateRow(views, R.id.row1_pct, R.id.row1_bar, R.id.row1_reset,
                     pct = extras["session.pct"]?.toFloatOrNull()?.toInt(),
                     resetSec = extras["session.resetAt"]?.toLongOrNull()?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 })
                 populateRow(views, R.id.row2_pct, R.id.row2_bar, R.id.row2_reset,
                     pct = extras["weekly.pct"]?.toFloatOrNull()?.toInt(),
                     resetSec = extras["weekly.resetAt"]?.toLongOrNull()?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 })
-                // Plan 信息放在第三行
-                val plan = extras["plan"] ?: "—"
-                views.setTextViewText(R.id.row3_pct, plan)
+                // 第三行清空（Ollama 没有月度窗口）
+                views.setTextViewText(R.id.row3_label, "")
+                views.setTextViewText(R.id.row3_pct, "")
                 views.setProgressBar(R.id.row3_bar, 100, 0, false)
                 views.setTextViewText(R.id.row3_reset, "")
+                // Plan 信息合并到标题行
+                val plan = extras["plan"] ?: ""
+                val titleText = if (plan.isNotEmpty()) "${service.displayName} · $plan"
+                    else "${service.displayName} · 额度"
+                views.setTextViewText(R.id.widget_service_title, titleText)
             }
         }
     }
