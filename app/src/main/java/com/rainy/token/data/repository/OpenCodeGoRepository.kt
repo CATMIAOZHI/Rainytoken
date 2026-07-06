@@ -124,92 +124,92 @@ class OpenCodeGoRepository(
         }
     }
 
-    /**
-     * 解析 SolidJS SSR hydration 输出。匹配模式形如：
-     *   `rollingUsage:$R[0]={usagePercent:42,resetInSec:12345}`
-     *
-     * 用精确前缀 "field:$R[" 定位 hydration 数据中的字段声明，
-     * 避免命中 HTML 其他位置（如 JS 代码注释、模板字符串）的同名文本。
-     * 用括号计数匹配闭合 "}"，正确处理嵌套对象。
-     */
-    private fun parseWindows(html: String): Map<String, ScrapedWindow> {
-        val result = mutableMapOf<String, ScrapedWindow>()
-        val fields = listOf("rollingUsage", "weeklyUsage", "monthlyUsage")
-
-        for (field in fields) {
-            // 精确模式：找 "field:$R[N]={" —— 这是 hydration 数据块的独有格式
-            val keyIdx = html.indexOf("$field:\$R[")
-            if (keyIdx < 0) continue
-
-            // 找 '=' 然后找 '{'
-            val eqIdx = html.indexOf('=', keyIdx)
-            if (eqIdx < 0 || eqIdx - keyIdx > 60) continue
-            val braceStart = html.indexOf('{', eqIdx)
-            if (braceStart < 0 || braceStart - eqIdx > 10) continue
-
-            // 括号计数找正确的闭合 "}"（处理嵌套对象）
-            val braceEnd = findMatchingBrace(html, braceStart) ?: continue
-            val body = html.substring(braceStart, braceEnd + 1)
-
-            val pct = extractNumberAfterKey(body, "usagePercent")?.toIntOrNull()
-            val reset = extractNumberAfterKey(body, "resetInSec")?.toLongOrNull()
-            if (pct != null && reset != null) {
-                result[field] = ScrapedWindow(pct, reset)
-            }
-        }
-
-        return result
-    }
-
-    /**
-     * 从 openIdx（'{' 的位置）开始，用深度计数找匹配的闭合 '}'。
-     * 正确处理嵌套对象：`{status:"ok", sub:{...}, usagePercent:34}`。
-     */
-    private fun findMatchingBrace(s: String, openIdx: Int): Int? {
-        var depth = 0
-        for (i in openIdx until s.length) {
-            when (s[i]) {
-                '{' -> depth++
-                '}' -> {
-                    depth--
-                    if (depth == 0) return i
-                }
-            }
-        }
-        return null
-    }
-
-    /**
-     * 在 body 字符串中找 "key:" 后面紧跟的数字（含可选小数）。返回数字字符串，未找到返回 null。
-     * 跳过 status 字符串值（"ok" 之类）。
-     */
-    private fun extractNumberAfterKey(body: String, key: String): String? {
-        val keyIdx = body.indexOf(key)
-        if (keyIdx < 0) return null
-        var i = keyIdx + key.length
-        // 跳过 ":" 后面所有非数字、非负号、非小数点字符
-        while (i < body.length) {
-            val c = body[i]
-            if (c.isDigit() || c == '-' || c == '.') break
-            i++
-        }
-        if (i >= body.length) return null
-        // 收集数字
-        val start = i
-        while (i < body.length) {
-            val c = body[i]
-            if (c.isDigit() || c == '.' || (c == '-' && i == start)) {
-                i++
-            } else {
-                break
-            }
-        }
-        return body.substring(start, i).ifEmpty { null }
-    }
-
-    private data class ScrapedWindow(val usagePercent: Int, val resetInSec: Long)
-
     companion object {
         private val SCRAPED_FIELDS = listOf("rollingUsage", "weeklyUsage", "monthlyUsage")
+
+        /**
+         * 解析 SolidJS SSR hydration 输出。匹配模式形如：
+         *   `rollingUsage:$R[0]={usagePercent:42,resetInSec:12345}`
+         *
+         * 用精确前缀 "field:$R[" 定位 hydration 数据中的字段声明，
+         * 避免命中 HTML 其他位置（如 JS 代码注释、模板字符串）的同名文本。
+         * 用括号计数匹配闭合 "}"，正确处理嵌套对象。
+         */
+        internal fun parseWindows(html: String): Map<String, ScrapedWindow> {
+            val result = mutableMapOf<String, ScrapedWindow>()
+            val fields = listOf("rollingUsage", "weeklyUsage", "monthlyUsage")
+
+            for (field in fields) {
+                // 精确模式：找 "field:$R[N]={" —— 这是 hydration 数据块的独有格式
+                val keyIdx = html.indexOf("$field:\$R[")
+                if (keyIdx < 0) continue
+
+                // 找 '=' 然后找 '{'
+                val eqIdx = html.indexOf('=', keyIdx)
+                if (eqIdx < 0 || eqIdx - keyIdx > 60) continue
+                val braceStart = html.indexOf('{', eqIdx)
+                if (braceStart < 0 || braceStart - eqIdx > 10) continue
+
+                // 括号计数找正确的闭合 "}"（处理嵌套对象）
+                val braceEnd = findMatchingBrace(html, braceStart) ?: continue
+                val body = html.substring(braceStart, braceEnd + 1)
+
+                val pct = extractNumberAfterKey(body, "usagePercent")?.toIntOrNull()
+                val reset = extractNumberAfterKey(body, "resetInSec")?.toLongOrNull()
+                if (pct != null && reset != null) {
+                    result[field] = ScrapedWindow(pct, reset)
+                }
+            }
+
+            return result
+        }
+
+        /**
+         * 从 openIdx（'{' 的位置）开始，用深度计数找匹配的闭合 '}'。
+         * 正确处理嵌套对象：`{status:"ok", sub:{...}, usagePercent:34}`。
+         */
+        private fun findMatchingBrace(s: String, openIdx: Int): Int? {
+            var depth = 0
+            for (i in openIdx until s.length) {
+                when (s[i]) {
+                    '{' -> depth++
+                    '}' -> {
+                        depth--
+                        if (depth == 0) return i
+                    }
+                }
+            }
+            return null
+        }
+
+        /**
+         * 在 body 字符串中找 "key:" 后面紧跟的数字（含可选小数）。返回数字字符串，未找到返回 null。
+         * 跳过 status 字符串值（"ok" 之类）。
+         */
+        private fun extractNumberAfterKey(body: String, key: String): String? {
+            val keyIdx = body.indexOf(key)
+            if (keyIdx < 0) return null
+            var i = keyIdx + key.length
+            // 跳过 ":" 后面所有非数字、非负号、非小数点字符
+            while (i < body.length) {
+                val c = body[i]
+                if (c.isDigit() || c == '-' || c == '.') break
+                i++
+            }
+            if (i >= body.length) return null
+            // 收集数字
+            val start = i
+            while (i < body.length) {
+                val c = body[i]
+                if (c.isDigit() || c == '.' || (c == '-' && i == start)) {
+                    i++
+                } else {
+                    break
+                }
+            }
+            return body.substring(start, i).ifEmpty { null }
+        }
+
+        internal data class ScrapedWindow(val usagePercent: Int, val resetInSec: Long)
     }
 }

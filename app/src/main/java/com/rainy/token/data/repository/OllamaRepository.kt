@@ -40,6 +40,90 @@ class OllamaRepository(
         private const val SETTINGS_URL = "https://ollama.com/settings"
         private const val USER_AGENT =
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
+
+        /**
+         * 解析 Ollama settings 页面 HTML，提取用量数据。
+         * 正则方案与 hermes-ollama-cloud-usage 和 CodexBar 一致。
+         */
+        internal fun parseUsage(html: String): ParsedUsage? {
+            // Plan: "Cloud usage" 后的 rounded-full badge 文本
+            val planMatch = Regex(
+                """Cloud usage[^<]*</span>\s*<span[^>]*class="[^"]*rounded-full[^"]*"[^>]*>\s*(pro|max|free)\s*</span""",
+                RegexOption.IGNORE_CASE
+            ).find(html)
+            val plan = planMatch?.groupValues?.get(1)?.trim()?.replaceFirstChar { it.uppercaseChar() }
+                ?: run {
+                    // Fallback: 任意 rounded-full + text-neutral badge
+                    val fallback = Regex(
+                        """<span[^>]*class="[^"]*rounded-full[^"]*text-neutral[^"]*"[^>]*>\s*\n?\s*(pro|max|free)\s*</span""",
+                        RegexOption.IGNORE_CASE
+                    ).find(html)
+                    fallback?.groupValues?.get(1)?.trim()?.replaceFirstChar { it.uppercaseChar() }
+                }
+
+            // Session usage: 先找 aria-label，再找 visible text
+            val sessionPct = Regex("""aria-label="Session usage\s+([\d.]+)%\s+used""", RegexOption.IGNORE_CASE)
+                .find(html)?.groupValues?.get(1)?.toFloatOrNull()
+                ?: Regex("""Session usage[^<]*>[\s\S]*?([\d.]+)%\s*used""", RegexOption.IGNORE_CASE)
+                    .find(html)?.groupValues?.get(1)?.toFloatOrNull()
+
+            // Weekly usage: 同上
+            val weeklyPct = Regex("""aria-label="Weekly usage\s+([\d.]+)%\s+used""", RegexOption.IGNORE_CASE)
+                .find(html)?.groupValues?.get(1)?.toFloatOrNull()
+                ?: Regex("""Weekly usage[^<]*>[\s\S]*?([\d.]+)%\s*used""", RegexOption.IGNORE_CASE)
+                    .find(html)?.groupValues?.get(1)?.toFloatOrNull()
+
+            // data-time 属性 → 重置时间戳
+            val dataTimes = Regex("""data-time="([^"]+)"""").findAll(html).map { it.groupValues[1] }.toList()
+            val sessionResetAt = dataTimes.getOrNull(0)?.let { parseIsoTime(it) }
+            val weeklyResetAt = dataTimes.getOrNull(1)?.let { parseIsoTime(it) }
+
+            // 模型级请求次数: data-model + data-requests
+            val weeklyStart = html.indexOf("Weekly usage")
+            val sessionModels = mutableListOf<Pair<String, Int>>()
+            val weeklyModels = mutableListOf<Pair<String, Int>>()
+            Regex("""data-model="([^"]+)"\s+data-requests="(\d+)"""").findAll(html).forEach { match ->
+                val model = match.groupValues[1]
+                val requests = match.groupValues[2].toIntOrNull() ?: 0
+                if (match.range.first < weeklyStart) {
+                    sessionModels.add(model to requests)
+                } else {
+                    weeklyModels.add(model to requests)
+                }
+            }
+
+            if (sessionPct == null && weeklyPct == null) return null
+
+            return ParsedUsage(
+                plan = plan ?: "Unknown",
+                sessionPercent = sessionPct ?: 0f,
+                weeklyPercent = weeklyPct ?: 0f,
+                sessionResetAt = sessionResetAt,
+                weeklyResetAt = weeklyResetAt,
+                sessionModels = sessionModels,
+                weeklyModels = weeklyModels
+            )
+        }
+
+        internal fun parseIsoTime(iso: String): Long? {
+            return try {
+                val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+                sdf.timeZone = TimeZone.getTimeZone("UTC")
+                sdf.parse(iso)?.time
+            } catch (e: Exception) {
+                null
+            }
+        }
+
+        internal data class ParsedUsage(
+            val plan: String,
+            val sessionPercent: Float,
+            val weeklyPercent: Float,
+            val sessionResetAt: Long?,
+            val weeklyResetAt: Long?,
+            val sessionModels: List<Pair<String, Int>>,
+            val weeklyModels: List<Pair<String, Int>>
+        )
     }
 
     suspend fun fetchBalance(): Result<ServiceBalance> = withContext(Dispatchers.IO) {
@@ -129,87 +213,4 @@ class OllamaRepository(
         }
     }
 
-    /**
-     * 解析 Ollama settings 页面 HTML，提取用量数据。
-     * 正则方案与 hermes-ollama-cloud-usage 和 CodexBar 一致。
-     */
-    private fun parseUsage(html: String): ParsedUsage? {
-        // Plan: "Cloud usage" 后的 rounded-full badge 文本
-        val planMatch = Regex(
-            """Cloud usage[^<]*</span>\s*<span[^>]*class="[^"]*rounded-full[^"]*"[^>]*>\s*(pro|max|free)\s*</span""",
-            RegexOption.IGNORE_CASE
-        ).find(html)
-        val plan = planMatch?.groupValues?.get(1)?.trim()?.replaceFirstChar { it.uppercaseChar() }
-            ?: run {
-                // Fallback: 任意 rounded-full + text-neutral badge
-                val fallback = Regex(
-                    """<span[^>]*class="[^"]*rounded-full[^"]*text-neutral[^"]*"[^>]*>\s*\n?\s*(pro|max|free)\s*</span""",
-                    RegexOption.IGNORE_CASE
-                ).find(html)
-                fallback?.groupValues?.get(1)?.trim()?.replaceFirstChar { it.uppercaseChar() }
-            }
-
-        // Session usage: 先找 aria-label，再找 visible text
-        val sessionPct = Regex("""aria-label="Session usage\s+([\d.]+)%\s+used"""", RegexOption.IGNORE_CASE)
-            .find(html)?.groupValues?.get(1)?.toFloatOrNull()
-            ?: Regex("""Session usage[^<]*>[\s\S]*?([\d.]+)%\s*used""", RegexOption.IGNORE_CASE)
-                .find(html)?.groupValues?.get(1)?.toFloatOrNull()
-
-        // Weekly usage: 同上
-        val weeklyPct = Regex("""aria-label="Weekly usage\s+([\d.]+)%\s+used"""", RegexOption.IGNORE_CASE)
-            .find(html)?.groupValues?.get(1)?.toFloatOrNull()
-            ?: Regex("""Weekly usage[^<]*>[\s\S]*?([\d.]+)%\s*used""", RegexOption.IGNORE_CASE)
-                .find(html)?.groupValues?.get(1)?.toFloatOrNull()
-
-        // data-time 属性 → 重置时间戳
-        val dataTimes = Regex("""data-time="([^"]+)"""").findAll(html).map { it.groupValues[1] }.toList()
-        val sessionResetAt = dataTimes.getOrNull(0)?.let { parseIsoTime(it) }
-        val weeklyResetAt = dataTimes.getOrNull(1)?.let { parseIsoTime(it) }
-
-        // 模型级请求次数: data-model + data-requests
-        val weeklyStart = html.indexOf("Weekly usage")
-        val sessionModels = mutableListOf<Pair<String, Int>>()
-        val weeklyModels = mutableListOf<Pair<String, Int>>()
-        Regex("""data-model="([^"]+)"\s+data-requests="(\d+)"""").findAll(html).forEach { match ->
-            val model = match.groupValues[1]
-            val requests = match.groupValues[2].toIntOrNull() ?: 0
-            if (match.range.first < weeklyStart) {
-                sessionModels.add(model to requests)
-            } else {
-                weeklyModels.add(model to requests)
-            }
-        }
-
-        if (sessionPct == null && weeklyPct == null) return null
-
-        return ParsedUsage(
-            plan = plan ?: "Unknown",
-            sessionPercent = sessionPct ?: 0f,
-            weeklyPercent = weeklyPct ?: 0f,
-            sessionResetAt = sessionResetAt,
-            weeklyResetAt = weeklyResetAt,
-            sessionModels = sessionModels,
-            weeklyModels = weeklyModels
-        )
-    }
-
-    private fun parseIsoTime(iso: String): Long? {
-        return try {
-            val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
-            sdf.timeZone = TimeZone.getTimeZone("UTC")
-            sdf.parse(iso)?.time
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    private data class ParsedUsage(
-        val plan: String,
-        val sessionPercent: Float,
-        val weeklyPercent: Float,
-        val sessionResetAt: Long?,
-        val weeklyResetAt: Long?,
-        val sessionModels: List<Pair<String, Int>>,
-        val weeklyModels: List<Pair<String, Int>>
-    )
 }
