@@ -1,4 +1,5 @@
 pluginManagement {
+    val isCI = System.getenv("GITHUB_ACTIONS") == "true"
     repositories {
         google {
             content {
@@ -9,22 +10,27 @@ pluginManagement {
         }
         mavenCentral()
         gradlePluginPortal()
-        maven("https://maven.aliyun.com/repository/gradle-plugin")
-        maven("https://maven.aliyun.com/repository/google")
-        maven("https://maven.aliyun.com/repository/public")
-        maven("https://repo.huaweicloud.com/repository/gradle-plugin/")
-        maven("https://repo.huaweicloud.com/repository/maven/")
+        if (!isCI) {
+            maven("https://maven.aliyun.com/repository/gradle-plugin")
+            maven("https://maven.aliyun.com/repository/google")
+            maven("https://maven.aliyun.com/repository/public")
+            maven("https://repo.huaweicloud.com/repository/gradle-plugin/")
+            maven("https://repo.huaweicloud.com/repository/maven/")
+        }
     }
 }
 dependencyResolutionManagement {
+    val isCI = System.getenv("GITHUB_ACTIONS") == "true"
     repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
     repositories {
         google()
         mavenCentral()
-        maven("https://maven.aliyun.com/repository/google")
-        maven("https://maven.aliyun.com/repository/central")
-        maven("https://maven.aliyun.com/repository/public")
-        maven("https://repo.huaweicloud.com/repository/maven/")
+        if (!isCI) {
+            maven("https://maven.aliyun.com/repository/google")
+            maven("https://maven.aliyun.com/repository/central")
+            maven("https://maven.aliyun.com/repository/public")
+            maven("https://repo.huaweicloud.com/repository/maven/")
+        }
     }
 }
 
