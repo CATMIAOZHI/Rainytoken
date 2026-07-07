@@ -7,13 +7,18 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Dispatchers
 
 private val Context.chartSettingsDataStore: DataStore<Preferences> by preferencesDataStore(
     name = "chart_settings"
 )
+
+private val chartSettingsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
 /** 图表页偏好设置持久化 */
 class ChartSettingsStore(private val dataStore: DataStore<Preferences>) {
@@ -27,10 +32,9 @@ class ChartSettingsStore(private val dataStore: DataStore<Preferences>) {
         prefs[KEY_USE_UTC8] ?: false
     }
 
-    /** 同步读取（用于 ViewModel 初始化） */
-    fun getUseUtc8(): Boolean = runBlocking {
-        dataStore.data.map { it[KEY_USE_UTC8] ?: false }.first()
-    }
+    /** StateFlow 版本，UI 层 collectAsState 直接使用 */
+    val useUtc8State: StateFlow<Boolean> = useUtc8Flow
+        .stateIn(chartSettingsScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, false)
 
     /** 写入偏好 */
     suspend fun setUseUtc8(value: Boolean) {

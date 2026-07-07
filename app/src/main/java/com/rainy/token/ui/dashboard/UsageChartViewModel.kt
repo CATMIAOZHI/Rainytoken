@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
@@ -29,9 +30,7 @@ class UsageChartViewModel @Inject constructor(
     private val chartSettingsStore: ChartSettingsStore
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(
-        ChartUiState(useUtc8 = chartSettingsStore.getUseUtc8())
-    )
+    private val _state = MutableStateFlow(ChartUiState(useUtc8 = false))
     val state: StateFlow<ChartUiState> = _state.asStateFlow()
 
     private var workspaceIdOverride: String? = null
@@ -43,10 +42,20 @@ class UsageChartViewModel @Inject constructor(
     fun setWorkspace(wid: String) {
         workspaceIdOverride = wid
         loadGeneration++
-        allowFallback = true  // CCGO 首次加载也允许降级
-        // 先清空数据防止 init 自动加载的 OCGO 数据闪一下，但保留持久化偏好
+        allowFallback = true
         _state.value = ChartUiState(useUtc8 = _state.value.useUtc8)
-        load()
+        viewModelScope.launch {
+            // 首次加载时同步读取 UTC 偏好，避免用默认值 false 加载后再切换
+            if (!_state.value.useUtc8Initialized) {
+                val saved = chartSettingsStore.useUtc8Flow.first()
+                if (saved != _state.value.useUtc8) {
+                    _state.update { it.copy(useUtc8 = saved, useUtc8Initialized = true) }
+                } else {
+                    _state.update { it.copy(useUtc8Initialized = true) }
+                }
+            }
+            load()
+        }
     }
 
     private suspend fun workspaceId(): String? {
@@ -259,5 +268,6 @@ data class ChartUiState(
     val allModels: List<String> = emptyList(),
     val selectedModels: Set<String> = emptySet(), // empty = all
     val buckets: List<ChartBucket> = emptyList(),
-    val useUtc8: Boolean = false
+    val useUtc8: Boolean = false,
+    val useUtc8Initialized: Boolean = false
 )
