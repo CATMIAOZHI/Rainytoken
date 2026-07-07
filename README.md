@@ -38,7 +38,7 @@ Android AI 余额与用量查询 APP —— 统一查看 DeepSeek、OpenCode Go�
 | 🔄 **自动同步** | 首页下拉自动同步用量；无缓存时启动自动全量同步；CCGO 详情页支持手动清除并重新同步 |
 | 🌙 **深色模式** | 全局自适应 — App 内文字/图标/背景自动切换，小组件独立适配暗色布局 |
 | ➕ **一键添桌面** | APP 内点 + 直接添加小组件，不用去系统列表翻 |
-| ⚡ **内存缓存** | DataStore 全量 JSON 仅反序列化一次，后续操作零 IO |
+| ⚡ **Room 数据库** | 用量记录存 Room（indexed on workspaceId+timeCreated），DAO 查询替代全量 JSON 序列化；首次启动自动从旧 DataStore 迁移 |
 | 🎀 **雨晴粉主题** | Material Design 3 · 草莓粉 #FF85A2 · 樱粉 #FFD1DC |
 
 ---
@@ -83,7 +83,7 @@ Android AI 余额与用量查询 APP —— 统一查看 DeepSeek、OpenCode Go�
 │  ┌────────────────────▼─────────────────────────┐ │
 │  │         本地存储                              │ │
 │  │  BalanceCache（DataStore）                    │ │
-│  │  UsageCache（DataStore + @Volatile 内存缓存） │ │
+│  │  UsageCache（Room，indexed on workspaceId+timeCreated） │ │
 │  │  CredentialRepository（Keystore AES-256 GCM） │ │
 │  └──────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────┘
@@ -98,7 +98,7 @@ Rainytoken/
 ├── app/src/main/java/com/rainy/token/
 │   ├── data/
 │   │   ├── cache/          # BalanceCache（DataStore）
-│   │   ├── local/          # UsageCache（DataStore + 内存缓存）、UsageRecord、ChartBucket
+│   │   ├── local/          # UsageCache（Room）、UsageRecordEntity、UsageDao、UsageDatabase、ChartBucket
 │   │   ├── remote/         # DeepSeekApi（Retrofit）+ OpenCodeGo 抓取 + UsageRepository
 │   │   └── repository/     # DeepSeek / OpenCodeGo / CommandCode / Codex / Ollama / Credential Repository
 │   ├── domain/
@@ -161,7 +161,7 @@ chmod +x ./setup_android_env.sh
 | `com.squareup.retrofit2:retrofit` | DeepSeek REST API |
 | `com.squareup.okhttp3:okhttp` | OpenCode Go 网页抓取 |
 | `org.jetbrains.kotlinx:kotlinx-serialization-json` | JSON 序列化 |
-| `org.jsoup:jsoup` | HTML 解析（已引入但实际未使用，HTML 解析全用正则） |
+| `androidx.room:room-runtime` | 用量数据本地数据库（Room） |
 | `androidx.datastore:datastore-preferences` | 本地缓存 |
 | `com.google.dagger:hilt-android` | 依赖注入 |
 | `com.google.devtools.ksp:symbol-processing-api` | KSP 注解处理 |

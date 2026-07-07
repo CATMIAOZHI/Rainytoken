@@ -12,7 +12,7 @@ CommandCode Go 走 JSON API 抓取用量数据，Codex / ChatGPT Plus 通过 aut
 - MVVM + Repository + `RefreshBalanceUseCase`（单一 UseCase，按 ServiceType 分发）
 - Hilt + KSP（DI）
 - Retrofit 2 + OkHttp 4 + Kotlinx Serialization
-- DataStore（本地缓存）+ Android Keystore（凭据加密，AES-256 GCM）
+- Room（用量数据，indexed on workspaceId+timeCreated）+ DataStore（余额缓存/图表偏好）+ Android Keystore（凭据加密，AES-256 GCM）
 - `minSdk=31`（Android 12+）
 - `material3-window-size-class` — 平板自适应布局
 - WorkManager（计划中）
@@ -29,11 +29,11 @@ CommandCode Go 走 JSON API 抓取用量数据，Codex / ChatGPT Plus 通过 aut
 - ❌ OpenCode Zen / 小米 MiMo — 未实现
 
 **用量统计系统**：
-- ✅ `UsageCache`（DataStore，~3700 条记录）— 全量 JSON 序列化 + 内存缓存（`@Volatile cachedAll`），仅在写入后失效
+- ✅ `UsageCache`（Room，indexed on workspaceId+timeCreated）— DAO 查询替代全量 JSON 序列化；首次启动自动从旧 DataStore JSON 迁移
 - ✅ `SyncUsageUseCase`（OCGO）/ `SyncCommandCodeUsageUseCase`（CCGO） — 首次全量同步（cursor 翻页）、增量同步（逐页比对本地 ID 集合）
 - ✅ `UsageViewModel` — `loadStatsInternal()` 单次 `getRecords()`→ 内存聚合 Overview/ModelStats/DailyStats，所有重操作包在 `withContext(Dispatchers.Default)` 避免主线程卡顿
 - ✅ `UsageChartViewModel` — 图表粒度（5h/**12h(10min)**/24h/今天/昨天/7天/当月/自定义日/月/范围），模型多选，3 张 Canvas 图表；支持 **UTC+0/UTC+8 时区切换**（桶边界+标签双感知）；自定义日/月/范围保存 `LocalDate` 语义，切换 UTC 偏好时重新计算边界；**自动降级**（5h无数据→12h→7天→当月）
-- ✅ `ChartSettingsStore`（DataStore Preferences）— 持久化 UTC 偏好，下次进入自动恢复
+- ✅ `ChartSettingsStore`（DataStore Preferences + StateFlow）— 持久化 UTC 偏好，`useUtc8Flow` 异步读取（已移除 runBlocking）
 - ✅ `UsageDataViewModel` — 原始记录分页浏览（20条/页），支持时间+模型筛选，页码输入跳转
 - ✅ 全局刷新绑定 — Dashboard 下拉刷新 → `DashboardViewModel.refresh()` → `UsageViewModel.sync()`（增量）
 
@@ -147,7 +147,7 @@ export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64
 
 ```
 DashboardViewModel.refresh()
-  → RefreshBalanceUseCase(service)
+  → RefreshBalanceUseCase(service) （retryOnTransientError: Network/5xx 指数退避重试 2 次）
     → DeepSeekRepository.fetchBalance()    / OpenCodeGoRepository.fetchBalance()
     → CommandCodeGoRepository.fetchBalance() / CodexRepository.fetchBalance()
     → OllamaRepository.fetchBalance()
@@ -157,7 +157,7 @@ DashboardViewModel.refresh()
 Dashboard 下拉刷新 → usageSyncTrigger++ → UsageViewModel.sync()
   → OCGO: SyncUsageUseCase.fullSync() / incrementalSync()
     → OpenCodeUsageRepository.fetchPage(cursor) 逐页抓取
-    → UsageCache.insertAll() → persist() → invalidateCache()
+    → UsageCache.insertAll() → Room DAO insert（IGNORE 策略，去重）
   → CCGO: SyncCommandCodeUsageUseCase.fullSync() / incrementalSync()
     → CommandCodeUsageRepository.fetchPage(cursor) 逐页抓取
   → UsageViewModel.loadStats() → getRecords() → 内存聚合
