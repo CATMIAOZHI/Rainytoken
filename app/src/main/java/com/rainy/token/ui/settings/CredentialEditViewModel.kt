@@ -149,6 +149,43 @@ class CredentialEditViewModel @Inject constructor(
      * 保存 API Key 后立即测试连通性（计划 2.3 凭据有效性校验）。
      * 复用 RefreshBalanceUseCase，成功/失败都把详细信息写进 message。
      */
+    /**
+     * 通用模板：保存凭据 → 测试连接 → 失败按需回滚。
+     *
+     * @param type 服务类型
+     * @param saveAndPrep 保存新凭据，返回 (旧凭据用于回滚, 测试 suspend block)
+     * @param formatSuccess 成功消息格式化
+     * @param rollbackOnFailure 失败时是否回滚到旧凭据
+     */
+    private suspend fun testAndRollback(
+        type: ServiceType,
+        saveAndPrep: suspend () -> Pair<Credential?, suspend () -> Result<com.rainy.token.domain.model.ServiceBalance>>,
+        formatSuccess: (com.rainy.token.domain.model.ServiceBalance) -> String,
+        rollbackOnFailure: Boolean
+    ) {
+        val (previous, testBlock) = saveAndPrep()
+        val result = testBlock()
+        if (result.isSuccess) {
+            val bal = result.getOrNull()
+            _uiState.update { it.copy(message = formatSuccess(bal!!), hasExisting = true) }
+        } else {
+            if (rollbackOnFailure) {
+                if (previous != null) credentialRepository.save(previous) else credentialRepository.remove(type)
+            }
+            val err = result.exceptionOrNull()
+            val reason = when (err) {
+                is RepositoryError.InvalidCredential -> "服务拒绝该凭据 (401/403)"
+                is RepositoryError.RateLimited -> "请求过于频繁 (429)"
+                is RepositoryError.ServerError -> "服务端错误 (${err.code})"
+                is RepositoryError.Network -> "网络错误：${err.cause?.message ?: "未知"}"
+                else -> err?.message ?: "未知错误"
+            }
+            _uiState.update {
+                it.copy(message = "测试失败。$reason", hasExisting = if (rollbackOnFailure) previous != null else true)
+            }
+        }
+    }
+
     fun testAndSaveApiKey() {
         val type = serviceType ?: return
         if (type != ServiceType.DEEPSEEK && type != ServiceType.COMMANDCODE_GO && type != ServiceType.CODEX) {
@@ -162,43 +199,17 @@ class CredentialEditViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
-            // 先按 trim 后的值落盘，再跑一次实时校验
             val existing = credentialRepository.get(type) as? Credential.ApiKeyCredential
             val updated = (existing ?: Credential.ApiKeyCredential(
-                service = type,
-                key = trimmedKey,
-                lastVerifiedAt = 0L
+                service = type, key = trimmedKey, lastVerifiedAt = 0L
             )).copy(key = trimmedKey)
             credentialRepository.save(updated)
             _uiState.update { it.copy(apiKey = trimmedKey) }
-
-            val result = refreshBalanceUseCaseProvider.get().invoke(type)
-            result.fold(
-                onSuccess = { bal ->
-                    _uiState.update {
-                        it.copy(
-                            message = "连接成功！余额: ${bal.amount} ${bal.unit}",
-                            hasExisting = true
-                        )
-                    }
-                },
-                onFailure = { err ->
-                    // 在错误信息里露出 Key 的首尾字符，便于区分"带空格"还是"Key 真的失效"
-                    val preview = maskedKeyPreview(trimmedKey)
-                    val reason = when (err) {
-                        is RepositoryError.InvalidCredential -> "服务拒绝该凭据 (401/403)，请检查是否完整复制（当前: '$preview'）"
-                        is RepositoryError.RateLimited -> "请求过于频繁 (429)，稍后再试"
-                        is RepositoryError.ServerError -> "服务端错误 (${err.code})，凭据本身没问题"
-                        is RepositoryError.Network -> "网络错误：${err.cause?.message ?: "未知"}"
-                        else -> "未知错误：${err.message ?: err::class.simpleName}"
-                    }
-                    _uiState.update {
-                        it.copy(
-                            message = "连接失败。$reason",
-                            hasExisting = true
-                        )
-                    }
-                }
+            testAndRollback(
+                type = type,
+                saveAndPrep = { existing to { refreshBalanceUseCaseProvider.get().invoke(type) } },
+                formatSuccess = { bal -> "连接成功！余额: ${bal.amount} ${bal.unit}" },
+                rollbackOnFailure = false
             )
         }
     }
@@ -240,13 +251,12 @@ class CredentialEditViewModel @Inject constructor(
         viewModelScope.launch {
             val previous = credentialRepository.get(type)
             doSaveOpenCodeGo(current.workspaceId.trim(), current.authCookie.trim())
-            val result = openCodeGoRepositoryProvider.get().fetchBalance()
-            if (result.isSuccess) {
-                _uiState.update { it.copy(message = "连接成功，凭据已保存", hasExisting = true) }
-            } else {
-                if (previous != null) credentialRepository.save(previous) else credentialRepository.remove(type)
-                _uiState.update { it.copy(message = "测试失败：${result.exceptionOrNull()?.message}", hasExisting = previous != null) }
-            }
+            testAndRollback(
+                type = type,
+                saveAndPrep = { previous to { openCodeGoRepositoryProvider.get().fetchBalance() } },
+                formatSuccess = { "连接成功，凭据已保存" },
+                rollbackOnFailure = true
+            )
         }
     }
 
@@ -393,7 +403,6 @@ class CredentialEditViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
-            // 先落盘
             val cookies = if (current.cookieInput.isNotBlank()) {
                 parseCookieString(current.cookieInput)
             } else emptyList()
@@ -403,29 +412,11 @@ class CredentialEditViewModel @Inject constructor(
             )).copy(cookies = cookies, token = trimmedKey, lastVerifiedAt = System.currentTimeMillis())
             credentialRepository.save(updated)
             _uiState.update { it.copy(apiKey = trimmedKey) }
-
-            val result = refreshBalanceUseCaseProvider.get().invoke(type)
-            result.fold(
-                onSuccess = { bal ->
-                    _uiState.update {
-                        it.copy(
-                            message = "连接成功！余额: \$${String.format(java.util.Locale.US, "%.2f", bal.amount)}",
-                            hasExisting = true
-                        )
-                    }
-                },
-                onFailure = { err ->
-                    val reason = when (err) {
-                        is RepositoryError.InvalidCredential -> "API Key 无效 (401/403)"
-                        is RepositoryError.RateLimited -> "请求过于频繁 (429)"
-                        is RepositoryError.ServerError -> "服务端错误 (${err.code})"
-                        is RepositoryError.Network -> "网络错误：${err.cause?.message ?: "未知"}"
-                        else -> err.message ?: err::class.simpleName ?: "未知错误"
-                    }
-                    _uiState.update {
-                        it.copy(message = "连接失败。$reason", hasExisting = true)
-                    }
-                }
+            testAndRollback(
+                type = type,
+                saveAndPrep = { existing to { refreshBalanceUseCaseProvider.get().invoke(type) } },
+                formatSuccess = { bal -> "连接成功！余额: \$${String.format(java.util.Locale.US, "%.2f", bal.amount)}" },
+                rollbackOnFailure = false
             )
         }
     }
@@ -463,24 +454,12 @@ class CredentialEditViewModel @Inject constructor(
         viewModelScope.launch {
             val previous = credentialRepository.get(type)
             doSaveOllama(current.ollamaCookie.trim())
-            val result = ollamaRepositoryProvider.get().fetchBalance()
-            if (result.isSuccess) {
-                val bal = result.getOrNull()
-                _uiState.update {
-                    it.copy(
-                        message = "连接成功！Session: ${bal?.amount ?: 0}% · ${bal?.extras?.get("plan") ?: "—"}",
-                        hasExisting = true
-                    )
-                }
-            } else {
-                if (previous != null) credentialRepository.save(previous) else credentialRepository.remove(type)
-                _uiState.update {
-                    it.copy(
-                        message = "测试失败：${result.exceptionOrNull()?.message}",
-                        hasExisting = previous != null
-                    )
-                }
-            }
+            testAndRollback(
+                type = type,
+                saveAndPrep = { previous to { ollamaRepositoryProvider.get().fetchBalance() } },
+                formatSuccess = { bal -> "连接成功！Session: ${bal.amount}% · ${bal.extras["plan"] ?: "—"}" },
+                rollbackOnFailure = true
+            )
         }
     }
 
