@@ -30,6 +30,26 @@
             android:contentDescription="RainyToken"
             android:adjustViewBounds="true" />
 
+        <TextView
+            android:id="@+id/widget_open_hint"
+            android:layout_width="10dp"
+            android:layout_height="24dp"
+            android:text="›"
+            android:textColor="#8A7A82"
+            android:textSize="14sp"
+            android:gravity="center" />
+
+        <TextView
+            android:id="@+id/widget_switch"
+            android:layout_width="48dp"
+            android:layout_height="24dp"
+            android:text="OCGO"
+            android:textColor="#FF85A2"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:layout_marginStart="6dp"
+            android:gravity="center" />
+
         <ProgressBar
             style="@android:style/Widget.ProgressBar.Horizontal"
             android:layout_width="0dp"
@@ -50,12 +70,13 @@
 
         <TextView
             android:id="@+id/widget_refresh"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="40dp"
+            android:layout_height="24dp"
             android:text="↻"
             android:textColor="#FF85A2"
             android:textSize="20sp"
-            android:layout_marginStart="6dp" />
+            android:layout_marginStart="6dp"
+            android:gravity="center" />
     </LinearLayout>
 
     <!-- OpenCode Go 标识 -->
@@ -72,6 +93,7 @@
             android:contentDescription="OpenCode Go"
             android:layout_marginEnd="5dp" />
         <TextView
+            android:id="@+id/widget_service_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="OpenCode Go · 用量"

@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -81,11 +82,16 @@ import com.rainy.token.ui.components.ServiceIcon
 import com.rainy.token.ui.components.StatusChip
 import com.rainy.token.ui.components.StatusLevel
 import com.rainy.token.ui.components.StatusStyle
+import com.rainy.token.ui.components.AppTips
 import com.rainy.token.ui.theme.inkMuted
 import com.rainy.token.ui.theme.StrawberryPink
+import android.app.AppOpsManager
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Process
 import android.widget.Toast
 import com.rainy.token.ui.widget.OpenCodeGoWidgetProvider
 import java.text.SimpleDateFormat
@@ -114,6 +120,15 @@ fun DashboardScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    var showAddWidgetConfirm by remember { mutableStateOf(false) }
+    // 一次性"长按拖拽排序"提示
+    var showDragHint by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        val prefs = context.getSharedPreferences("dashboard_ui_hints", android.content.Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("drag_hint_shown", false)) {
+            showDragHint = true
+        }
+    }
     val cardOrder = remember { mutableStateListOf<String>() }
     LaunchedEffect(Unit) {
         val saved = context.getSharedPreferences(DASHBOARD_ORDER_PREFS, android.content.Context.MODE_PRIVATE)
@@ -136,6 +151,29 @@ fun DashboardScreen(
         lastRefreshing = uiState.refreshing
     }
 
+    if (showAddWidgetConfirm) {
+        AlertDialog(
+            onDismissRequest = { showAddWidgetConfirm = false },
+            title = { Text("添加桌面小组件？") },
+            text = { Text("确认后会请求桌面启动器添加雨晴Token小组件。部分系统仍会弹出系统确认窗口。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showAddWidgetConfirm = false
+                        requestRainyTokenWidgetPin(context)
+                    }
+                ) {
+                    Text("确认添加", color = StrawberryPink)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddWidgetConfirm = false }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
@@ -155,24 +193,7 @@ fun DashboardScreen(
                     }
                 },
                 actions = {
-                    // 添加小组件：优先 requestPinAppWidget，不支持则打开系统小组件选择器
-                    IconButton(onClick = {
-                        val appWidgetManager = AppWidgetManager.getInstance(context)
-                        val component = ComponentName(context, OpenCodeGoWidgetProvider::class.java)
-                        if (appWidgetManager.isRequestPinAppWidgetSupported) {
-                            appWidgetManager.requestPinAppWidget(component, null, null)
-                        } else {
-                            // MIUI 等桌面回退：直接打开小组件选择器
-                            try {
-                                val pickerIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK).apply {
-                                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
-                                }
-                                context.startActivity(pickerIntent)
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "请在桌面长按 → 小组件 → 查找雨晴Token", Toast.LENGTH_LONG).show()
-                            }
-                        }
-                    }) {
+                    IconButton(onClick = { showAddWidgetConfirm = true }) {
                         Icon(
                             imageVector = Icons.Filled.Add,
                             contentDescription = "添加小组件到桌面",
@@ -234,6 +255,14 @@ fun DashboardScreen(
                             .padding(contentPadding),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
+                        // 随机小技巧提示（每次启动随机一条）
+                        val tipText = remember { AppTips.randomHint() }
+                        Text(
+                            text = "💡 $tipText",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = inkMuted(),
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        )
                         val items = rememberDashboardItems(
                             cards = uiState.cards,
                             order = cardOrder,
@@ -257,6 +286,41 @@ fun DashboardScreen(
                                     .apply()
                             }
                         )
+                        // 一次性"长按拖拽排序"提示横幅
+                        if (showDragHint) {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        showDragHint = false
+                                        context.getSharedPreferences("dashboard_ui_hints", android.content.Context.MODE_PRIVATE)
+                                            .edit().putBoolean("drag_hint_shown", true).apply()
+                                    },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = StrawberryPink.copy(alpha = 0.12f)
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "💡 长按卡片可拖拽排序",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = StrawberryPink,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        text = "知道了",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = StrawberryPink,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        }
                         // 底部 footer：填空白 + 提供版本号
                         DashboardFooter()
                     }
@@ -633,5 +697,47 @@ private fun DashboardFooter() {
             style = MaterialTheme.typography.bodySmall,
             color = inkMuted()
         )
+    }
+}
+
+private fun canInstallLauncherShortcut(context: Context): Boolean {
+    val manifestPermissionGranted = context.packageManager.checkPermission(
+        "com.android.launcher.permission.INSTALL_SHORTCUT",
+        context.packageName
+    ) == PackageManager.PERMISSION_GRANTED
+    if (!manifestPermissionGranted) return false
+
+    val appOpsManager = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+    val mode = runCatching {
+        appOpsManager.checkOpNoThrow("android:install_shortcut", Process.myUid(), context.packageName)
+    }.getOrNull() ?: return true
+
+    return mode == AppOpsManager.MODE_ALLOWED || mode == AppOpsManager.MODE_DEFAULT
+}
+
+private fun requestRainyTokenWidgetPin(context: Context) {
+    val appWidgetManager = AppWidgetManager.getInstance(context)
+    val component = ComponentName(context, OpenCodeGoWidgetProvider::class.java)
+    if (!canInstallLauncherShortcut(context)) {
+        Toast.makeText(context, "桌面快捷方式权限已被拒绝，请在系统设置中允许后重试", Toast.LENGTH_LONG).show()
+        return
+    }
+
+    if (appWidgetManager.isRequestPinAppWidgetSupported) {
+        val requested = appWidgetManager.requestPinAppWidget(component, null, null)
+        if (!requested) {
+            Toast.makeText(context, "桌面未接受添加请求，请检查启动器权限", Toast.LENGTH_LONG).show()
+        }
+        return
+    }
+
+    val pickerIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK).apply {
+        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+    }
+    val canOpenPicker = pickerIntent.resolveActivity(context.packageManager) != null
+    if (canOpenPicker) {
+        context.startActivity(pickerIntent)
+    } else {
+        Toast.makeText(context, "当前桌面不支持应用内添加，请在桌面长按 → 小组件 → 查找雨晴Token", Toast.LENGTH_LONG).show()
     }
 }

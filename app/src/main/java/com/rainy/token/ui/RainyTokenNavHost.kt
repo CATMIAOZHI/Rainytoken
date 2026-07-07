@@ -35,6 +35,7 @@ import androidx.navigation.navArgument
 import com.rainy.token.data.repository.CommandCodeUsageRepository
 import com.rainy.token.domain.service.ServiceType
 import com.rainy.token.ui.components.rememberWindowSizeClass
+import com.rainy.token.ui.components.TipsScreen
 import com.rainy.token.ui.dashboard.DashboardScreen
 import com.rainy.token.ui.dashboard.UsageChartViewModel
 import com.rainy.token.ui.dashboard.UsageDataScreen
@@ -61,6 +62,7 @@ import com.rainy.token.ui.webview.WebViewLoginScreen
 object Routes {
     const val DASHBOARD = "dashboard"
     const val SETTINGS = "settings"
+    const val TIPS = "tips"
     const val CREDENTIAL_EDIT = "credential_edit/{type}"
     fun credentialEdit(type: ServiceType) = "credential_edit/${type.name}"
     const val WEBVIEW_LOGIN = "webview_login/{type}"
@@ -240,8 +242,12 @@ private fun CompactNavHost() {
         composable(Routes.SETTINGS) {
             SettingsScreen(
                 onBack = guardedPop,
-                onEditCredential = { type -> navController.navigate(Routes.credentialEdit(type)) }
+                onEditCredential = { type -> navController.navigate(Routes.credentialEdit(type)) },
+                onOpenTips = { navController.navigate(Routes.TIPS) }
             )
+        }
+        composable(Routes.TIPS) {
+            TipsScreen(onBack = guardedPop)
         }
         composable(
             route = Routes.CREDENTIAL_EDIT,
@@ -415,8 +421,12 @@ private fun ExpandedDetailPane(
                         onBack = onClose,
                         onEditCredential = { type ->
                             settingsNavController.navigate(Routes.credentialEdit(type))
-                        }
+                        },
+                        onOpenTips = { settingsNavController.navigate("tips") }
                     )
+                }
+                composable("tips") {
+                    TipsScreen(onBack = { settingsNavController.popBackStack() })
                 }
                 composable(
                     route = Routes.CREDENTIAL_EDIT,

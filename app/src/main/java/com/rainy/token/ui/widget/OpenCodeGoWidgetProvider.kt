@@ -60,15 +60,24 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
         for (widgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_opencode_go)
 
-            // 点击 Widget → 打开 APP
-            val intent = Intent(context, MainActivity::class.java).apply {
+            // 点击左上角品牌 → 打开 APP；点击其它内容区域 → 切换服务；刷新按钮单独刷新。
+            val openAppIntent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
-            val pendingIntent = PendingIntent.getActivity(
-                context, 0, intent,
+            val openAppPendingIntent = PendingIntent.getActivity(
+                context, 0, openAppIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            views.setOnClickPendingIntent(R.id.widget_content, pendingIntent)
+            views.setOnClickPendingIntent(R.id.widget_wordmark, openAppPendingIntent)
+            views.setOnClickPendingIntent(R.id.widget_open_hint, openAppPendingIntent)
+
+            val switchPendingIntent = PendingIntent.getBroadcast(
+                context, 2, Intent(context, OpenCodeGoWidgetProvider::class.java).apply { action = ACTION_SWITCH_SERVICE },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.widget_content, switchPendingIntent)
+            views.setOnClickPendingIntent(R.id.widget_switch, switchPendingIntent)
+            views.setOnClickPendingIntent(R.id.widget_service_title, switchPendingIntent)
 
             // 刷新按钮 → 后台广播刷新
             val refreshPendingIntent = PendingIntent.getBroadcast(
@@ -76,12 +85,6 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             views.setOnClickPendingIntent(R.id.widget_refresh, refreshPendingIntent)
-
-            val switchPendingIntent = PendingIntent.getBroadcast(
-                context, 2, Intent(context, OpenCodeGoWidgetProvider::class.java).apply { action = ACTION_SWITCH_SERVICE },
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            views.setOnClickPendingIntent(R.id.widget_switch, switchPendingIntent)
 
             // 读缓存并填充数据
             runBlocking {

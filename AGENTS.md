@@ -92,6 +92,7 @@ Compact（手机）：
                             ↘ UsageData（原始数据）
             → CCGO: CCGO_USAGE_DETAIL（图表） → CCGO_USAGE_OVERVIEW（总统计）
                                           ↘ CCGO_USAGE_DATA（原始数据）
+            → Settings → Tips（使用小技巧）
 
   返回用 guardedPop()（200ms 时间戳围栏，PopGuard 非 State 对象）+ Android predictive back。
 Manifest 开启 `android:enableOnBackInvokedCallback="true"`；`navigation-compose` 保持 2.9.x 以上，使用后续 predictive back 修复。
@@ -103,7 +104,7 @@ PopGuard 额外检查 previousBackStackEntry != null，且 popBackStack() 返回
 Expanded（平板，≥840dp）：
   ┌─ 左侧 35%: Dashboard（固定） ─┐  ┌─ 右侧 65%: when(pane) 原子切换 ─────┐
   │                                │  │  ServiceDetail / OCGOUsage / CCGOUsage │
-  │                                │  │  Settings（内嵌 NavHost）              │
+  │                                │  │  Settings（内嵌 NavHost → Tips）      │
   └────────────────────────────────┘  └────────────────────────────────────────┘
   右侧用量详情内部子路由：图表 → 总览 / 原始数据（OCGO/CCGO/Settings 各自用局部 NavHost）
   面板切换用 when(pane) 分支（同一帧原子重组，零穿透），子路由由局部 NavHost 的 popBackStack() 内置防护。
@@ -118,8 +119,24 @@ Expanded（平板，≥840dp）：
 - 进度条颜色按百分比动态变化（<50% 草莓粉 / 50-80% 暖橙 / >80% 玫红）
 - **MIUI Widget 适配**：`miuiWidget` 标识 → 可拖入负一屏；`miui.appwidget.action.APPWIDGET_UPDATE` 曝光刷新（划到即触发，20s 冷却）；`@android:id/background` 根布局 ID（系统统一裁切圆角）
 - **自动刷新**：`onUpdate()` 内缓存为空或超过 5 分钟冷却时自动发送 `WidgetRefreshReceiver` 广播
-- **一键添桌面**：Dashboard 顶部栏 + 按钮 → `requestPinAppWidget`（有 fallback 到 `ACTION_APPWIDGET_PICK`）
+- **一键添桌面**：Dashboard 顶部栏 + 按钮 → 二次确认弹窗 → 权限检测（Manifest `INSTALL_SHORTCUT` + MIUI AppOps `android:install_shortcut`）→ `requestPinAppWidget`（有 fallback 到 `ACTION_APPWIDGET_PICK`）
 - 服务切换状态持久化到 SharedPreferences（`widget_auto_refresh` 中的 `display_service` key），切换后立即调用 `notifyDataChanged` 触发 `onUpdate()` 渲染
+
+**小组件点击绑定**：
+
+> `widget_wordmark` + `widget_open_hint`（`›` 箭头）→ 打开 APP；`widget_content` / `widget_switch` / `widget_service_title` → 切换服务广播 `ACTION_SWITCH_SERVICE`；`widget_refresh` → 刷新广播。
+> 切换 requestCode=2，刷新 requestCode=1。左上角 `›` 箭头是可点击进 APP 的视觉提示。
+
+**使用小技巧系统**：
+
+> - `AppTips`（`ui/components/AppTips.kt`）集中管理 13 条技巧，每条含 `title` / `hint`（一句话）/ `detail`（详细说明）
+> - Dashboard 卡片上方每次启动随机显示一条 `hint`（`remember { AppTips.randomHint() }`，不自动轮换）
+> - 设置页 `💡 使用小技巧` 卡片 → `TipsScreen` 独立页面（Route `tips`），LazyColumn 逐条展示
+> - 首次进入 Dashboard 显示一次性"长按卡片可拖拽排序"提示横幅，SharedPreferences `dashboard_ui_hints` 的 `drag_hint_shown` 标记
+
+**图表默认 tooltip**：
+
+> `StackedBarChart` / `LineChart` 的 `tooltipBucket` 初始值为 `buckets.lastOrNull()`，进入图表页即可看到最新时段数值详情，暗示图表可交互。
 
 ## RemoteViews 兼容性红线
 

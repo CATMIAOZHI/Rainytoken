@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -42,6 +43,7 @@ import com.rainy.token.ui.components.ServiceIcon
 import com.rainy.token.ui.components.StatusChip
 import com.rainy.token.ui.components.StatusLevel
 import com.rainy.token.ui.components.StatusStyle
+import com.rainy.token.ui.components.AppTips
 import com.rainy.token.ui.theme.InkMuted
 import com.rainy.token.ui.theme.StrawberryPink
 
@@ -58,6 +60,7 @@ import com.rainy.token.ui.theme.StrawberryPink
 fun SettingsScreen(
     onBack: () -> Unit,
     onEditCredential: (ServiceType) -> Unit,
+    onOpenTips: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -119,6 +122,9 @@ fun SettingsScreen(
                         status = status,
                         onClick = { onEditCredential(status.service) }
                     )
+                }
+                item {
+                    TipsCard(onClick = { onOpenTips() })
                 }
                 item {
                     Spacer(modifier = Modifier.padding(top = 8.dp))
@@ -199,4 +205,41 @@ private fun stateToChip(state: CredentialStatus.State): StatusStyle = when (stat
     CredentialStatus.State.OK -> StatusStyle("已配置", StatusLevel.OK)
     CredentialStatus.State.EXPIRED -> StatusStyle("已过期", StatusLevel.ERROR)
     CredentialStatus.State.WARNING -> StatusStyle("需重登", StatusLevel.WARNING)
+}
+
+@Composable
+private fun TipsCard(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = StrawberryPink.copy(alpha = 0.08f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "💡",
+                style = MaterialTheme.typography.titleLarge
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "使用小技巧",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = StrawberryPink
+                )
+                Text(
+                    text = "查看全部 ${AppTips.tips.size} 条隐藏操作",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkMuted,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+        }
+    }
 }
