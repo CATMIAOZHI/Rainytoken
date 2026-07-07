@@ -35,7 +35,7 @@
             android:id="@+id/widget_open_hint"
             android:layout_width="10dp"
             android:layout_height="24dp"
-            android:text="›"
+            android:text=">"
             android:textColor="#C4A0AB"
             android:textSize="14sp"
             android:gravity="center" />

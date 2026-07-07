@@ -696,7 +696,7 @@ private fun mainCardLabel(service: ServiceType): String = when (service) {
     ServiceType.DEEPSEEK -> "当前余额"
     ServiceType.OPENCODE_GO -> "5h 实时用量"
     ServiceType.COMMANDCODE_GO -> "月度余额"
-    ServiceType.CODEX -> "5h 剩余额度"
+    ServiceType.CODEX -> "5h 已用量"
     ServiceType.OLLAMA -> "Session 用量"
 }
 

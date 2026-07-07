@@ -211,15 +211,16 @@ class OpenCodeUsageRepository(
         else num
     }
 
-    private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
-        timeZone = TimeZone.getTimeZone("UTC")
-    }
-
     private fun extractDate(obj: String, key: String): Long? {
         // 匹配模式: key:new Date("2026-06-15T20:46:31.000Z")
         val pattern = Regex("""["']?${Regex.escape(key)}["']?\s*:\s*(?:\$\w+\[?\d*\]?=\s*)?new Date\("([^"]+)"\)""")
         return pattern.find(obj)?.groupValues?.get(1)?.let {
-            runCatching { dateFormat.parse(it)?.time }.getOrNull()
+            // SimpleDateFormat 非线程安全，每次创建新实例
+            runCatching {
+                java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
+                    timeZone = TimeZone.getTimeZone("UTC")
+                }.parse(it)?.time
+            }.getOrNull()
         }
     }
 }

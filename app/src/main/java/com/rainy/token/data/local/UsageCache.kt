@@ -62,6 +62,12 @@ class UsageCache(
         return dao.getAllIds().toSet()
     }
 
+    /** 按 workspaceId 获取已有记录 ID 集合（增量同步用） */
+    suspend fun getIdsByWorkspace(workspaceId: String): Set<String> {
+        ensureMigrated()
+        return dao.getIdsByWorkspace(workspaceId).toSet()
+    }
+
     /** 按 workspaceId 删除所有记录。用于修复旧数据格式问题后重新全量同步。 */
     suspend fun deleteByWorkspaceId(workspaceId: String) {
         ensureMigrated()

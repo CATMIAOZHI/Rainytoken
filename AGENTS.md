@@ -30,7 +30,7 @@ CommandCode Go 走 JSON API 抓取用量数据，Codex / ChatGPT Plus 通过 aut
 
 **用量统计系统**：
 - ✅ `UsageCache`（Room，indexed on workspaceId+timeCreated）— DAO 查询替代全量 JSON 序列化；首次启动自动从旧 DataStore JSON 迁移
-- ✅ `SyncUsageUseCase`（OCGO）/ `SyncCommandCodeUsageUseCase`（CCGO） — 首次全量同步（cursor 翻页）、增量同步（逐页比对本地 ID 集合）
+- ✅ `SyncUsageUseCase`（OCGO）/ `SyncCommandCodeUsageUseCase`（CCGO） — 首次全量同步（cursor 翻页）、增量同步（逐页比对本地 ID 集合，按 `getIdsByWorkspace(wid)` 过滤避免跨 workspace 碰撞）
 - ✅ `UsageViewModel` — `loadStatsInternal()` 单次 `getRecords()`→ 内存聚合 Overview/ModelStats/DailyStats，所有重操作包在 `withContext(Dispatchers.Default)` 避免主线程卡顿
 - ✅ `UsageChartViewModel` — 图表粒度（5h/**12h(10min)**/24h/今天/昨天/7天/当月/自定义日/月/范围），模型多选，3 张 Canvas 图表；支持 **UTC+0/UTC+8 时区切换**（桶边界+标签双感知）；自定义日/月/范围保存 `LocalDate` 语义，切换 UTC 偏好时重新计算边界；**自动降级**（5h无数据→12h→7天→当月）
 - ✅ `ChartSettingsStore`（DataStore Preferences + StateFlow）— 持久化 UTC 偏好，`useUtc8Flow` 异步读取（已移除 runBlocking）
@@ -124,8 +124,8 @@ Expanded（平板，≥840dp）：
 
 **小组件点击绑定**：
 
-> `widget_wordmark` + `widget_open_hint`（`›` 箭头）→ 打开 APP；`widget_content` / `widget_switch` / `widget_service_title` → 切换服务广播 `ACTION_SWITCH_SERVICE`；`widget_refresh` → 刷新广播。
-> 切换 requestCode=2，刷新 requestCode=1。左上角 `›` 箭头是可点击进 APP 的视觉提示。
+> `widget_wordmark` + `widget_open_hint`（`>` 箭头）→ 打开 APP；`widget_content` / `widget_switch` / `widget_service_title` → 切换服务广播 `ACTION_SWITCH_SERVICE`；`widget_refresh` → 刷新广播。
+> 切换 requestCode=2，刷新 requestCode=1。左上角 `>` 箭头是可点击进 APP 的视觉提示（ASCII `>` 替代 Unicode `›`，确保全 ROM 兼容）。
 
 **使用小技巧系统**：
 
@@ -146,7 +146,7 @@ Expanded（平板，≥840dp）：
 |-----------|------------|
 | `<Space>` | 透明 ProgressBar（`0dp + weight=1`） |
 | `<View>` | ProgressBar 或 TextView |
-| `<ImageView>` + 矢量 drawable | PNG（`drawable-nodpi`） |
+| `<ImageView>` + 矢量 drawable | PNG（`drawable-nodpi`）。Widget logo 必须用 `_widget` 后缀 PNG（`ic_opencode_go_logo_widget.png`、`ic_codex_logo_widget.png`）；DeepSeek / Ollama 已有 PNG（`ic_deepseek_logo.png`、`ic_ollama_logo.png`）。Compose 层（`ServiceIcon.kt`）继续用 VectorDrawable XML。 |
 | `<TextView>` `0dp+weight=1` 空串 spacer | ProgressBar spacer |
 | `<TextView>` 固定 dp 宽度 + `gravity` | 仅固定 dp，不加 gravity |
 
@@ -168,7 +168,7 @@ DashboardViewModel.refresh()
     → DeepSeekRepository.fetchBalance()    / OpenCodeGoRepository.fetchBalance()
     → CommandCodeGoRepository.fetchBalance() / CodexRepository.fetchBalance()
     → OllamaRepository.fetchBalance()
-  → BalanceCache.put(service, result)
+  → BalanceCache.put(service, result) — put() 在 dataStore.edit {} 互斥锁内做 read-modify-write，避免并发覆盖
   → OpenCodeGoWidgetProvider.notifyDataChanged(context)
 
 Dashboard 下拉刷新 → usageSyncTrigger++ → UsageViewModel.sync()

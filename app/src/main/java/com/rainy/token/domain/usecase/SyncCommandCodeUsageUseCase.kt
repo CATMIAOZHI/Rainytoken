@@ -64,7 +64,9 @@ class SyncCommandCodeUsageUseCase @Inject constructor(
             val (records, nextCursor) = pageResult.getOrThrow()
             if (records.isEmpty()) break
 
-            val existingIds = cache.getAllIds()
+            // 按 workspace 过滤本地已有 ID，避免跨 workspace 碰撞
+            val workspaceId = records.firstOrNull()?.workspaceId ?: CommandCodeUsageRepository.CCGO_WORKSPACE_ID
+            val existingIds = cache.getIdsByWorkspace(workspaceId)
             val newRecords = records.filter { it.id !in existingIds }
 
             if (newRecords.isEmpty()) break

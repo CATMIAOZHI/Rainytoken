@@ -61,7 +61,9 @@ class SyncUsageUseCase @Inject constructor(
             val records = pageResult.getOrThrow()
             if (records.isEmpty()) break
 
-            val existingIds = cache.getAllIds()        // 本地已有 ID 集合
+            // 用第一条记录的 workspaceId 过滤本地已有 ID，避免跨 workspace 碰撞
+            val workspaceId = records.firstOrNull()?.workspaceId ?: ""
+            val existingIds = if (workspaceId.isNotEmpty()) cache.getIdsByWorkspace(workspaceId) else cache.getAllIds()
             val newRecords = records.filter { it.id !in existingIds }
 
             if (newRecords.isEmpty()) break            // 整页都已存在 → 接到旧数据

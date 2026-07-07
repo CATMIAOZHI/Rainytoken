@@ -26,9 +26,8 @@ class BalanceCache(
     private val json: Json = DefaultJson
 ) {
 
-    // v2: 2026-06 重构 extras 字段名（rollingUsagePercent → rolling.pct 等）。
-    // 升 v2 让旧版缓存失效，避免显示 0%。
-    private val cacheKey = stringPreferencesKey("balance_cache_v2")
+    // v3: 2026-07 统一 Codex amount 为 usedPct（之前是 remainingPct），旧缓存失效
+    private val cacheKey = stringPreferencesKey("balance_cache_v3")
 
     suspend fun getAll(): Map<ServiceType, CachedBalance> {
         val raw = dataStore.data.map { it[cacheKey] }.first() ?: return emptyMap()
@@ -44,21 +43,28 @@ class BalanceCache(
     suspend fun get(service: ServiceType): CachedBalance? = getAll()[service]
 
     suspend fun put(service: ServiceType, balance: ServiceBalance) {
-        val current = getAll().toMutableMap()
-        current[service] = CachedBalance(balance = balance, fetchedAt = System.currentTimeMillis())
-        persist(current)
+        // 在 dataStore.edit 的互斥锁内做 read-modify-write，避免并发覆盖
+        dataStore.edit { prefs ->
+            val raw = prefs[cacheKey]
+            val current = if (raw != null) {
+                runCatching {
+                    json.decodeFromString(
+                        MapSerializer(ServiceType.serializer(), CachedBalance.serializer()),
+                        raw
+                    )
+                }.getOrDefault(emptyMap())
+            } else emptyMap()
+            val updated = current.toMutableMap()
+            updated[service] = CachedBalance(balance = balance, fetchedAt = System.currentTimeMillis())
+            prefs[cacheKey] = json.encodeToString(
+                MapSerializer(ServiceType.serializer(), CachedBalance.serializer()),
+                updated
+            )
+        }
     }
 
     suspend fun clear() {
         dataStore.edit { it.remove(cacheKey) }
-    }
-
-    private suspend fun persist(map: Map<ServiceType, CachedBalance>) {
-        val raw = json.encodeToString(
-            MapSerializer(ServiceType.serializer(), CachedBalance.serializer()),
-            map
-        )
-        dataStore.edit { it[cacheKey] = raw }
     }
 
     companion object {

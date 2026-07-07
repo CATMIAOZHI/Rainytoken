@@ -242,7 +242,7 @@ internal fun CodexMainBalance(balance: ServiceBalance) {
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "5h 剩余",
+            text = "5h 已用",
             style = MaterialTheme.typography.titleMedium,
             color = inkMuted(),
             modifier = Modifier.padding(bottom = 6.dp)

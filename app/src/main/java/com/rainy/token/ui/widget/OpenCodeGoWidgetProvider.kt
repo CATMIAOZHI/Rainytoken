@@ -313,8 +313,8 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
         }
 
         private fun widgetLogo(service: ServiceType): Int = when (service) {
-            ServiceType.OPENCODE_GO, ServiceType.COMMANDCODE_GO -> R.drawable.ic_opencode_go_logo
-            ServiceType.CODEX -> R.drawable.ic_codex_logo
+            ServiceType.OPENCODE_GO, ServiceType.COMMANDCODE_GO -> R.drawable.ic_opencode_go_logo_widget // PNG for RemoteViews compatibility
+            ServiceType.CODEX -> R.drawable.ic_codex_logo_widget // PNG for RemoteViews compatibility
             ServiceType.DEEPSEEK -> R.drawable.ic_deepseek_logo
             ServiceType.OLLAMA -> R.drawable.ic_ollama_logo
         }

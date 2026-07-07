@@ -175,22 +175,23 @@ class CommandCodeUsageRepository(
         )
     }
 
-    private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'X'", Locale.US).apply {
-        timeZone = TimeZone.getTimeZone("UTC")
-    }
-
-    private val dateFormatNoMillis = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'X'", Locale.US).apply {
-        timeZone = TimeZone.getTimeZone("UTC")
-    }
-
     private fun parseIsoDate(iso: String): Long? {
         // 处理末尾 Z 和时区偏移
         val normalized = iso
             .replace("Z", "X")
             .replace(Regex("""[+-]\d{2}:\d{2}$"""), "X")
         return try {
-            dateFormat.parse(normalized)?.time
-                ?: dateFormatNoMillis.parse(normalized)?.time
+            // SimpleDateFormat 非线程安全，每次创建新实例
+            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'X'", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }
+            sdf.parse(normalized)?.time
+                ?: run {
+                    val sdf2 = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'X'", Locale.US).apply {
+                        timeZone = TimeZone.getTimeZone("UTC")
+                    }
+                    sdf2.parse(normalized)?.time
+                }
         } catch (_: Exception) { null }
     }
 

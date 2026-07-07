@@ -80,7 +80,7 @@ class CodexRepository(
                 c["balance"]?.jsonPrimitive?.floatOrNull?.let { put("usageCredits", it.toString()) }
             }
         }
-        val balance = ServiceBalance(ServiceType.CODEX, primary.remainingPct.toDouble(), config.displayUnit, true, null, null, primary.resetAt, extras)
+        val balance = ServiceBalance(ServiceType.CODEX, (100 - primary.remainingPct).coerceIn(0, 100).toDouble(), config.displayUnit, true, null, null, primary.resetAt, extras)
         balanceCache.put(ServiceType.CODEX, balance)
         credentialRepository.save(effectiveCred.copy(lastVerifiedAt = System.currentTimeMillis()))
         Result.success(balance)
