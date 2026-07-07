@@ -391,7 +391,7 @@ private fun UsageWindowRow(label: String, pct: Int?, resetInSec: Long?) {
 }
 
 /**
- * Ollama Pro 专属：5h + 每周用量窗口卡。
+ * Ollama Pro 专属：5h + 每周用量窗口卡 + 模型级调用次数。
  */
 @Composable
 private fun OllamaUsageCard(state: State) {
@@ -403,6 +403,9 @@ private fun OllamaUsageCard(state: State) {
     }
     val extras = balance?.extras ?: return
     val plan = extras["plan"] ?: "—"
+
+    val sessionModels = parseModelRequests(extras["session.models"])
+    val weeklyModels = parseModelRequests(extras["weekly.models"])
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -431,6 +434,10 @@ private fun OllamaUsageCard(state: State) {
                 pct = extras["session.pct"]?.toFloatOrNull()?.toInt(),
                 resetInSec = extras["session.resetAt"]?.toLongOrNull()?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 }
             )
+            if (sessionModels.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                ModelRequestList(models = sessionModels)
+            }
             Spacer(modifier = Modifier.height(14.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(modifier = Modifier.height(14.dp))
@@ -439,6 +446,60 @@ private fun OllamaUsageCard(state: State) {
                 pct = extras["weekly.pct"]?.toFloatOrNull()?.toInt(),
                 resetInSec = extras["weekly.resetAt"]?.toLongOrNull()?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 }
             )
+            if (weeklyModels.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                ModelRequestList(models = weeklyModels)
+            }
+        }
+    }
+}
+
+/**
+ * 解析 extras 中的模型调用次数字符串。
+ * 格式: "model1,count1;model2,count2"
+ */
+private fun parseModelRequests(raw: String?): List<Pair<String, Int>> {
+    if (raw.isNullOrBlank()) return emptyList()
+    return raw.split(";").mapNotNull { entry ->
+        val parts = entry.split(",")
+        if (parts.size == 2) {
+            val model = parts[0].trim()
+            val count = parts[1].trim().toIntOrNull()
+            if (model.isNotBlank() && count != null) model to count else null
+        } else null
+    }
+}
+
+/**
+ * 模型级调用次数列表。
+ * 每行显示模型名 + 调用次数，按次数降序排列。
+ */
+@Composable
+private fun ModelRequestList(models: List<Pair<String, Int>>) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = "模型调用次数",
+            style = MaterialTheme.typography.labelSmall,
+            color = inkMuted()
+        )
+        models.sortedByDescending { it.second }.forEach { (model, count) ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = model,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = count.toString(),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = StrawberryPink
+                )
+            }
         }
     }
 }
