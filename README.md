@@ -22,6 +22,15 @@ Android AI 余额与用量查询 APP —— 统一查看 DeepSeek、OpenCode Go�
   <em>仪表盘（亮色） · 仪表盘（深色） · 用量图表 · 桌面小组件</em>
 </p>
 
+<p align="center">
+  <img src="docs/screenshots/ollama-card.jpg" width="200" alt="Ollama Pro 卡片" />
+  <img src="docs/screenshots/ollama-detail.jpg" width="200" alt="Ollama Pro 模型调用次数" />
+</p>
+
+<p align="center">
+  <em>Ollama Pro 首页卡片 · 模型调用次数详情</em>
+</p>
+
 ---
 
 ## ✨ 功能特性
