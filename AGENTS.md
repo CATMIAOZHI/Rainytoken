@@ -52,6 +52,12 @@ CommandCode Go 走 JSON API 抓取用量数据，Codex / ChatGPT Plus 通过 aut
 >
 > 原因：`init` 自动加载时 `workspaceIdOverride` 为 null，协程读到 OCGO 凭据，导致 CCGO 页面闪现 OCGO 数据。
 
+**DashboardViewModel 刷新竞态红线**：
+
+> ⚠️ `DashboardViewModel.init` 必须在**同一协程内串行**调用 `loadFromCache()` → `refresh()`，不能拆成两个独立协程。
+> 原因：并行时 `loadFromCache()` 读到的旧缓存快照可能在 `refresh()` 写入新数据后才 `_uiState.update`，导致用量数据闪回旧值（如 Codex 5h 61%→2%）。
+> `refresh()` 内部用 `Mutex.tryLock()` 防并发——下拉刷新与 init 的 refresh 并发时后者直接跳过，避免交错覆盖。
+
 **hiltViewModel key 红线**：
 
 > ⚠️ `hiltViewModel(key = key)` 的 key 在 ViewModelStore 内全局唯一、不区分类型。

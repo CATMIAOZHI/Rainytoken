@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import javax.inject.Inject
 
 /**
@@ -43,48 +44,59 @@ class DashboardViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
+    /** 防止并发 refresh() 调用交错覆盖 UI */
+    private val refreshMutex = Mutex()
+
     init {
-        loadFromCache()
-        refresh()
+        viewModelScope.launch {
+            // 1) 先从缓存快速填充 UI（断网时也能看旧数据）
+            loadFromCache()
+            // 2) 再发起网络刷新——此时 UI 已有缓存兜底，不会闪回旧值
+            refresh()
+        }
     }
 
-    /** 从本地缓存快速填充一次（不阻塞） */
-    private fun loadFromCache() {
-        viewModelScope.launch {
-            val cached = balanceCache.getAll()
-            val cards = ServiceType.entries.map { type ->
-                buildCard(type, cachedBalance = cached[type], lastFetchError = null)
-            }
-            _uiState.update { it.copy(loading = false, refreshing = false, cards = cards) }
+    /** 从本地缓存快速填充一次（不阻塞）。挂起函数，供调用方控制执行顺序。 */
+    private suspend fun loadFromCache() {
+        val cached = balanceCache.getAll()
+        val cards = ServiceType.entries.map { type ->
+            buildCard(type, cachedBalance = cached[type], lastFetchError = null)
         }
+        _uiState.update { it.copy(loading = false, refreshing = false, cards = cards) }
     }
 
     /** 拉取所有服务最新余额，更新缓存。失败的服务保留旧数据并把错误信息带上 */
     fun refresh() {
         viewModelScope.launch {
-            _uiState.update { it.copy(refreshing = true) }
-            val results: Map<ServiceType, Result<ServiceBalance>?> = coroutineScope {
-                ServiceType.entries.map { type ->
-                    async {
-                        val status = credentialRepository.statusFor(type)
-                        if (status.state == CredentialStatus.State.NOT_CONFIGURED) {
-                            type to null  // 未配置的服务不拉
-                        } else {
-                            type to refreshBalanceUseCase(type)
+            // Mutex 防并发：如果已有 refresh 在跑，后来的直接跳过
+            if (!refreshMutex.tryLock()) return@launch
+            try {
+                _uiState.update { it.copy(refreshing = true) }
+                val results: Map<ServiceType, Result<ServiceBalance>?> = coroutineScope {
+                    ServiceType.entries.map { type ->
+                        async {
+                            val status = credentialRepository.statusFor(type)
+                            if (status.state == CredentialStatus.State.NOT_CONFIGURED) {
+                                type to null  // 未配置的服务不拉
+                            } else {
+                                type to refreshBalanceUseCase(type)
+                            }
                         }
-                    }
-                }.awaitAll().toMap()
-            }
-            val newCache = balanceCache.getAll()
-            val cards = ServiceType.entries.map { type ->
-                val result = results[type]
-                val errMsg = result?.exceptionOrNull()?.message
-                buildCard(type, cachedBalance = newCache[type], lastFetchError = errMsg)
-            }
-            _uiState.update { it.copy(refreshing = false, cards = cards) }
-            // 刷新成功后更新桌面小组件
-            if (results[ServiceType.OPENCODE_GO]?.isSuccess == true) {
-                OpenCodeGoWidgetProvider.notifyDataChanged(appContext)
+                    }.awaitAll().toMap()
+                }
+                val newCache = balanceCache.getAll()
+                val cards = ServiceType.entries.map { type ->
+                    val result = results[type]
+                    val errMsg = result?.exceptionOrNull()?.message
+                    buildCard(type, cachedBalance = newCache[type], lastFetchError = errMsg)
+                }
+                _uiState.update { it.copy(refreshing = false, cards = cards) }
+                // 刷新成功后更新桌面小组件
+                if (results[ServiceType.OPENCODE_GO]?.isSuccess == true) {
+                    OpenCodeGoWidgetProvider.notifyDataChanged(appContext)
+                }
+            } finally {
+                refreshMutex.unlock()
             }
         }
     }
