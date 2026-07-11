@@ -99,7 +99,7 @@ class CommandCodeUsageRepository(
                     if (resp.code == 401 || resp.code == 403) {
                         val detail = if (body != null && body.length < 200) "：$body" else ""
                         return@withContext Result.failure(RepositoryError.InvalidCredential(
-                            RuntimeException("HTTP ${resp.code}$detail")
+                            "HTTP ${resp.code}$detail"
                         ))
                     }
                     return@withContext Result.failure(RepositoryError.ServerError(resp.code))

@@ -76,7 +76,7 @@ class DeepSeekRepository @Inject constructor(
     }
 
     private fun mapHttpError(e: HttpException): RepositoryError = when (e.code()) {
-        401, 403 -> RepositoryError.InvalidCredential(e)
+        401, 403 -> RepositoryError.InvalidCredential(cause = e)
         429 -> {
             val retryAfter = e.response()?.headers()?.get("Retry-After")?.toLongOrNull()
             RepositoryError.RateLimited(retryAfter)

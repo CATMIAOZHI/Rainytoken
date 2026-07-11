@@ -23,7 +23,7 @@ CommandCode Go 走 JSON API 抓取用量数据，Codex / ChatGPT Plus 通过 aut
 - ✅ DeepSeek — REST API `GET /user/balance`，API Key 认证
 - ✅ OpenCode Go — OkHttp 抓 dashboard HTML，解析 `rollingUsage`/`weeklyUsage`/`monthlyUsage`
 - ✅ CommandCode Go — JSON API 抓取用量数据，`CommandCodeUsageRepository` 解析（workspaceId = `"commandcode"`）
-- ✅ Codex / ChatGPT Plus — 粘贴完整 auth.json（含 refresh_token），调 `chatgpt.com/backend-api/wham/usage`；token 过期前 60 分钟自动刷新
+- ✅ Codex / ChatGPT Plus — 支持 **OAuth PKCE 登录（无头模式）** 或粘贴完整 auth.json（含 refresh_token），调 `chatgpt.com/backend-api/wham/usage`；token 过期前 60 分钟自动刷新。OpenAI 采用 refresh_token 单次轮换机制，被外部工具使用后旧 token 立即失效，需重新 OAuth 登录或导入新 auth.json。
 - ✅ Ollama Pro — Cookie 认证，OkHttp 抓 `ollama.com/settings` HTML，正则解析 plan/session(5h)/weekly 百分比 + `data-time` 重置时间 + `data-model` 模型级请求次数；无官方 API（ollama/ollama#12532）
 - ✅ 文案统一：所有服务标签均使用中文（"每周"统一代替 "weekly"/"Weekly"/"weekly"）
 - ❌ OpenCode Zen / 小米 MiMo — 未实现
@@ -36,6 +36,10 @@ CommandCode Go 走 JSON API 抓取用量数据，Codex / ChatGPT Plus 通过 aut
 - ✅ `ChartSettingsStore`（DataStore Preferences + StateFlow）— 持久化 UTC 偏好，`useUtc8Flow` 异步读取（已移除 runBlocking）
 - ✅ `UsageDataViewModel` — 原始记录分页浏览（20条/页），支持时间+模型筛选，页码输入跳转
 - ✅ 全局刷新绑定 — Dashboard 下拉刷新 → `DashboardViewModel.refresh()` → `UsageViewModel.sync()`（增量）
+
+**调试与错误诊断**：
+- ✅ `DebugLog` — 内存 ring buffer（200 条，线程安全），所有 Repository 关键路径（网络请求、Token 刷新、解析错误）均写入日志；设置页提供「调试日志」入口，无需连电脑即可在 APP 内查看 ERROR/WARN/INFO 三级日志。
+- ✅ `RepositoryError.InvalidCredential` 支持自定义 `detail`，Codex `RefreshResult` 密封类明确区分刷新成功/失败原因，错误信息可透传到 Dashboard 卡片与调试日志。
 
 **凭据回显红线**：
 

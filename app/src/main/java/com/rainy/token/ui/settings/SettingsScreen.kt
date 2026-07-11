@@ -61,6 +61,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onEditCredential: (ServiceType) -> Unit,
     onOpenTips: () -> Unit = {},
+    onOpenDebugLog: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -125,6 +126,9 @@ fun SettingsScreen(
                 }
                 item {
                     TipsCard(onClick = { onOpenTips() })
+                }
+                item {
+                    DebugLogCard(onClick = { onOpenDebugLog() })
                 }
                 item {
                     Spacer(modifier = Modifier.padding(top = 8.dp))
@@ -235,6 +239,43 @@ private fun TipsCard(onClick: () -> Unit) {
                 )
                 Text(
                     text = "查看全部 ${AppTips.tips.size} 条隐藏操作",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkMuted,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DebugLogCard(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "🔍",
+                style = MaterialTheme.typography.titleLarge
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "调试日志",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = InkMuted
+                )
+                Text(
+                    text = "查看 token 刷新、网络请求等调试记录",
                     style = MaterialTheme.typography.bodySmall,
                     color = InkMuted,
                     modifier = Modifier.padding(top = 2.dp)

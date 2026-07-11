@@ -5,8 +5,9 @@ package com.rainy.token.data.repository
  */
 sealed class RepositoryError(message: String, cause: Throwable? = null) : Exception(message, cause) {
 
-    /** 凭据无效（如 401 Unauthorized） */
-    class InvalidCredential(cause: Throwable? = null) : RepositoryError("凭据无效", cause)
+    /** 凭据无效（如 401 Unauthorized），detail 为具体原因 */
+    class InvalidCredential(detail: String? = null, cause: Throwable? = null) :
+        RepositoryError("凭据无效" + (detail?.let { ": $it" } ?: ""), cause)
 
     /** 限流（429 Too Many Requests） */
     class RateLimited(val retryAfterSeconds: Long? = null) :

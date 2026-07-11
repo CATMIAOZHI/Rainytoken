@@ -63,6 +63,7 @@ fun CredentialEditScreen(
     onBack: () -> Unit,
     onStartWebViewLogin: (ServiceType) -> Unit,
     onWebViewLoginSuccess: (ServiceType) -> Unit,
+    onStartCodexOAuth: () -> Unit = {},
     viewModel: CredentialEditViewModel = hiltViewModel()
 ) {
     LaunchedEffect(service) { viewModel.bind(service) }
@@ -129,7 +130,8 @@ fun CredentialEditScreen(
                         hasExisting = uiState.hasExisting,
                         onAuthJsonChange = viewModel::updateCodexAuthJson,
                         onSave = viewModel::saveCodexAuthJson,
-                        onShowHelp = { showCodexHelp = true }
+                        onShowHelp = { showCodexHelp = true },
+                        onStartOAuth = onStartCodexOAuth
                     )
                 } else {
                     ApiKeyForm(
@@ -529,13 +531,24 @@ private fun CodexAuthJsonForm(
     hasExisting: Boolean,
     onAuthJsonChange: (String) -> Unit,
     onSave: () -> Unit,
-    onShowHelp: () -> Unit
+    onShowHelp: () -> Unit,
+    onStartOAuth: () -> Unit = {}
 ) {
     Text(text = "Codex / ChatGPT Plus 凭据", style = MaterialTheme.typography.titleMedium)
     Text(
-        text = "从 codex-oauth-proxy 的 auth.json 复制完整内容粘贴到下方。APP 会自动解析并支持自动刷新。",
+        text = "推荐使用 OAuth 登录自动获取凭据。也可手动粘贴 auth.json 内容。",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.outline
+    )
+    Button(onClick = onStartOAuth, modifier = Modifier.fillMaxWidth()) {
+        Text("🔐 OAuth 登录（推荐）")
+    }
+    Text(
+        text = "── 或手动导入 ──",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.outline,
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+        textAlign = androidx.compose.ui.text.style.TextAlign.Center
     )
     OutlinedTextField(
         value = authJson,

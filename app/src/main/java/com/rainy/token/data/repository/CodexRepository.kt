@@ -18,6 +18,8 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import android.util.Log
+import com.rainy.token.data.debug.DebugLog
 import java.io.IOException
 import javax.inject.Singleton
 
@@ -34,33 +36,51 @@ class CodexRepository(
         private const val OAUTH_TOKEN_URL = "https://auth.openai.com/oauth/token"
         private const val CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
         private const val REFRESH_BUFFER_MS = 60L * 60 * 1000
+        private const val TAG = "Codex"
     }
 
     suspend fun fetchBalance(): Result<ServiceBalance> = withContext(Dispatchers.IO) {
         val credential = credentialRepository.get(ServiceType.CODEX)
-            ?: return@withContext Result.failure(RepositoryError.InvalidCredential())
+            ?: return@withContext Result.failure(RepositoryError.InvalidCredential("未找到 Codex 凭据"))
         if (credential !is Credential.CodexCredential)
-            return@withContext Result.failure(RepositoryError.InvalidCredential())
+            return@withContext Result.failure(RepositoryError.InvalidCredential("凭据类型不匹配"))
 
         val effectiveCred = if (tokenNeedsRefresh(credential)) {
-            val refreshed = refreshToken(credential)
-            if (refreshed != null) { credentialRepository.save(refreshed); refreshed } else credential
+            DebugLog.i(TAG, "access_token 即将过期，尝试刷新（expiresAt=${credential.expiresAt}）")
+            when (val r = refreshToken(credential)) {
+                is RefreshResult.Success -> {
+                    DebugLog.i(TAG, "token 刷新成功，新 expiresAt=${r.cred.expiresAt}")
+                    credentialRepository.save(r.cred); r.cred
+                }
+                is RefreshResult.Failure -> {
+                    DebugLog.e(TAG, "token 主动刷新失败: ${r.reason}")
+                    credential
+                }
+            }
         } else credential
 
         val usageResult = try {
             fetchJson(WHAM_USAGE, effectiveCred.accessToken)
         } catch (e: IOException) {
+            DebugLog.e(TAG, "网络异常: ${e.message}")
             return@withContext Result.failure(RepositoryError.Network(e))
         } catch (e: RepositoryError) {
             if (e is RepositoryError.InvalidCredential && effectiveCred == credential) {
-                val retry = refreshToken(credential)
-                if (retry != null) {
-                    credentialRepository.save(retry)
-                    try { fetchJson(WHAM_USAGE, retry.accessToken) }
-                    catch (e2: RepositoryError) { return@withContext Result.failure(e2) }
-                    catch (e2: IOException) { return@withContext Result.failure(RepositoryError.Network(e2)) }
-                    catch (e2: Throwable) { return@withContext Result.failure(RepositoryError.Unknown(e2)) }
-                } else return@withContext Result.failure(e)
+                DebugLog.w(TAG, "401 收到，尝试用 refresh_token 二次刷新")
+                when (val r = refreshToken(credential)) {
+                    is RefreshResult.Success -> {
+                        DebugLog.i(TAG, "二次刷新成功")
+                        credentialRepository.save(r.cred)
+                        try { fetchJson(WHAM_USAGE, r.cred.accessToken) }
+                        catch (e2: RepositoryError) { return@withContext Result.failure(e2) }
+                        catch (e2: IOException) { return@withContext Result.failure(RepositoryError.Network(e2)) }
+                        catch (e2: Throwable) { return@withContext Result.failure(RepositoryError.Unknown(e2)) }
+                    }
+                    is RefreshResult.Failure -> {
+                        DebugLog.e(TAG, "二次刷新也失败: ${r.reason}")
+                        return@withContext Result.failure(RepositoryError.InvalidCredential(r.reason))
+                    }
+                }
             } else return@withContext Result.failure(e)
         } catch (e: Throwable) { return@withContext Result.failure(RepositoryError.Unknown(e)) }
 
@@ -89,20 +109,63 @@ class CodexRepository(
     private fun tokenNeedsRefresh(cred: Credential.CodexCredential): Boolean =
         System.currentTimeMillis() >= cred.expiresAt - REFRESH_BUFFER_MS
 
-    private fun refreshToken(cred: Credential.CodexCredential): Credential.CodexCredential? {
-        val bodyStr = json.encodeToString(OAuthRefreshRequest.serializer(),
-            OAuthRefreshRequest("refresh_token", cred.refreshToken, CLIENT_ID, "openid profile email"))
+    private sealed class RefreshResult {
+        data class Success(val cred: Credential.CodexCredential) : RefreshResult()
+        data class Failure(val reason: String) : RefreshResult()
+    }
+
+    private fun refreshToken(cred: Credential.CodexCredential): RefreshResult {
+        // OpenAI auth endpoint 要求 form-urlencoded，不能用 JSON（否则返回 401）
+        val formBody = "grant_type=refresh_token&refresh_token=${cred.refreshToken}&client_id=$CLIENT_ID"
+            .toRequestBody("application/x-www-form-urlencoded".toMediaType())
         val request = Request.Builder().url(OAUTH_TOKEN_URL)
-            .header("Content-Type", "application/json")
-            .post(bodyStr.toRequestBody("application/json".toMediaType())).build()
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .post(formBody).build()
         return try {
             okHttpClient.newCall(request).execute().use { resp ->
-                if (!resp.isSuccessful) return@use null
-                val tr = json.decodeFromString(OAuthRefreshResponse.serializer(), resp.body?.string() ?: return@use null)
-                cred.copy(accessToken = tr.accessToken, refreshToken = tr.refreshToken,
-                    expiresAt = System.currentTimeMillis() + tr.expiresIn * 1000L, lastVerifiedAt = System.currentTimeMillis())
+                if (!resp.isSuccessful) {
+                    val errorBody = resp.body?.string()
+                    Log.w("CodexRepository", "token refresh failed: HTTP ${resp.code} ${resp.message} body=$errorBody")
+                    DebugLog.e(TAG, "token refresh failed: HTTP ${resp.code} ${resp.message}" +
+                        (errorBody?.take(200)?.let { " | $it" } ?: ""))
+                    // 解析 OpenAI 错误响应，给出用户可读的提示
+                    val reason = parseRefreshError(resp.code, errorBody)
+                    return@use RefreshResult.Failure(reason)
+                }
+                val bodyStr = resp.body?.string() ?: return@use RefreshResult.Failure("响应体为空")
+                val tr = json.decodeFromString(OAuthRefreshResponse.serializer(), bodyStr)
+                // OpenAI 轮换 refresh_token：响应中可能含新 refresh_token，也可能不含（不轮换时）
+                RefreshResult.Success(cred.copy(
+                    accessToken = tr.accessToken,
+                    refreshToken = tr.refreshToken ?: cred.refreshToken,
+                    expiresAt = System.currentTimeMillis() + tr.expiresIn * 1000L,
+                    lastVerifiedAt = System.currentTimeMillis()
+                ))
             }
-        } catch (e: Exception) { null }
+        } catch (e: Exception) {
+            Log.w("CodexRepository", "token refresh exception: ${e::class.simpleName}: ${e.message}")
+            DebugLog.e(TAG, "token refresh exception: ${e::class.simpleName}: ${e.message}")
+            RefreshResult.Failure("网络异常: ${e::class.simpleName}: ${e.message}")
+        }
+    }
+
+    /** 把 OpenAI token endpoint 的错误响应翻译成用户可读的中文提示 */
+    private fun parseRefreshError(httpCode: Int, errorBody: String?): String {
+        if (errorBody == null) return "HTTP $httpCode，无错误详情"
+        // 尝试提取 error.message 字段
+        val msg = try {
+            json.parseToJsonElement(errorBody).jsonObject["error"]?.jsonObject?.get("message")?.jsonPrimitive?.content
+        } catch (_: Exception) { null }
+        return when {
+            msg != null && msg.contains("already been used") ->
+                "refresh_token 已被使用（被其他工具轮换），请重新导出 auth.json 并导入"
+            msg != null && msg.contains("sign in", ignoreCase = true) ->
+                "refresh_token 已失效，请重新登录获取新 auth.json"
+            httpCode == 401 && msg != null -> "认证失败: $msg"
+            httpCode == 401 -> "认证失败 (HTTP 401)，refresh_token 可能已过期"
+            httpCode == 400 && msg != null -> "请求参数错误: $msg"
+            else -> "HTTP $httpCode: ${msg ?: errorBody.take(100)}"
+        }
     }
 
     private fun fetchJson(url: String, token: String): JsonObject {
@@ -115,7 +178,11 @@ class CodexRepository(
             .header("Authorization", "Bearer $token").get().build()
         val resp = okHttpClient.newCall(request).execute()
         resp.use {
-            if (!it.isSuccessful) throw if (it.code in listOf(401, 403)) RepositoryError.InvalidCredential() else RepositoryError.ServerError(it.code)
+            if (!it.isSuccessful) {
+                Log.w("CodexRepository", "fetchJson failed: HTTP ${it.code} ${it.message} url=$url")
+                DebugLog.e(TAG, "fetchJson failed: HTTP ${it.code} ${it.message} url=$url")
+                throw if (it.code in listOf(401, 403)) RepositoryError.InvalidCredential("HTTP ${it.code}") else RepositoryError.ServerError(it.code)
+            }
             return json.parseToJsonElement(it.body?.string() ?: throw RepositoryError.ParseError("响应体为空")).jsonObject
         }
     }
@@ -142,6 +209,5 @@ class CodexRepository(
 
     private fun durationLabel(seconds: Long?): String = when { seconds == null -> "Usage"; seconds / 60.0 >= 10079 -> "每周"; seconds / 60.0 >= 1439 -> "${(seconds / 86400).toInt()}d"; seconds / 60.0 >= 60 -> "${(seconds / 3600).toInt()}h"; else -> "${maxOf(1, (seconds / 60).toInt())}m" }
 
-    @Serializable data class OAuthRefreshRequest(@kotlinx.serialization.SerialName("grant_type") val grantType: String, @kotlinx.serialization.SerialName("refresh_token") val refreshToken: String, @kotlinx.serialization.SerialName("client_id") val clientId: String, val scope: String)
-    @Serializable data class OAuthRefreshResponse(@kotlinx.serialization.SerialName("access_token") val accessToken: String, @kotlinx.serialization.SerialName("refresh_token") val refreshToken: String, @kotlinx.serialization.SerialName("expires_in") val expiresIn: Long, @kotlinx.serialization.SerialName("token_type") val tokenType: String? = null)
+    @Serializable data class OAuthRefreshResponse(@kotlinx.serialization.SerialName("access_token") val accessToken: String, @kotlinx.serialization.SerialName("refresh_token") val refreshToken: String? = null, @kotlinx.serialization.SerialName("expires_in") val expiresIn: Long = 3600, @kotlinx.serialization.SerialName("token_type") val tokenType: String? = null)
 }

@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -137,8 +138,8 @@ fun ServiceDetailScreen(
                     item { CommandCodeGoUsageCard(uiState.state) }
                 }
                 ServiceType.CODEX -> {
-                    // Codex 详情：暂无专用详情卡片，用通用余额展示即可
-                }
+                item { CodexUsageCard(uiState.state) }
+            }
                 ServiceType.OLLAMA -> {
                     item { OllamaUsageCard(uiState.state) }
                 }
@@ -211,7 +212,7 @@ private fun CommandCodeGoUsageCard(state: State) {
             val fiveHourUsed = extras["fiveHour.used"]?.toDoubleOrNull()
             val fiveHourCap = extras["fiveHour.cap"]?.toDoubleOrNull()
             if (fiveHourUsed != null && fiveHourCap != null && fiveHourCap > 0) {
-                val pct = ((fiveHourUsed / fiveHourCap) * 100).toInt().coerceIn(0, 100)
+                val pct = ((fiveHourUsed / fiveHourCap) * 100).toFloat().coerceIn(0f, 100f)
                 UsageWindowRow(
                     label = "5 小时滚动",
                     pct = pct,
@@ -226,7 +227,7 @@ private fun CommandCodeGoUsageCard(state: State) {
             val weeklyUsed = extras["weekly.used"]?.toDoubleOrNull()
             val weeklyCap = extras["weekly.cap"]?.toDoubleOrNull()
             if (weeklyUsed != null && weeklyCap != null && weeklyCap > 0) {
-                val pct = ((weeklyUsed / weeklyCap) * 100).toInt().coerceIn(0, 100)
+                val pct = ((weeklyUsed / weeklyCap) * 100).toFloat().coerceIn(0f, 100f)
                 UsageWindowRow(
                     label = "本周",
                     pct = pct,
@@ -240,7 +241,7 @@ private fun CommandCodeGoUsageCard(state: State) {
             // 3. 本月（最下面）
             if (monthlyTotal != null && monthlyTotal > 0) {
                 val used = monthlyTotal - monthlyRemaining
-                val pct = ((used / monthlyTotal) * 100).toInt().coerceIn(0, 100)
+                val pct = ((used / monthlyTotal) * 100).toFloat().coerceIn(0f, 100f)
                 UsageWindowRow(
                     label = "本月",
                     pct = pct,
@@ -314,7 +315,7 @@ private fun OpenCodeGoWindowsCard(state: State) {
             Spacer(modifier = Modifier.height(12.dp))
             UsageWindowRow(
                 label = "5 小时滚动",
-                pct = extras["rolling.pct"]?.toIntOrNull(),
+                pct = extras["rolling.pct"]?.toFloatOrNull(),
                 resetInSec = extras["rolling.resetInSec"]?.toLongOrNull()
             )
             Spacer(modifier = Modifier.height(14.dp))
@@ -322,7 +323,7 @@ private fun OpenCodeGoWindowsCard(state: State) {
             Spacer(modifier = Modifier.height(14.dp))
             UsageWindowRow(
                 label = "本周",
-                pct = extras["weekly.pct"]?.toIntOrNull(),
+                pct = extras["weekly.pct"]?.toFloatOrNull(),
                 resetInSec = extras["weekly.resetInSec"]?.toLongOrNull()
             )
             Spacer(modifier = Modifier.height(14.dp))
@@ -330,7 +331,7 @@ private fun OpenCodeGoWindowsCard(state: State) {
             Spacer(modifier = Modifier.height(14.dp))
             UsageWindowRow(
                 label = "本月",
-                pct = extras["monthly.pct"]?.toIntOrNull(),
+                pct = extras["monthly.pct"]?.toFloatOrNull(),
                 resetInSec = extras["monthly.resetInSec"]?.toLongOrNull()
             )
         }
@@ -338,8 +339,8 @@ private fun OpenCodeGoWindowsCard(state: State) {
 }
 
 @Composable
-private fun UsageWindowRow(label: String, pct: Int?, resetInSec: Long?) {
-    val pctValue = (pct ?: 0).coerceIn(0, 100).toFloat()
+private fun UsageWindowRow(label: String, pct: Float?, resetInSec: Long?, decimals: Int = 0) {
+    val pctValue = (pct ?: 0f).coerceIn(0f, 100f)
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -353,7 +354,7 @@ private fun UsageWindowRow(label: String, pct: Int?, resetInSec: Long?) {
             )
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
-                    text = (pct ?: 0).toString(),
+                    text = String.format(Locale.US, "%.${decimals}f", pctValue),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -388,6 +389,96 @@ private fun UsageWindowRow(label: String, pct: Int?, resetInSec: Long?) {
             )
         }
     }
+}
+
+/**
+ * Codex 专属：用量窗口进度卡。
+ *
+ * 数据从 balance.extras 中的 window_*.label / remainingPct / resetAt 解析，
+ * 展示每个窗口的已用百分比与重置倒计时。
+ */
+@Composable
+private fun CodexUsageCard(state: State) {
+    val balance = when (state) {
+        is State.Fresh -> state.data
+        is State.Stale -> state.data
+        is State.Error -> state.cached
+        else -> null
+    }
+    val extras = balance?.extras ?: return
+    val plan = extras["plan"].orEmpty()
+    val windows = remember(extras) { extractCodexWindows(extras) }
+    if (windows.isEmpty()) return
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "用量窗口",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = inkMuted()
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                if (plan.isNotBlank()) {
+                    Text(
+                        text = plan,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = StrawberryPink,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            windows.forEachIndexed { index, window ->
+                if (index > 0) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
+                val resetInSec = window.resetAt?.let {
+                    (it - System.currentTimeMillis()) / 1000
+                }?.takeIf { it > 0 }
+                UsageWindowRow(
+                    label = window.label,
+                    pct = window.usedPct,
+                    resetInSec = resetInSec,
+                    decimals = 2
+                )
+            }
+        }
+    }
+}
+
+private data class CodexWindow(
+    val label: String,
+    val usedPct: Float,
+    val resetAt: Long?
+)
+
+private fun extractCodexWindows(extras: Map<String, String>): List<CodexWindow> {
+    val result = mutableListOf<CodexWindow>()
+    var i = 0
+    while (true) {
+        val rawLabel = extras["window_${i}.label"] ?: break
+        val remaining = extras["window_${i}.remainingPct"]?.toFloatOrNull() ?: 0f
+        val resetAt = extras["window_${i}.resetAt"]?.toLongOrNull()?.takeIf { it > 0 }
+        val usedPct = (100f - remaining).coerceIn(0f, 100f)
+        result.add(CodexWindow(formatCodexWindowLabel(rawLabel), usedPct, resetAt))
+        i++
+    }
+    return result
+}
+
+private fun formatCodexWindowLabel(raw: String): String = when (raw.lowercase()) {
+    "5h" -> "5 小时"
+    "7d", "每周" -> "本周"
+    "30d", "每月" -> "本月"
+    else -> raw
 }
 
 /**
@@ -431,8 +522,9 @@ private fun OllamaUsageCard(state: State) {
             Spacer(modifier = Modifier.height(12.dp))
             UsageWindowRow(
                 label = "5 小时",
-                pct = extras["session.pct"]?.toFloatOrNull()?.toInt(),
-                resetInSec = extras["session.resetAt"]?.toLongOrNull()?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 }
+                pct = extras["session.pct"]?.toFloatOrNull(),
+                resetInSec = extras["session.resetAt"]?.toLongOrNull()?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 },
+                decimals = 2
             )
             if (sessionModels.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(10.dp))
@@ -443,8 +535,9 @@ private fun OllamaUsageCard(state: State) {
             Spacer(modifier = Modifier.height(14.dp))
             UsageWindowRow(
                 label = "每周",
-                pct = extras["weekly.pct"]?.toFloatOrNull()?.toInt(),
-                resetInSec = extras["weekly.resetAt"]?.toLongOrNull()?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 }
+                pct = extras["weekly.pct"]?.toFloatOrNull(),
+                resetInSec = extras["weekly.resetAt"]?.toLongOrNull()?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 },
+                decimals = 2
             )
             if (weeklyModels.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(10.dp))

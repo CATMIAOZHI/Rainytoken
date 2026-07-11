@@ -327,8 +327,13 @@ class CredentialEditViewModel @Inject constructor(
                 val accessToken = tokens["access_token"]?.jsonPrimitive?.content
                 val refreshToken = tokens["refresh_token"]?.jsonPrimitive?.content
                 val accountId = tokens["account_id"]?.jsonPrimitive?.content ?: ""
+                // 支持三种过期时间格式：
+                //   expiresAt / expires_at → epoch 毫秒（绝对时间）
+                //   expires_in → 相对秒数（token 有效期），转为 now + seconds*1000
+                //   无该字段 → 默认 10 天后过期（假定 token 尚未到期）
                 val expiresAt = tokens["expiresAt"]?.jsonPrimitive?.content?.toLongOrNull()
                     ?: tokens["expires_at"]?.jsonPrimitive?.content?.toLongOrNull()
+                    ?: tokens["expires_in"]?.jsonPrimitive?.content?.toLongOrNull()?.let { System.currentTimeMillis() + it * 1000L }
                     ?: System.currentTimeMillis() + 10L * 24 * 3600 * 1000
 
                 if (accessToken.isNullOrBlank() || refreshToken.isNullOrBlank()) {

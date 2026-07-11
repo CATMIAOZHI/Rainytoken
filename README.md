@@ -50,6 +50,8 @@ Android AI 余额与用量查询 APP —— 统一查看 DeepSeek、OpenCode Go�
 | 💡 **使用小技巧** | 首页随机展示一条操作提示（每次启动刷新）；设置页可查看全部 13 条隐藏操作技巧 |
 | ⚡ **Room 数据库** | 用量记录存 Room（indexed on workspaceId+timeCreated），DAO 查询替代全量 JSON 序列化；首次启动自动从旧 DataStore 迁移 |
 | 🎀 **雨晴粉主题** | Material Design 3 · 草莓粉 #FF85A2 · 樱粉 #FFD1DC |
+| 🔐 **Codex OAuth 登录** | 无头模式 OAuth PKCE：APP 生成授权链接 → 外部浏览器登录 → 粘贴回调 URL 完成授权，无需手动导出 auth.json |
+| 🐛 **调试日志** | APP 内「调试日志」页面，查看 Repository 网络请求、Token 刷新、解析错误等详细日志，无需连接电脑 |
 
 ---
 
@@ -57,7 +59,7 @@ Android AI 余额与用量查询 APP —— 统一查看 DeepSeek、OpenCode Go�
 
 前往 [Releases](https://github.com/CATMIAOZHI/Rainytoken/releases) 下载最新 APK。
 
-> ⚠️ 需要配置 DeepSeek API Key、OpenCode Go 登录凭据、CommandCode Go API Key、Codex auth.json 或 Ollama Pro Cookie 才能拉取数据。
+> ⚠️ 需要配置 DeepSeek API Key、OpenCode Go 登录凭据、CommandCode Go API Key、Codex（OAuth 登录或粘贴 auth.json）或 Ollama Pro Cookie 才能拉取数据。
 
 ---
 

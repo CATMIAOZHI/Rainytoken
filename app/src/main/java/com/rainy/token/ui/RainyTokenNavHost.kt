@@ -35,6 +35,7 @@ import androidx.navigation.navArgument
 import com.rainy.token.data.repository.CommandCodeUsageRepository
 import com.rainy.token.domain.service.ServiceType
 import com.rainy.token.ui.components.rememberWindowSizeClass
+import com.rainy.token.ui.components.DebugLogScreen
 import com.rainy.token.ui.components.TipsScreen
 import com.rainy.token.ui.dashboard.DashboardScreen
 import com.rainy.token.ui.dashboard.UsageChartViewModel
@@ -48,6 +49,7 @@ import com.rainy.token.ui.settings.CredentialEditScreen
 import com.rainy.token.ui.settings.SettingsScreen
 import com.rainy.token.ui.theme.inkMuted
 import com.rainy.token.ui.theme.StrawberryPink
+import com.rainy.token.ui.webview.CodexOAuthScreen
 import com.rainy.token.ui.webview.WebViewLoginScreen
 
 /**
@@ -63,6 +65,8 @@ object Routes {
     const val DASHBOARD = "dashboard"
     const val SETTINGS = "settings"
     const val TIPS = "tips"
+    const val DEBUG_LOG = "debug_log"
+    const val CODEX_OAUTH = "codex_oauth"
     const val CREDENTIAL_EDIT = "credential_edit/{type}"
     fun credentialEdit(type: ServiceType) = "credential_edit/${type.name}"
     const val WEBVIEW_LOGIN = "webview_login/{type}"
@@ -243,11 +247,21 @@ private fun CompactNavHost() {
             SettingsScreen(
                 onBack = guardedPop,
                 onEditCredential = { type -> navController.navigate(Routes.credentialEdit(type)) },
-                onOpenTips = { navController.navigate(Routes.TIPS) }
+                onOpenTips = { navController.navigate(Routes.TIPS) },
+                onOpenDebugLog = { navController.navigate(Routes.DEBUG_LOG) }
             )
         }
         composable(Routes.TIPS) {
             TipsScreen(onBack = guardedPop)
+        }
+        composable(Routes.DEBUG_LOG) {
+            DebugLogScreen(onBack = guardedPop)
+        }
+        composable(Routes.CODEX_OAUTH) {
+            CodexOAuthScreen(
+                onBack = guardedPop,
+                onSuccess = guardedPop
+            )
         }
         composable(
             route = Routes.CREDENTIAL_EDIT,
@@ -258,7 +272,8 @@ private fun CompactNavHost() {
                 service = type,
                 onBack = guardedPop,
                 onStartWebViewLogin = { service -> navController.navigate(Routes.webviewLogin(service)) },
-                onWebViewLoginSuccess = { }
+                onWebViewLoginSuccess = { },
+                onStartCodexOAuth = { navController.navigate(Routes.CODEX_OAUTH) }
             )
         }
         composable(
@@ -422,11 +437,21 @@ private fun ExpandedDetailPane(
                         onEditCredential = { type ->
                             settingsNavController.navigate(Routes.credentialEdit(type))
                         },
-                        onOpenTips = { settingsNavController.navigate("tips") }
+                        onOpenTips = { settingsNavController.navigate("tips") },
+                        onOpenDebugLog = { settingsNavController.navigate("debug_log") }
                     )
                 }
                 composable("tips") {
                     TipsScreen(onBack = { settingsNavController.popBackStack() })
+                }
+                composable("debug_log") {
+                    DebugLogScreen(onBack = { settingsNavController.popBackStack() })
+                }
+                composable(Routes.CODEX_OAUTH) {
+                    CodexOAuthScreen(
+                        onBack = { settingsNavController.popBackStack() },
+                        onSuccess = { settingsNavController.popBackStack() }
+                    )
                 }
                 composable(
                     route = Routes.CREDENTIAL_EDIT,
@@ -439,7 +464,8 @@ private fun ExpandedDetailPane(
                         onStartWebViewLogin = { svc ->
                             settingsNavController.navigate(Routes.webviewLogin(svc))
                         },
-                        onWebViewLoginSuccess = { }
+                        onWebViewLoginSuccess = { },
+                        onStartCodexOAuth = { settingsNavController.navigate(Routes.CODEX_OAUTH) }
                     )
                 }
                 composable(
