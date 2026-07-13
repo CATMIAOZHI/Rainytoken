@@ -410,6 +410,9 @@ private fun CodexUsageCard(state: State) {
     val windows = remember(extras) { extractCodexWindows(extras) }
     if (windows.isEmpty()) return
 
+    // 判断是否有 5h 窗口
+    val has5h = windows.any { it.label.contains("5") && it.label.contains("小时") }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -434,6 +437,20 @@ private fun CodexUsageCard(state: State) {
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
+
+            // 没有 5h 窗口时，在顶部插入空槽位
+            if (!has5h) {
+                UsageWindowRow(
+                    label = "5 小时",
+                    pct = null,
+                    resetInSec = null,
+                    decimals = 2
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+
             windows.forEachIndexed { index, window ->
                 if (index > 0) {
                     Spacer(modifier = Modifier.height(14.dp))
@@ -850,7 +867,7 @@ private fun mainCardLabel(service: ServiceType): String = when (service) {
     ServiceType.DEEPSEEK -> "当前余额"
     ServiceType.OPENCODE_GO -> "5h 实时用量"
     ServiceType.COMMANDCODE_GO -> "月度余额"
-    ServiceType.CODEX -> "5h 已用量"
+    ServiceType.CODEX -> "用量"
     ServiceType.OLLAMA -> "Session 用量"
 }
 

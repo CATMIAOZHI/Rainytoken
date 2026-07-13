@@ -226,6 +226,7 @@ internal fun CodexMainBalance(balance: ServiceBalance) {
     val plan = balance.extras["plan"]?.let {
         when (it) { "plus" -> "Plus"; "pro" -> "Pro"; "free" -> "Free"; else -> it.replaceFirstChar { c -> c.uppercaseChar() } }
     } ?: "—"
+    val primaryLabel = formatCodexPrimaryLabel(balance.extras["primary.label"])
     Row(verticalAlignment = Alignment.Bottom) {
         Text(
             text = formatAmount(balance.amount),
@@ -242,7 +243,7 @@ internal fun CodexMainBalance(balance: ServiceBalance) {
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "5h 已用",
+            text = "$primaryLabel 已用",
             style = MaterialTheme.typography.titleMedium,
             color = inkMuted(),
             modifier = Modifier.padding(bottom = 6.dp)
@@ -255,6 +256,16 @@ internal fun CodexMainBalance(balance: ServiceBalance) {
             modifier = Modifier.padding(bottom = 6.dp)
         )
     }
+}
+
+/** 把 Codex API 返回的 primary label 转成中文短标签 */
+internal fun formatCodexPrimaryLabel(raw: String?): String = when (raw?.lowercase()) {
+    "5h" -> "5h"
+    "7d", "每周" -> "每周"
+    "30d", "每月" -> "每月"
+    "usage" -> "用量"
+    null -> "5h"
+    else -> raw
 }
 
 @Composable
@@ -272,10 +283,17 @@ internal fun CodexUsageWindows(balance: ServiceBalance) {
         Triple(label, remainingPct, resetAt)
     }
 
+    // 判断是否有 5h 窗口（用于保留空槽位）
+    val has5h = windows.any { it.first.contains("5") && it.first.contains("小时") }
+
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (windows.isEmpty()) {
             CompactUsageRowEmpty(label = "Usage", resetInSec = null)
         } else {
+            // 如果没有 5h 窗口，在顶部插入一个空的 5h 槽位（保留位置，等恢复后自动填充）
+            if (!has5h) {
+                CompactUsageRowEmpty(label = "5 小时", resetInSec = null)
+            }
             windows.forEach { (label, remainingPct, resetAt) ->
                 if (remainingPct != null) {
                     val usedPct = (100 - remainingPct).coerceIn(0, 100)

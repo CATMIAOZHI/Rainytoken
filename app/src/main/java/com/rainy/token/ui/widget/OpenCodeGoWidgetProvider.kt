@@ -177,20 +177,34 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                     resetSec = extras["monthly.resetInSec"]?.toLongOrNull())
             }
             ServiceType.CODEX -> {
-                val windows = (0 until 3).map { index ->
-                    val label = normalizeWindowLabel(extras["window_$index.label"] ?: if (index == 0) "5h" else "Usage")
+                val windowCount = extras.keys
+                    .mapNotNull { key -> key.removePrefix("window_").substringBefore('.').toIntOrNull() }
+                    .distinct().maxOrNull()?.plus(1) ?: 0
+                val windows = (0 until windowCount).map { index ->
+                    val label = normalizeWindowLabel(extras["window_$index.label"] ?: "Usage")
                     val remaining = extras["window_$index.remainingPct"]?.toIntOrNull()
                     val resetAt = extras["window_$index.resetAt"]?.toLongOrNull()?.takeIf { it > 0 }
                     Triple(label, remaining?.let { (100 - it).coerceIn(0, 100) }, resetAt?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 })
                 }
-                setRowLabel(views, windows.getOrNull(0)?.first ?: "5h", windows.getOrNull(1)?.first ?: "周", windows.getOrNull(2)?.first ?: "月")
+                // 判断是否有 5h 窗口
+                val has5h = windows.any { it.first.contains("5") }
+                // 始终保留 5h 槽位在第一行
+                val row1 = if (!has5h) {
+                    Triple("5h", null, null)
+                } else {
+                    windows.firstOrNull { it.first.contains("5") } ?: windows.getOrNull(0) ?: Triple("5h", null, null)
+                }
+                val otherWindows = windows.filter { it != row1 }
+                val row2 = otherWindows.getOrNull(0) ?: Triple("每周", null, null)
+                val row3 = otherWindows.getOrNull(1) ?: Triple("每月", null, null)
+                setRowLabel(views, row1.first, row2.first, row3.first)
                 listOf(
                     Triple(R.id.row1_pct, R.id.row1_bar, R.id.row1_reset),
                     Triple(R.id.row2_pct, R.id.row2_bar, R.id.row2_reset),
                     Triple(R.id.row3_pct, R.id.row3_bar, R.id.row3_reset)
                 ).forEachIndexed { index, ids ->
-                    val window = windows.getOrNull(index)
-                    populateRow(views, ids.first, ids.second, ids.third, pct = window?.second, resetSec = window?.third)
+                    val window = when (index) { 0 -> row1; 1 -> row2; else -> row3 }
+                    populateRow(views, ids.first, ids.second, ids.third, pct = window.second, resetSec = window.third)
                 }
             }
             ServiceType.DEEPSEEK -> setEmptyState(views)

@@ -10,6 +10,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.floatOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -84,7 +86,12 @@ class CodexRepository(
             } else return@withContext Result.failure(e)
         } catch (e: Throwable) { return@withContext Result.failure(RepositoryError.Unknown(e)) }
 
-        val windows = parseUsageWindows(usageResult)
+        val windows = try {
+            parseUsageWindows(usageResult)
+        } catch (e: Exception) {
+            DebugLog.e(TAG, "解析 Codex 用量失败: ${e::class.simpleName}: ${e.message}")
+            return@withContext Result.failure(RepositoryError.ParseError("Codex 用量响应格式异常: ${e.message ?: e::class.simpleName}"))
+        }
         if (windows.isEmpty()) return@withContext Result.failure(RepositoryError.ParseError("未找到 Codex 用量窗口数据"))
 
         val config = ServiceConfigProvider.get(ServiceType.CODEX)
@@ -95,9 +102,10 @@ class CodexRepository(
                 put("window_$i.remainingPct", w.remainingPct.toString())
                 put("window_$i.resetAt", w.resetAt?.toString() ?: "")
             }
-            usageResult["plan_type"]?.jsonPrimitive?.content?.let { put("plan", it) }
-            usageResult["credits"]?.jsonObject?.let { c ->
-                c["balance"]?.jsonPrimitive?.floatOrNull?.let { put("usageCredits", it.toString()) }
+            put("primary.label", primary.label)
+            (usageResult["plan_type"] as? JsonPrimitive)?.contentOrNull?.let { put("plan", it) }
+            (usageResult["credits"] as? JsonObject)?.let { c ->
+                (c["balance"] as? JsonPrimitive)?.floatOrNull?.let { put("usageCredits", it.toString()) }
             }
         }
         val balance = ServiceBalance(ServiceType.CODEX, (100 - primary.remainingPct).coerceIn(0, 100).toDouble(), config.displayUnit, true, null, null, primary.resetAt, extras)
@@ -154,7 +162,11 @@ class CodexRepository(
         if (errorBody == null) return "HTTP $httpCode，无错误详情"
         // 尝试提取 error.message 字段
         val msg = try {
-            json.parseToJsonElement(errorBody).jsonObject["error"]?.jsonObject?.get("message")?.jsonPrimitive?.content
+            (json.parseToJsonElement(errorBody) as? JsonObject)?.let { root ->
+                (root["error"] as? JsonObject)?.let { err ->
+                    (err["message"] as? JsonPrimitive)?.contentOrNull
+                }
+            }
         } catch (_: Exception) { null }
         return when {
             msg != null && msg.contains("already been used") ->
@@ -183,7 +195,8 @@ class CodexRepository(
                 DebugLog.e(TAG, "fetchJson failed: HTTP ${it.code} ${it.message} url=$url")
                 throw if (it.code in listOf(401, 403)) RepositoryError.InvalidCredential("HTTP ${it.code}") else RepositoryError.ServerError(it.code)
             }
-            return json.parseToJsonElement(it.body?.string() ?: throw RepositoryError.ParseError("响应体为空")).jsonObject
+            return (json.parseToJsonElement(it.body?.string() ?: throw RepositoryError.ParseError("响应体为空")) as? JsonObject)
+                ?: throw RepositoryError.ParseError("响应根节点不是 JSON 对象")
         }
     }
 
@@ -194,15 +207,15 @@ class CodexRepository(
         fun addWindows(rl: JsonObject?) {
             if (rl == null) return
             for (key in listOf("primary_window", "secondary_window")) {
-                val w = rl[key]?.jsonObject ?: continue
-                val usedPct = w["used_percent"]?.jsonPrimitive?.floatOrNull ?: continue
+                val w = rl[key] as? JsonObject ?: continue
+                val usedPct = (w["used_percent"] as? JsonPrimitive)?.floatOrNull ?: continue
                 val remaining = (100 - usedPct).toInt().coerceIn(0, 100)
-                result.add(UsageWindow(durationLabel(w["limit_window_seconds"]?.jsonPrimitive?.longOrNull), remaining, w["reset_at"]?.jsonPrimitive?.longOrNull?.times(1000L)))
+                result.add(UsageWindow(durationLabel((w["limit_window_seconds"] as? JsonPrimitive)?.longOrNull), remaining, (w["reset_at"] as? JsonPrimitive)?.longOrNull?.times(1000L)))
             }
         }
-        addWindows(data["rate_limit"]?.jsonObject)
+        addWindows(data["rate_limit"] as? JsonObject)
         (data["additional_rate_limits"] as? kotlinx.serialization.json.JsonArray)?.forEach { item ->
-            if (item is JsonObject) addWindows(item["rate_limit"]?.jsonObject)
+            if (item is JsonObject) addWindows(item["rate_limit"] as? JsonObject)
         }
         return result
     }
