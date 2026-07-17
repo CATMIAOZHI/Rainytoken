@@ -171,7 +171,8 @@ fun CredentialEditScreen(
                                 onShowHelp = { showGoHelp = true }
                             )
                         } else {
-                        // 通用 WebView 抓取 / 手动模式
+                        // 通用 WebView 抓取已移除（半成品功能，凭据无法正确映射到 Repository 字段）
+                        // 保留手动 Cookie 粘贴作为 fallback
                         ManualCookieForm(
                             cookieValue = uiState.cookieInput,
                             onCookieChange = viewModel::updateCookieInput,
@@ -184,12 +185,6 @@ fun CredentialEditScreen(
                             },
                             onShowHelp = { showCookieHelp = true }
                         )
-                        OutlinedButton(
-                            onClick = { onStartWebViewLogin(service) },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(text = "尝试 WebView 登录（备用）")
-                        }
                         if (uiState.hasExisting) {
                             Text(
                                 text = "✓ 已配置登录态（${uiState.cookieCount} 个 Cookie）",

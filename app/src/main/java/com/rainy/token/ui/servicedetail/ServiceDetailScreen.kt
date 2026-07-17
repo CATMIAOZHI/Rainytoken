@@ -1003,7 +1003,7 @@ private fun ActionButtons(
                 Text("刷新余额")
             }
             OutlinedButton(
-                onClick = onStartWebViewLogin,
+                onClick = onConfigureCredential,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("重新登录")

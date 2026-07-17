@@ -14,8 +14,8 @@ android {
         applicationId = "com.rainy.token"
         minSdk = 31
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 5
+        versionName = "1.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -26,9 +26,9 @@ android {
     signingConfigs {
         create("release") {
             storeFile = rootProject.file("release.jks")
-            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "RainyToken2026!"
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
             keyAlias = System.getenv("KEYSTORE_ALIAS") ?: "rainy"
-            keyPassword = System.getenv("KEY_PASSWORD") ?: "RainyToken2026!"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: ""
         }
     }
 

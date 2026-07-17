@@ -52,7 +52,7 @@ class CommandCodeGoRepository(
             return@withContext Result.failure(RepositoryError.InvalidCredential())
         }
 
-        // 并行拉取 credits + subscriptions
+        // 顺序拉取 credits + subscriptions（credits 是主要数据源，subscription 用于补充计划信息）
         val creditsResult = runCatching { fetchCredits(apiKey) }
         val subResult = runCatching { fetchSubscription(apiKey) }
 

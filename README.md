@@ -185,9 +185,9 @@ chmod +x ./setup_android_env.sh
 
 - ✅ API Key / Session 凭据存入 **Android Keystore**（AES-256 GCM 加密）
 - ✅ 网络请求仅向 DeepSeek / OpenCode 官方 API 发出
-- ✅ API Key / Session 由 Android Keystore 加密；应用数据备份规则由 `data_extraction_rules.xml` / `backup_rules.xml` 控制
+- ✅ `allowBackup=false`：凭据密文、用量数据均不参与系统备份，避免换机恢复后密文无法解密
 - ✅ 签名密钥固定，每次 Release 可覆盖安装
-- ✅ GitHub Secrets 加密存储签名密钥，CI 中解码使用
+- ✅ GitHub Secrets 加密存储签名密钥及密码，CI 中解码使用
 
 ---
 
