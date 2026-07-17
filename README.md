@@ -51,6 +51,7 @@ Android AI 余额与用量查询 APP —— 统一查看 DeepSeek、OpenCode Go�
 | ⚡ **Room 数据库** | 用量记录存 Room（indexed on workspaceId+timeCreated），DAO 查询替代全量 JSON 序列化；首次启动自动从旧 DataStore 迁移 |
 | 🎀 **雨晴粉主题** | Material Design 3 · 草莓粉 #FF85A2 · 樱粉 #FFD1DC |
 | 🔐 **Codex OAuth 登录** | 无头模式 OAuth PKCE：APP 生成授权链接 → 外部浏览器登录 → 粘贴回调 URL 完成授权，无需手动导出 auth.json |
+| ⚡ **Codex 一键激活用量** | Codex 详情页可向 ChatGPT API 发送简短请求触发用量统计；模型列表从 models.dev 动态获取并持久化，支持手动刷新；响应弹窗可复制 |
 | 🐛 **调试日志** | APP 内「调试日志」页面，查看 Repository 网络请求、Token 刷新、解析错误等详细日志，无需连接电脑 |
 
 ---

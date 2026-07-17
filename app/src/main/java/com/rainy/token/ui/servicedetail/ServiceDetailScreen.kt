@@ -10,32 +10,44 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -83,8 +95,19 @@ fun ServiceDetailScreen(
 ) {
     LaunchedEffect(service) { viewModel.bind(service) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val triggerState by viewModel.triggerState.collectAsStateWithLifecycle()
+    val models by viewModel.models.collectAsStateWithLifecycle()
+    val selectedModel by viewModel.selectedModel.collectAsStateWithLifecycle()
+    val modelsLoading by viewModel.modelsLoading.collectAsStateWithLifecycle()
     val config = ServiceConfigProvider.get(service)
     val isManualMode = config.method == FetchMethod.MANUAL
+
+    // Codex 服务且有凭据时自动加载模型列表
+    LaunchedEffect(service, uiState.hasCredential) {
+        if (service == ServiceType.CODEX && uiState.hasCredential) {
+            viewModel.loadModels()
+        }
+    }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -164,12 +187,39 @@ fun ServiceDetailScreen(
                     state = uiState.state,
                     hasCredential = uiState.hasCredential,
                     isManualMode = isManualMode,
+                    service = service,
+                    triggerState = triggerState,
+                    models = models,
+                    selectedModel = selectedModel,
+                    modelsLoading = modelsLoading,
                     onRefresh = { viewModel.refresh() },
                     onConfigureCredential = { onConfigureCredential(service) },
-                    onStartWebViewLogin = { onStartWebViewLogin(service) }
+                    onStartWebViewLogin = { onStartWebViewLogin(service) },
+                    onTriggerUsage = { viewModel.triggerCodexUsage() },
+                    onSelectModel = { viewModel.selectModel(it) },
+                    onRefreshModels = { viewModel.loadModels(force = true) }
                 )
             }
         }
+    }
+
+    // 响应弹窗（成功和失败都弹）
+    when (triggerState) {
+        is TriggerState.Success -> ResponseDialog(
+            title = "✓ 用量已激活",
+            responseBody = (triggerState as TriggerState.Success).responseBody,
+            isError = false,
+            onDismiss = { viewModel.dismissTrigger() }
+        )
+        is TriggerState.Error -> ResponseDialog(
+            title = "请求结果",
+            responseBody = (triggerState as TriggerState.Error).let { 
+                "错误: ${it.message}" + (it.responseBody?.let { body -> "\n\n响应内容:\n$body" } ?: "")
+            },
+            isError = true,
+            onDismiss = { viewModel.dismissTrigger() }
+        )
+        else -> {}
     }
 }
 
@@ -823,11 +873,121 @@ private fun ActionButtons(
     state: State,
     hasCredential: Boolean,
     isManualMode: Boolean,
+    service: ServiceType,
+    triggerState: TriggerState,
+    models: List<String>,
+    selectedModel: String?,
+    modelsLoading: Boolean,
     onRefresh: () -> Unit,
     onConfigureCredential: () -> Unit,
-    onStartWebViewLogin: () -> Unit
+    onStartWebViewLogin: () -> Unit,
+    onTriggerUsage: () -> Unit,
+    onSelectModel: (String) -> Unit,
+    onRefreshModels: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Codex 一键激活用量区域
+        if (service == ServiceType.CODEX && hasCredential && !isManualMode) {
+            // 模型选择器 + 刷新按钮
+            if (modelsLoading) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.height(16.dp).width(16.dp),
+                        color = StrawberryPink,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("加载模型列表...", style = MaterialTheme.typography.bodySmall, color = inkMuted())
+                }
+            } else if (models.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "选择模型",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = inkMuted()
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    IconButton(
+                        onClick = onRefreshModels,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Refresh,
+                            contentDescription = "刷新模型列表",
+                            tint = StrawberryPink,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+                ModelDropdown(
+                    models = models,
+                    selectedModel = selectedModel,
+                    onSelect = onSelectModel
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+
+            // 激活按钮
+            when (triggerState) {
+                TriggerState.Loading -> {
+                    Button(
+                        onClick = {},
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = false,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = StrawberryPink,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.height(16.dp).width(16.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("激活中...")
+                    }
+                }
+                is TriggerState.Error -> {
+                    OutlinedButton(
+                        onClick = onTriggerUsage,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = state !is State.Loading && selectedModel != null,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text("重试激活用量")
+                    }
+                    Text(
+                        text = triggerState.message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                }
+                TriggerState.Idle -> {
+                    OutlinedButton(
+                        onClick = onTriggerUsage,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = state !is State.Loading && selectedModel != null
+                    ) {
+                        Text("⚡ 一键激活用量")
+                    }
+                }
+                is TriggerState.Success -> {
+                    // Success 状态由弹窗展示，按钮不显示
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+        }
+
         if (hasCredential && !isManualMode) {
             Button(
                 onClick = onRefresh,
@@ -882,4 +1042,102 @@ private fun stateToChip(state: State): StatusStyle = when (state) {
 private fun formatTime(epochMillis: Long): String {
     val sdf = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
     return sdf.format(Date(epochMillis))
+}
+
+// ── Codex 一键激活用量：模型选择器 ──
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ModelDropdown(
+    models: List<String>,
+    selectedModel: String?,
+    onSelect: (String) -> Unit
+) {
+    var expanded by remember { androidx.compose.runtime.mutableStateOf(false) }
+    val display = selectedModel ?: "请选择模型"
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        OutlinedTextField(
+            value = display,
+            onValueChange = {},
+            readOnly = true,
+            modifier = Modifier.menuAnchor().fillMaxWidth(),
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyMedium
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            models.forEach { model ->
+                DropdownMenuItem(
+                    text = { Text(model) },
+                    onClick = {
+                        onSelect(model)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+// ── Codex 一键激活用量：响应弹窗 ──
+
+@Composable
+private fun ResponseDialog(
+    title: String,
+    responseBody: String,
+    isError: Boolean,
+    onDismiss: () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(title, fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column {
+                Text(
+                    text = if (isError) "错误详情：" else "API 响应内容：",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (isError) MaterialTheme.colorScheme.error else inkMuted()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                // 可复制的响应文本
+                SelectionContainer {
+                    Text(
+                        text = responseBody.take(5000),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = {
+                    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("API Response", responseBody))
+                }) {
+                    Text("复制")
+                }
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = StrawberryPink,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text("关闭")
+                }
+            }
+        }
+    )
 }

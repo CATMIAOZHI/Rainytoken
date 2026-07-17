@@ -4,8 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rainy.token.data.cache.BalanceCache
 import com.rainy.token.data.cache.CachedBalance
+import com.rainy.token.data.debug.DebugLog
 import com.rainy.token.data.repository.CredentialRepository
 import com.rainy.token.data.repository.RepositoryError
+import com.rainy.token.data.repository.TriggerError
 import com.rainy.token.domain.model.CredentialStatus
 import com.rainy.token.domain.model.ServiceBalance
 import com.rainy.token.domain.service.ServiceType
@@ -34,9 +36,38 @@ class ServiceDetailViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ServiceDetailUiState())
     val uiState: StateFlow<ServiceDetailUiState> = _uiState.asStateFlow()
 
+    /** Codex 一键激活用量状态 */
+    private val _triggerState = MutableStateFlow<TriggerState>(TriggerState.Idle)
+    val triggerState: StateFlow<TriggerState> = _triggerState.asStateFlow()
+
+    /** Codex 可用模型列表 */
+    private val _models = MutableStateFlow<List<String>>(emptyList())
+    val models: StateFlow<List<String>> = _models.asStateFlow()
+
+    /** 用户选中的模型（持久化） */
+    private val _selectedModel = MutableStateFlow<String?>(null)
+    val selectedModel: StateFlow<String?> = _selectedModel.asStateFlow()
+
+    /** 模型列表加载状态 */
+    private val _modelsLoading = MutableStateFlow(false)
+    val modelsLoading: StateFlow<Boolean> = _modelsLoading.asStateFlow()
+
+    companion object {
+        private const val CODEX_PREFS = "codex_trigger_prefs"
+        private const val KEY_SELECTED_MODEL = "selected_model"
+        private const val KEY_MODELS_CACHE = "models_cache"
+    }
+
     fun bind(service: ServiceType) {
         if (_serviceType.value == service) return
         _serviceType.value = service
+        // 恢复 Codex 持久化状态
+        if (service == ServiceType.CODEX) {
+            val savedModel = loadSelectedModel()
+            if (savedModel != null) _selectedModel.value = savedModel
+            val cachedModels = loadModelsCache()
+            if (cachedModels.isNotEmpty()) _models.value = cachedModels
+        }
         loadFromCache()
     }
 
@@ -77,6 +108,100 @@ class ServiceDetailViewModel @Inject constructor(
                     }
                 }
         }
+    }
+
+    /**
+     * 加载 Codex 可用模型列表（优先从缓存读取，首次才请求网络）。
+     * @param force true 时强制从网络刷新
+     */
+    fun loadModels(force: Boolean = false) {
+        if (!force && _models.value.isNotEmpty()) return
+        viewModelScope.launch {
+            _modelsLoading.value = true
+            val result = refreshBalanceUseCase.fetchCodexModels()
+            result
+                .onSuccess { list ->
+                    _models.value = list
+                    // 持久化模型列表缓存
+                    persistModelsCache(list)
+                    // 如果之前选中的模型不在新列表里，选第一个
+                    val current = _selectedModel.value
+                    if (current == null || !list.contains(current)) {
+                        _selectedModel.value = list.firstOrNull()
+                        persistSelectedModel(list.firstOrNull())
+                    }
+                }
+                .onFailure { error ->
+                    DebugLog.e("Codex", "加载模型列表失败: ${error.message}")
+                    // 网络失败时从缓存读
+                    if (_models.value.isEmpty()) {
+                        val cached = loadModelsCache()
+                        if (cached.isNotEmpty()) {
+                            _models.value = cached
+                            if (_selectedModel.value == null) {
+                                _selectedModel.value = cached.firstOrNull()
+                            }
+                        }
+                    }
+                }
+            _modelsLoading.value = false
+        }
+    }
+
+    /** 用户选择模型（持久化） */
+    fun selectModel(model: String) {
+        _selectedModel.value = model
+        persistSelectedModel(model)
+    }
+
+    /**
+     * 一键激活 Codex 用量：发送 API 请求触发用量统计。
+     * 无论成功还是失败，都弹出窗口展示完整响应（或错误信息）。
+     */
+    fun triggerCodexUsage() {
+        val model = _selectedModel.value ?: run {
+            _triggerState.value = TriggerState.Error("请先选择模型", null)
+            return
+        }
+        viewModelScope.launch {
+            _triggerState.value = TriggerState.Loading
+            val result = refreshBalanceUseCase.triggerCodexUsage(model)
+            result
+                .onSuccess { responseBody ->
+                    _triggerState.value = TriggerState.Success(responseBody)
+                    // 等待 2 秒让服务端处理用量，再刷新余额
+                    kotlinx.coroutines.delay(2000)
+                    refresh()
+                }
+                .onFailure { error ->
+                    val msg: String
+                    val respBody: String?
+                    when (error) {
+                        is TriggerError -> {
+                            msg = error.summary
+                            respBody = error.responseBody.ifBlank { null }
+                        }
+                        is RepositoryError.InvalidCredential -> {
+                            msg = error.message ?: "凭据无效，请重新登录"
+                            respBody = null
+                        }
+                        is RepositoryError.Network -> {
+                            msg = "网络异常"
+                            respBody = null
+                        }
+                        else -> {
+                            msg = error.message ?: "未知错误"
+                            respBody = null
+                        }
+                    }
+                    _triggerState.value = TriggerState.Error(msg, respBody)
+                }
+        }
+    }
+
+    /** 关闭响应弹窗，回到 Idle */
+    fun dismissTrigger() {
+        _triggerState.value = TriggerState.Idle
     }
 
     /**
@@ -149,6 +274,24 @@ class ServiceDetailViewModel @Inject constructor(
         is RepositoryError.ParseError -> "数据解析失败: ${error.message}"
         else -> error.message ?: "未知错误"
     }
+
+    // ── Codex 模型持久化 ──
+
+    private fun prefs(): android.content.SharedPreferences =
+        com.rainy.token.RainyTokenApplication.appContext.getSharedPreferences(CODEX_PREFS, android.content.Context.MODE_PRIVATE)
+
+    private fun persistSelectedModel(model: String?) {
+        prefs().edit().putString(KEY_SELECTED_MODEL, model).apply()
+    }
+
+    private fun loadSelectedModel(): String? = prefs().getString(KEY_SELECTED_MODEL, null)
+
+    private fun persistModelsCache(models: List<String>) {
+        prefs().edit().putString(KEY_MODELS_CACHE, models.joinToString("\n")).apply()
+    }
+
+    private fun loadModelsCache(): List<String> =
+        prefs().getString(KEY_MODELS_CACHE, "")?.split("\n")?.filter { it.isNotBlank() } ?: emptyList()
 }
 
 /**
@@ -172,3 +315,11 @@ data class ServiceDetailUiState(
     val hasCredential: Boolean = false,
     val cached: CachedBalance? = null
 )
+
+/** Codex 一键激活用量状态 */
+sealed class TriggerState {
+    data object Idle : TriggerState()
+    data object Loading : TriggerState()
+    data class Success(val responseBody: String) : TriggerState()
+    data class Error(val message: String, val responseBody: String?) : TriggerState()
+}

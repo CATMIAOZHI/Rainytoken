@@ -23,7 +23,7 @@ CommandCode Go 走 JSON API 抓取用量数据，Codex / ChatGPT Plus 通过 aut
 - ✅ DeepSeek — REST API `GET /user/balance`，API Key 认证
 - ✅ OpenCode Go — OkHttp 抓 dashboard HTML，解析 `rollingUsage`/`weeklyUsage`/`monthlyUsage`
 - ✅ CommandCode Go — JSON API 抓取用量数据，`CommandCodeUsageRepository` 解析（workspaceId = `"commandcode"`）
-- ✅ Codex / ChatGPT Plus — 支持 **OAuth PKCE 登录（无头模式）** 或粘贴完整 auth.json（含 refresh_token），调 `chatgpt.com/backend-api/wham/usage`；token 过期前 60 分钟自动刷新。OpenAI 采用 refresh_token 单次轮换机制，被外部工具使用后旧 token 立即失效，需重新 OAuth 登录或导入新 auth.json。**5h 窗口可能被 OpenAI 临时关闭**（`primary_window` 返回 `null`），UI 保留空 5h 槽位 + 主标签动态化（`extras["primary.label"]`），恢复后自动填回。
+- ✅ Codex / ChatGPT Plus — 支持 **OAuth PKCE 登录（无头模式）** 或粘贴完整 auth.json（含 refresh_token），调 `chatgpt.com/backend-api/wham/usage`；token 过期前 60 分钟自动刷新。OpenAI 采用 refresh_token 单次轮换机制，被外部工具使用后旧 token 立即失效，需重新 OAuth 登录或导入新 auth.json。**5h 窗口可能被 OpenAI 临时关闭**（`primary_window` 返回 `null`），UI 保留空 5h 槽位 + 主标签动态化（`extras["primary.label"]`），恢复后自动填回。**一键激活用量**：Codex 详情页可向 `chatgpt.com/backend-api/codex/responses` 发送简短请求（`input:hello`）触发用量统计，模型列表从 `models.dev/api.json` 动态获取（无需认证），用户选择持久化到 `SharedPreferences("codex_trigger_prefs")`，请求需 `stream:true`+`store:false`+`ChatGPT-Account-Id` 头（从 access_token JWT 解析），SSE 响应经 `parseSseResponse()` 提取回复文本+用量统计后弹窗展示。
 - ✅ Ollama Pro — Cookie 认证，OkHttp 抓 `ollama.com/settings` HTML，正则解析 plan/session(5h)/weekly 百分比 + `data-time` 重置时间 + `data-model` 模型级请求次数；无官方 API（ollama/ollama#12532）
 - ✅ 文案统一：所有服务标签均使用中文（"每周"统一代替 "weekly"/"Weekly"/"weekly"）
 - ❌ OpenCode Zen / 小米 MiMo — 未实现
