@@ -44,18 +44,7 @@ class UsageChartViewModel @Inject constructor(
         loadGeneration++
         allowFallback = true
         _state.value = ChartUiState(useUtc8 = _state.value.useUtc8)
-        viewModelScope.launch {
-            // 首次加载时同步读取 UTC 偏好，避免用默认值 false 加载后再切换
-            if (!_state.value.useUtc8Initialized) {
-                val saved = chartSettingsStore.useUtc8Flow.first()
-                if (saved != _state.value.useUtc8) {
-                    _state.update { it.copy(useUtc8 = saved, useUtc8Initialized = true) }
-                } else {
-                    _state.update { it.copy(useUtc8Initialized = true) }
-                }
-            }
-            load()
-        }
+        load()
     }
 
     private suspend fun workspaceId(): String? {
@@ -101,6 +90,11 @@ class UsageChartViewModel @Inject constructor(
 
     fun load() {
         viewModelScope.launch {
+            // 首次加载时同步读取 UTC 偏好，避免用默认值 false 加载后再切换
+            if (!_state.value.useUtc8Initialized) {
+                val saved = chartSettingsStore.useUtc8Flow.first()
+                _state.update { it.copy(useUtc8 = saved, useUtc8Initialized = true) }
+            }
             val wid = workspaceId() ?: return@launch
             val genAtStart = loadGeneration
             val cache = cacheProvider.get()
