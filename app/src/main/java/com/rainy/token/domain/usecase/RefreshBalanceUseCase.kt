@@ -45,4 +45,20 @@ class RefreshBalanceUseCase @Inject constructor(
     /** 一键激活 Codex 用量：向 ChatGPT API 发送请求，返回完整响应体 */
     suspend fun triggerCodexUsage(model: String): Result<String> =
         codexRepositoryProvider.get().triggerUsage(model)
+
+    /** 获取 OpenCode Go 可用模型列表 */
+    suspend fun fetchOpenCodeGoModels(): Result<List<String>> =
+        openCodeGoRepositoryProvider.get().fetchModels()
+
+    /** 一键激活 OpenCode Go 用量 */
+    suspend fun triggerOpenCodeGoUsage(model: String): Result<String> =
+        openCodeGoRepositoryProvider.get().triggerUsage(model)
+
+    /** 获取 Ollama Cloud 可用模型列表 */
+    suspend fun fetchOllamaModels(): Result<List<String>> =
+        ollamaRepositoryProvider.get().fetchModels()
+
+    /** 一键激活 Ollama Cloud 用量 */
+    suspend fun triggerOllamaUsage(model: String): Result<String> =
+        ollamaRepositoryProvider.get().triggerUsage(model)
 }

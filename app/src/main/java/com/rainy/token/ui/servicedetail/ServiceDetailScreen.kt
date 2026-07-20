@@ -102,9 +102,10 @@ fun ServiceDetailScreen(
     val config = ServiceConfigProvider.get(service)
     val isManualMode = config.method == FetchMethod.MANUAL
 
-    // Codex 服务且有凭据时自动加载模型列表
+    // Codex / OCGO / Ollama 服务且有凭据时自动加载模型列表
+    val supportsTrigger = service == ServiceType.CODEX || service == ServiceType.OPENCODE_GO || service == ServiceType.OLLAMA
     LaunchedEffect(service, uiState.hasCredential) {
-        if (service == ServiceType.CODEX && uiState.hasCredential) {
+        if (supportsTrigger && uiState.hasCredential) {
             viewModel.loadModels()
         }
     }
@@ -195,7 +196,7 @@ fun ServiceDetailScreen(
                     onRefresh = { viewModel.refresh() },
                     onConfigureCredential = { onConfigureCredential(service) },
                     onStartWebViewLogin = { onStartWebViewLogin(service) },
-                    onTriggerUsage = { viewModel.triggerCodexUsage() },
+                    onTriggerUsage = { viewModel.triggerUsage() },
                     onSelectModel = { viewModel.selectModel(it) },
                     onRefreshModels = { viewModel.loadModels(force = true) }
                 )
@@ -886,8 +887,9 @@ private fun ActionButtons(
     onRefreshModels: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // Codex 一键激活用量区域
-        if (service == ServiceType.CODEX && hasCredential && !isManualMode) {
+        // 一键激活用量区域（Codex / OCGO / Ollama）
+        val supportsTrigger = service == ServiceType.CODEX || service == ServiceType.OPENCODE_GO || service == ServiceType.OLLAMA
+        if (supportsTrigger && hasCredential && !isManualMode) {
             // 模型选择器 + 刷新按钮
             if (modelsLoading) {
                 Row(

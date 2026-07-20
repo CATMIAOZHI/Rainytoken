@@ -149,11 +149,14 @@ fun CredentialEditScreen(
                                 cookie = uiState.ollamaCookie,
                                 loginUrl = uiState.loginUrl,
                                 hasExisting = uiState.hasExisting,
+                                triggerApiKey = uiState.triggerApiKey,
                                 onCookieChange = viewModel::updateOllamaCookie,
                                 onSave = { viewModel.saveOllamaCredential() },
                                 onTestAndSave = { viewModel.testAndSaveOllama() },
                                 onCopyLoginUrl = { copyToClipboard(context, uiState.loginUrl) },
-                                onOpenLoginUrl = { openInBrowser(context, uiState.loginUrl) }
+                                onOpenLoginUrl = { openInBrowser(context, uiState.loginUrl) },
+                                onApiKeyChange = viewModel::updateTriggerApiKey,
+                                onSaveApiKey = { viewModel.saveTriggerApiKey() }
                             )
                         } else if (service == ServiceType.OPENCODE_GO) {
                             OpenCodeGoForm(
@@ -161,6 +164,7 @@ fun CredentialEditScreen(
                                 workspaceId = uiState.workspaceId,
                                 loginUrl = uiState.loginUrl,
                                 hasExisting = uiState.hasExisting,
+                                triggerApiKey = uiState.triggerApiKey,
                                 onAuthCookieChange = viewModel::updateAuthCookie,
                                 onWorkspaceIdChange = viewModel::updateWorkspaceId,
                                 onSave = { viewModel.saveOpenCodeGoSession() },
@@ -168,7 +172,9 @@ fun CredentialEditScreen(
                                 onImportFromClipboard = { viewModel.importFromClipboard(context) },
                                 onCopyLoginUrl = { copyToClipboard(context, uiState.loginUrl) },
                                 onOpenLoginUrl = { openInBrowser(context, uiState.loginUrl) },
-                                onShowHelp = { showGoHelp = true }
+                                onShowHelp = { showGoHelp = true },
+                                onApiKeyChange = viewModel::updateTriggerApiKey,
+                                onSaveApiKey = { viewModel.saveTriggerApiKey() }
                             )
                         } else {
                         // 通用 WebView 抓取已移除（半成品功能，凭据无法正确映射到 Repository 字段）
@@ -311,11 +317,14 @@ private fun OllamaCookieForm(
     cookie: String,
     loginUrl: String,
     hasExisting: Boolean,
+    triggerApiKey: String,
     onCookieChange: (String) -> Unit,
     onSave: () -> Unit,
     onTestAndSave: () -> Unit,
     onCopyLoginUrl: () -> Unit,
-    onOpenLoginUrl: () -> Unit
+    onOpenLoginUrl: () -> Unit,
+    onApiKeyChange: (String) -> Unit,
+    onSaveApiKey: () -> Unit
 ) {
     Text(text = "Ollama Pro 凭据", style = MaterialTheme.typography.titleMedium)
     Text(
@@ -361,6 +370,35 @@ private fun OllamaCookieForm(
     TextButton(onClick = onCopyLoginUrl, modifier = Modifier.fillMaxWidth()) {
         Text(text = "复制登录 URL 到剪贴板")
     }
+
+    // ── 一键激活用量 API Key ──
+    androidx.compose.material3.HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+    Text(
+        text = "一键激活用量 API Key（可选）",
+        style = MaterialTheme.typography.titleSmall
+    )
+    Text(
+        text = "填入 Ollama Cloud API Key 后，可在详情页一键发送请求激活用量统计。从 ollama.com/settings → API Keys 获取。",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline
+    )
+    OutlinedTextField(
+        value = triggerApiKey,
+        onValueChange = onApiKeyChange,
+        label = { Text("API Key") },
+        placeholder = { Text("ollama-xxx 或 sk-xxx") },
+        singleLine = true,
+        visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        modifier = Modifier.fillMaxWidth()
+    )
+    OutlinedButton(
+        onClick = onSaveApiKey,
+        modifier = Modifier.fillMaxWidth(),
+        enabled = triggerApiKey.isNotBlank()
+    ) {
+        Text("保存 API Key")
+    }
 }
 
 @Composable
@@ -369,6 +407,7 @@ private fun OpenCodeGoForm(
     workspaceId: String,
     loginUrl: String,
     hasExisting: Boolean,
+    triggerApiKey: String,
     onAuthCookieChange: (String) -> Unit,
     onWorkspaceIdChange: (String) -> Unit,
     onSave: () -> Unit,
@@ -376,7 +415,9 @@ private fun OpenCodeGoForm(
     onImportFromClipboard: () -> Unit,
     onCopyLoginUrl: () -> Unit,
     onOpenLoginUrl: () -> Unit,
-    onShowHelp: () -> Unit
+    onShowHelp: () -> Unit,
+    onApiKeyChange: (String) -> Unit,
+    onSaveApiKey: () -> Unit
 ) {
     Text(text = "OpenCode Go 凭据", style = MaterialTheme.typography.titleMedium)
     Text(
@@ -430,6 +471,35 @@ private fun OpenCodeGoForm(
     }
     TextButton(onClick = onCopyLoginUrl, modifier = Modifier.fillMaxWidth()) {
         Text(text = "复制登录 URL 到剪贴板")
+    }
+
+    // ── 一键激活用量 API Key ──
+    androidx.compose.material3.HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+    Text(
+        text = "一键激活用量 API Key（可选）",
+        style = MaterialTheme.typography.titleSmall
+    )
+    Text(
+        text = "填入 OpenCode Zen API Key 后，可在详情页一键发送请求激活用量统计。从 opencode.ai/settings → API Keys 获取。",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline
+    )
+    OutlinedTextField(
+        value = triggerApiKey,
+        onValueChange = onApiKeyChange,
+        label = { Text("API Key") },
+        placeholder = { Text("opencode-xxx") },
+        singleLine = true,
+        visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        modifier = Modifier.fillMaxWidth()
+    )
+    OutlinedButton(
+        onClick = onSaveApiKey,
+        modifier = Modifier.fillMaxWidth(),
+        enabled = triggerApiKey.isNotBlank()
+    ) {
+        Text("保存 API Key")
     }
 }
 

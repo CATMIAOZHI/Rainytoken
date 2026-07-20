@@ -40,7 +40,7 @@ class ServiceDetailViewModel @Inject constructor(
     private val _triggerState = MutableStateFlow<TriggerState>(TriggerState.Idle)
     val triggerState: StateFlow<TriggerState> = _triggerState.asStateFlow()
 
-    /** Codex 可用模型列表 */
+    /** 可用模型列表（Codex / OCGO / Ollama 共用） */
     private val _models = MutableStateFlow<List<String>>(emptyList())
     val models: StateFlow<List<String>> = _models.asStateFlow()
 
@@ -56,16 +56,25 @@ class ServiceDetailViewModel @Inject constructor(
         private const val CODEX_PREFS = "codex_trigger_prefs"
         private const val KEY_SELECTED_MODEL = "selected_model"
         private const val KEY_MODELS_CACHE = "models_cache"
+        private const val OCGO_PREFS = "ocgo_trigger_prefs"
+        private const val OLLAMA_PREFS = "ollama_trigger_prefs"
+    }
+
+    private fun prefsNameFor(service: ServiceType): String = when (service) {
+        ServiceType.CODEX -> CODEX_PREFS
+        ServiceType.OPENCODE_GO -> OCGO_PREFS
+        ServiceType.OLLAMA -> OLLAMA_PREFS
+        else -> CODEX_PREFS
     }
 
     fun bind(service: ServiceType) {
         if (_serviceType.value == service) return
         _serviceType.value = service
-        // 恢复 Codex 持久化状态
-        if (service == ServiceType.CODEX) {
-            val savedModel = loadSelectedModel()
+        // 恢复持久化状态
+        if (service == ServiceType.CODEX || service == ServiceType.OPENCODE_GO || service == ServiceType.OLLAMA) {
+            val savedModel = loadSelectedModel(service)
             if (savedModel != null) _selectedModel.value = savedModel
-            val cachedModels = loadModelsCache()
+            val cachedModels = loadModelsCache(service)
             if (cachedModels.isNotEmpty()) _models.value = cachedModels
         }
         loadFromCache()
@@ -111,31 +120,34 @@ class ServiceDetailViewModel @Inject constructor(
     }
 
     /**
-     * 加载 Codex 可用模型列表（优先从缓存读取，首次才请求网络）。
+     * 加载可用模型列表（优先从缓存读取，首次才请求网络）。
      * @param force true 时强制从网络刷新
      */
     fun loadModels(force: Boolean = false) {
+        val service = _serviceType.value ?: return
         if (!force && _models.value.isNotEmpty()) return
         viewModelScope.launch {
             _modelsLoading.value = true
-            val result = refreshBalanceUseCase.fetchCodexModels()
+            val result = when (service) {
+                ServiceType.CODEX -> refreshBalanceUseCase.fetchCodexModels()
+                ServiceType.OPENCODE_GO -> refreshBalanceUseCase.fetchOpenCodeGoModels()
+                ServiceType.OLLAMA -> refreshBalanceUseCase.fetchOllamaModels()
+                else -> Result.failure(RepositoryError.Unknown(IllegalArgumentException("不支持模型列表")))
+            }
             result
                 .onSuccess { list ->
                     _models.value = list
-                    // 持久化模型列表缓存
-                    persistModelsCache(list)
-                    // 如果之前选中的模型不在新列表里，选第一个
+                    persistModelsCache(service, list)
                     val current = _selectedModel.value
                     if (current == null || !list.contains(current)) {
                         _selectedModel.value = list.firstOrNull()
-                        persistSelectedModel(list.firstOrNull())
+                        persistSelectedModel(service, list.firstOrNull())
                     }
                 }
                 .onFailure { error ->
-                    DebugLog.e("Codex", "加载模型列表失败: ${error.message}")
-                    // 网络失败时从缓存读
+                    DebugLog.e(service.displayName, "加载模型列表失败: ${error.message}")
                     if (_models.value.isEmpty()) {
-                        val cached = loadModelsCache()
+                        val cached = loadModelsCache(service)
                         if (cached.isNotEmpty()) {
                             _models.value = cached
                             if (_selectedModel.value == null) {
@@ -151,21 +163,27 @@ class ServiceDetailViewModel @Inject constructor(
     /** 用户选择模型（持久化） */
     fun selectModel(model: String) {
         _selectedModel.value = model
-        persistSelectedModel(model)
+        _serviceType.value?.let { persistSelectedModel(it, model) }
     }
 
     /**
-     * 一键激活 Codex 用量：发送 API 请求触发用量统计。
-     * 无论成功还是失败，都弹出窗口展示完整响应（或错误信息）。
+     * 一键激活用量：发送 API 请求触发用量统计。
+     * 支持 Codex / OpenCode Go / Ollama 三个服务。
      */
-    fun triggerCodexUsage() {
+    fun triggerUsage() {
+        val service = _serviceType.value ?: return
         val model = _selectedModel.value ?: run {
             _triggerState.value = TriggerState.Error("请先选择模型", null)
             return
         }
         viewModelScope.launch {
             _triggerState.value = TriggerState.Loading
-            val result = refreshBalanceUseCase.triggerCodexUsage(model)
+            val result = when (service) {
+                ServiceType.CODEX -> refreshBalanceUseCase.triggerCodexUsage(model)
+                ServiceType.OPENCODE_GO -> refreshBalanceUseCase.triggerOpenCodeGoUsage(model)
+                ServiceType.OLLAMA -> refreshBalanceUseCase.triggerOllamaUsage(model)
+                else -> Result.failure(RepositoryError.Unknown(IllegalArgumentException("不支持激活用量")))
+            }
             result
                 .onSuccess { responseBody ->
                     _triggerState.value = TriggerState.Success(responseBody)
@@ -275,23 +293,23 @@ class ServiceDetailViewModel @Inject constructor(
         else -> error.message ?: "未知错误"
     }
 
-    // ── Codex 模型持久化 ──
+    // ── 模型持久化（Codex / OCGO / Ollama 各自独立 prefs） ──
 
-    private fun prefs(): android.content.SharedPreferences =
-        com.rainy.token.RainyTokenApplication.appContext.getSharedPreferences(CODEX_PREFS, android.content.Context.MODE_PRIVATE)
+    private fun prefs(service: ServiceType): android.content.SharedPreferences =
+        com.rainy.token.RainyTokenApplication.appContext.getSharedPreferences(prefsNameFor(service), android.content.Context.MODE_PRIVATE)
 
-    private fun persistSelectedModel(model: String?) {
-        prefs().edit().putString(KEY_SELECTED_MODEL, model).apply()
+    private fun persistSelectedModel(service: ServiceType, model: String?) {
+        prefs(service).edit().putString(KEY_SELECTED_MODEL, model).apply()
     }
 
-    private fun loadSelectedModel(): String? = prefs().getString(KEY_SELECTED_MODEL, null)
+    private fun loadSelectedModel(service: ServiceType): String? = prefs(service).getString(KEY_SELECTED_MODEL, null)
 
-    private fun persistModelsCache(models: List<String>) {
-        prefs().edit().putString(KEY_MODELS_CACHE, models.joinToString("\n")).apply()
+    private fun persistModelsCache(service: ServiceType, models: List<String>) {
+        prefs(service).edit().putString(KEY_MODELS_CACHE, models.joinToString("\n")).apply()
     }
 
-    private fun loadModelsCache(): List<String> =
-        prefs().getString(KEY_MODELS_CACHE, "")?.split("\n")?.filter { it.isNotBlank() } ?: emptyList()
+    private fun loadModelsCache(service: ServiceType): List<String> =
+        prefs(service).getString(KEY_MODELS_CACHE, "")?.split("\n")?.filter { it.isNotBlank() } ?: emptyList()
 }
 
 /**

@@ -96,6 +96,7 @@ class CredentialEditViewModel @Inject constructor(
                         }
                     } else "",
                     ollamaCookie = (existing as? Credential.SessionCredential)?.ollamaCookie.orEmpty(),
+                    triggerApiKey = (existing as? Credential.SessionCredential)?.apiKey.orEmpty(),
                     hasExisting = existing != null
                 )
             }
@@ -430,6 +431,38 @@ class CredentialEditViewModel @Inject constructor(
         _uiState.update { it.copy(ollamaCookie = value) }
     }
 
+    fun updateTriggerApiKey(value: String) {
+        _uiState.update { it.copy(triggerApiKey = value) }
+    }
+
+    /**
+     * 保存触发用量 API Key（OCGO / Ollama 共用）。
+     * 合并保存到已有的 SessionCredential 中。
+     */
+    fun saveTriggerApiKey() {
+        val type = serviceType ?: return
+        val current = _uiState.value
+        val trimmedKey = current.triggerApiKey.trim()
+        viewModelScope.launch {
+            val existing = credentialRepository.get(type) as? Credential.SessionCredential
+            val updated = (existing ?: Credential.SessionCredential(
+                service = type,
+                cookies = emptyList()
+            )).copy(
+                apiKey = trimmedKey.ifBlank { null },
+                lastVerifiedAt = System.currentTimeMillis()
+            )
+            credentialRepository.save(updated)
+            _uiState.update {
+                it.copy(
+                    triggerApiKey = trimmedKey,
+                    message = "API Key 已保存",
+                    hasExisting = true
+                )
+            }
+        }
+    }
+
     /**
      * 保存 Ollama Pro 的 Cookie 字符串。
      */
@@ -494,7 +527,8 @@ class CredentialEditViewModel @Inject constructor(
                     authCookie = "",
                     workspaceId = "",
                     cookieCount = 0,
-                    ollamaCookie = ""
+                    ollamaCookie = "",
+                    triggerApiKey = ""
                 )
             }
         }
@@ -565,5 +599,7 @@ data class CredentialEditUiState(
     val hasExisting: Boolean = false,
     val codexAuthJson: String = "",
     val ollamaCookie: String = "",
+    /** OCGO / Ollama 的一键激活用量 API Key */
+    val triggerApiKey: String = "",
     val message: String? = null
 )
