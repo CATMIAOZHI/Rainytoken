@@ -27,10 +27,22 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = rootProject.file("release.jks")
-            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "RainyToken2026!"
-            keyAlias = System.getenv("KEYSTORE_ALIAS") ?: "rainy"
-            keyPassword = System.getenv("KEY_PASSWORD") ?: "RainyToken2026!"
+            // CI 环境没有 release.jks，自动 fallback 到 debug keystore
+            // Release workflow 通过 Secret 注入 release.jks
+            val keystoreFile = rootProject.file("release.jks")
+            if (keystoreFile.exists()) {
+                storeFile = keystoreFile
+                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "RainyToken2026!"
+                keyAlias = System.getenv("KEYSTORE_ALIAS") ?: "rainy"
+                keyPassword = System.getenv("KEY_PASSWORD") ?: "RainyToken2026!"
+            } else {
+                // Fallback: 使用 SDK 默认 debug keystore（CI 构建验证用）
+                val debugKeystore = file("${System.getProperty("user.home")}/.android/debug.keystore")
+                storeFile = debugKeystore
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
         }
     }
 

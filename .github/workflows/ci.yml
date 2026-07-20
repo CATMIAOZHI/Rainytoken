@@ -72,7 +72,7 @@ jobs:
           retention-days: 14
 
   build-release:
-    name: Release APK (no signing)
+    name: Release APK (debug-signed)
     runs-on: ubuntu-latest
     needs: test
     steps:
@@ -88,6 +88,20 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      # 确保存在 debug keystore（某些 runner 镜像可能没有）
+      - name: Ensure debug keystore
+        run: |
+          KS="$HOME/.android/debug.keystore"
+          mkdir -p "$HOME/.android"
+          if [ ! -f "$KS" ]; then
+            keytool -genkeypair -v -keystore "$KS" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+            echo "Generated debug keystore"
+          else
+            echo "Debug keystore exists"
+          fi
+
+      # CI 无 release.jks；build.gradle.kts 自动 fallback 到 debug keystore
+      # 只验证编译 + 资源完整性，签名由 Release workflow 用 secrets 完成
       - name: Assemble Release
         run: ./gradlew assembleRelease
 
@@ -99,7 +113,6 @@ jobs:
             exit 1
           fi
           echo "✅ Release APK size: $(du -h "$APK" | cut -f1)"
-          # Verify APK contains essential resources
           unzip -l "$APK" | grep -q "AndroidManifest.xml" || { echo "❌ AndroidManifest.xml missing"; exit 1; }
           unzip -l "$APK" | grep -q "resources.arsc" || { echo "❌ resources.arsc missing"; exit 1; }
           unzip -l "$APK" | grep -q "res/" || { echo "❌ res/ directory missing"; exit 1; }
