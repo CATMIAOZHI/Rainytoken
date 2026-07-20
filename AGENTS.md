@@ -183,7 +183,7 @@ Expanded（平板，≥840dp）：
   1. `test`：`testDebugUnitTest` + `lintDebug`，上传 XML 测试报告 + lint 报告 artifact
   2. `build-debug`：`assembleDebug`，上传 Debug APK artifact
   3. `build-release`：`assembleRelease` + APK 完整性验证（`AndroidManifest.xml` + `resources.arsc` + `res/`），上传 Release APK artifact
-- Release 签名 fallback：CI 无 `release.jks`，`build.gradle.kts` 自动 fallback 到 `~/.android/debug.keystore`；CI 额外步骤确保 debug keystore 存在
+- Release 签名 fallback：CI 无 `release.jks`，`build.gradle.kts` 仅在 `CI=true` 环境变量下 fallback 到 `~/.android/debug.keystore`；本地构建缺 `release.jks` 时直接 `GradleException` 报错，防止静默生成 debug 签名的 Release APK
 - artifact 保留 14 天
 
 **重大修改 PR 审计红线**：

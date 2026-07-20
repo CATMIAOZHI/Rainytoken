@@ -36,12 +36,21 @@ android {
                 keyAlias = System.getenv("KEYSTORE_ALIAS") ?: "rainy"
                 keyPassword = System.getenv("KEY_PASSWORD") ?: "RainyToken2026!"
             } else {
-                // Fallback: 使用 SDK 默认 debug keystore（CI 构建验证用）
-                val debugKeystore = file("${System.getProperty("user.home")}/.android/debug.keystore")
-                storeFile = debugKeystore
-                storePassword = "android"
-                keyAlias = "androiddebugkey"
-                keyPassword = "android"
+                // 仅在 CI 环境中 fallback 到 debug keystore（用于编译/资源完整性验证）
+                // 本地构建缺少 release.jks 时直接报错，避免静默生成 debug 签名的 Release APK
+                if (System.getenv("CI") != null) {
+                    val debugKeystore = file("${System.getProperty("user.home")}/.android/debug.keystore")
+                    storeFile = debugKeystore
+                    storePassword = "android"
+                    keyAlias = "androiddebugkey"
+                    keyPassword = "android"
+                } else {
+                    throw GradleException(
+                        "release.jks 不存在，且当前不是 CI 环境。\n" +
+                        "正式 Release 构建需要 release.jks 密钥库文件。\n" +
+                        "如需本地验证编译，请设置环境变量 CI=true 或使用 assembleDebug。"
+                    )
+                }
             }
         }
     }
