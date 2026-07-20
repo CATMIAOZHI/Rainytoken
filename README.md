@@ -158,6 +158,12 @@ chmod +x ./setup_android_env.sh
 ./setup_android_env.sh
 ```
 该脚本会配置 `$ANDROID_HOME` 并使用项目内置的 ARM64 build-tools。
+
+**Release 构建额外配置**：ARM64 Proot 下 AGP 9.0 的 `optimizeReleaseResources` 传入 `--resource-path-shortening-map=<path>` 等号参数，ARM64 AAPT2 不接受此语法，需在 `~/.gradle/gradle.properties`（全局，不提交项目仓库）中配置 AAPT2 wrapper：
+```properties
+android.aapt2FromMavenOverride=/path/to/android-aapt2-wrapper/aapt2
+```
+wrapper 脚本将等号形式拆分为空格分隔的两个独立 argv。项目 `build.gradle.kts` 中已内置 `guardReleaseResources` 任务作为构建防护（optimized `.ap_` 缺失时自动 fallback 到 linked `.ap_`）。
 > 在 x86_64 环境（GitHub Actions / 普通 Linux）中会自动走官方 AAPT2，无需额外操作。
 </details>
 

@@ -74,6 +74,17 @@ CommandCode Go 走 JSON API 抓取用量数据，Codex / ChatGPT Plus 通过 aut
 > CCGO 路由中 `UsageChartViewModel` 和 `UsageViewModel` 用相同 key 会导致类型碰撞、加载失败。
 > 当前方案：`chartVm` 用 `"ccgo_chart_$wid"`，`usageVm` 用 `"ccgo_$wid"`（与 Dashboard 首页 `CommandCodeUsageStatsCard` 共享实例）。
 
+**ARM64 Proot Release 构建红线**：
+
+> ⚠️ AGP 9.0 的 `optimizeReleaseResources` 在 ARM64 Proot 下传入 `--resource-path-shortening-map=<path>`（等号形式），ARM64 AAPT2 不接受此语法（只接受空格分隔），exit code=1 但 AGP `invokeAapt()` 只调 `rethrowFailure()` 不调 `assertNormalExitValue()`，失败被静默吞掉。导致 optimized `.ap_` 缺失，`packageRelease` 生成无 `AndroidManifest.xml` / `resources.arsc` / `res/` 的残缺 APK（BUILD SUCCESSFUL 但 APK 不可用）。
+>
+> 修复链（不可删除任一环节）：
+> 1. `~/.gradle/gradle.properties`（全局，不提交项目仓库）→ `android.aapt2FromMavenOverride` 指向 `~/.local/lib/android-aapt2-wrapper/aapt2` wrapper 脚本，将 `--resource-path-shortening-map=<path>` 拆分为 `--resource-path-shortening-map` `<path>` 两个独立 argv
+> 2. `app/build.gradle.kts` 中 `guardReleaseResources` 任务：`optimizeReleaseResources` 之后验证 optimized `.ap_` 完整性（manifest + arsc + res/），缺失则复制 linked `.ap_` 作为 fallback；`packageRelease` 依赖此任务
+> 3. `app/build.gradle.kts` 中 `resolutionStrategy` 强制 `aapt2:linux-aarch64` classifier
+>
+> CI（GitHub Actions x86_64）不受影响——全局 `~/.gradle/gradle.properties` 不在项目仓库中。Debug 不经过 `optimizeReleaseResources`，无此问题。
+
 **首页布局**：
 
 > Dashboard 使用 `PullToRefreshBox` → `Column` + `verticalScroll`（非 `LazyColumn`）。
@@ -173,7 +184,12 @@ cd /data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken
 export ANDROID_HOME=$HOME/Android
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64
 ./gradlew assembleDebug
-# APK: app/build/outputs/apk/debug/app-debug.apk
+# Debug APK: app/build/outputs/apk/debug/app-debug.apk
+
+./gradlew assembleRelease
+# Release APK: app/build/outputs/apk/release/app-release.apk
+# ARM64 Proot 需 ~/.gradle/gradle.properties 配置 aapt2FromMavenOverride（见红线）
+# CI x86_64 无需额外配置
 ```
 
 ## 数据流

@@ -47,10 +47,7 @@ android {
             )
         }
     }
-    androidResources {
-        // AGP 9.0 ARM64 Proot: noCompress workaround (manifest still needs post-process)
-        noCompress += "xml"
-    }
+    // noCompress workaround removed — no longer needed
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -66,87 +63,80 @@ android {
 }
 
 // ═══════════════════════════════════════════════════════
-// AGP 9.0 ARM64 Proot Workaround: packageRelease 丢失
-// AndroidManifest.xml
+// AGP 9.0 ARM64 Proot: Release resource guard + fallback
 //
-// 修复：assembleRelease 后检查 APK 是否含 manifest，
-// 缺失则注入并重新签名。仅 aarch64 环境触发。
+// 根因：AGP 9.0 的 optimizeReleaseResources 传入 --resource-path-shortening-map=<path>
+// 等号形式，ARM64 AAPT2 不接受此语法（只接受空格分隔），exit code=1 但 AGP 不检查，
+// 导致 optimized .ap_ 缺失，packageRelease 生成无资源残缺 APK。
+//
+// 修复链：
+// 1. ~/.gradle/gradle.properties → android.aapt2FromMavenOverride 指向 wrapper
+//    wrapper 将 --resource-path-shortening-map=<path> 拆分为两个独立 argv
+// 2. 本任务作为构建防护：optimizeReleaseResources 之后验证 optimized .ap_ 完整性，
+//    若缺失则复制 linked .ap_ 作为 fallback（功能正确，仅跳过 path shortening）
+// 3. packageRelease 依赖此任务，确保消费到完整资源
 // ═══════════════════════════════════════════════════════
 if (System.getProperty("os.arch") == "aarch64") {
-    tasks.register("fixReleaseManifest") {
-        dependsOn("assembleRelease")
+    tasks.register("guardReleaseResources") {
+        dependsOn("optimizeReleaseResources")
         doLast {
-            val apk = layout.buildDirectory.file("outputs/apk/release/app-release.apk").get().asFile
-            val manifest = layout.buildDirectory
+            val linkedAp = layout.buildDirectory
                 .file("intermediates/linked_resources_binary_format/release/processReleaseResources/linked-resources-binary-format-release.ap_")
                 .get().asFile
-            if (!apk.exists() || !manifest.exists()) return@doLast
+            val optimizedDir = layout.buildDirectory
+                .dir("intermediates/optimized_processed_res/release/optimizeReleaseResources")
+                .get().asFile
+            val optimizedAp = File(optimizedDir, "resources-release-optimize.ap_")
 
-            // 检查 APK 是否已包含 manifest
-            val checkResult = providers.exec {
-                commandLine("unzip", "-l", apk.absolutePath)
+            if (optimizedAp.exists() && optimizedAp.length() > 0) {
+                // optimized .ap_ 存在，验证内容完整性
+                val zipList = providers.exec {
+                    commandLine("unzip", "-l", optimizedAp.absolutePath)
+                    isIgnoreExitValue = true
+                }.standardOutput.asText.get()
+
+                val hasManifest = zipList.contains("AndroidManifest.xml")
+                val hasArsc = zipList.contains("resources.arsc")
+                val hasRes = zipList.contains("res/")
+
+                if (hasManifest && hasArsc && hasRes) {
+                    logger.lifecycle("GuardReleaseResources: optimized .ap_ OK (${optimizedAp.length()} bytes)")
+                    return@doLast
+                }
+                logger.warn("GuardReleaseResources: optimized .ap_ incomplete (manifest=$hasManifest arsc=$hasArsc res=$hasRes)")
+            } else {
+                logger.warn("GuardReleaseResources: optimized .ap_ missing or empty")
+            }
+
+            // Fallback: copy linked .ap_ → optimized .ap_
+            if (!linkedAp.exists() || linkedAp.length() == 0L) {
+                throw GradleException("GuardReleaseResources: linked .ap_ also missing or empty — cannot recover")
+            }
+
+            optimizedDir.mkdirs()
+            linkedAp.copyTo(optimizedAp, overwrite = true)
+
+            // Verify the copy
+            val verifyList = providers.exec {
+                commandLine("unzip", "-l", optimizedAp.absolutePath)
                 isIgnoreExitValue = true
             }.standardOutput.asText.get()
 
-            if (!checkResult.contains("AndroidManifest.xml")) {
-                logger.lifecycle("FixManifestTask: injecting AndroidManifest.xml into release APK")
-                // 从 .ap_ 提取 binary AndroidManifest.xml 到临时文件
-                val tmpManifest = File(apk.parentFile, "AndroidManifest.xml")
-                val extractProcess = Runtime.getRuntime().exec(
-                    arrayOf("unzip", "-o", manifest.absolutePath, "AndroidManifest.xml", "-d", apk.parentFile!!.absolutePath)
-                )
-                extractProcess.waitFor()
-                logger.lifecycle("FixManifestTask: extract from .ap_ exit code = ${extractProcess.exitValue()}")
-                // 用 zip 命令注入 binary manifest
-                val zipProcess = Runtime.getRuntime().exec(arrayOf("zip", "-j", apk.absolutePath, tmpManifest.absolutePath))
-                zipProcess.waitFor()
-                logger.lifecycle("FixManifestTask: zip exit code = ${zipProcess.exitValue()}")
-                // 找 apksigner 并重新签名
-                val androidHome = System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT")
-                var signerFile: File? = null
-                if (androidHome != null) {
-                    val btDir = File(androidHome, "build-tools")
-                    val latest = btDir.listFiles()?.filter { it.isDirectory }?.maxByOrNull { it.name }
-                    if (latest != null) {
-                        val signer = File(latest, "apksigner")
-                        if (signer.exists()) signerFile = signer
-                    }
-                }
-                val sf = signerFile
-                if (sf != null && sf.exists()) {
-                    // 从 android extension 拿签名配置
-                    val androidExt = project.extensions.findByName("android")
-                    val signingConfig = (androidExt as? com.android.build.api.dsl.ApplicationExtension)
-                        ?.signingConfigs?.findByName("release")
-                    val ksFile = signingConfig?.storeFile?.absolutePath ?: ""
-                    val ksPass = signingConfig?.storePassword ?: ""
-                    val ksAlias = signingConfig?.keyAlias ?: ""
-                    val ksKeyPass = signingConfig?.keyPassword ?: ""
-                    val signCmd = arrayOf(
-                        sf.absolutePath, "sign",
-                        "--ks", ksFile,
-                        "--ks-pass", "pass:$ksPass",
-                        "--ks-key-alias", ksAlias,
-                        "--key-pass", "pass:$ksKeyPass",
-                        "--v2-signing-enabled", "true",
-                        "--v3-signing-enabled", "false",
-                        "--min-sdk-version", "31",
-                        apk.absolutePath
-                    )
-                    val signProcess = Runtime.getRuntime().exec(signCmd)
-                    val errorText = signProcess.errorStream.bufferedReader().readText()
-                    signProcess.waitFor()
-                    logger.lifecycle("FixManifestTask: apksigner exit code = ${signProcess.exitValue()}")
-                    if (errorText.isNotBlank()) logger.lifecycle("FixManifestTask: apksigner stderr = $errorText")
-                    logger.lifecycle("FixManifestTask: APK re-signed successfully")
-                } else {
-                    logger.warn("FixManifestTask: apksigner not found, APK not re-signed")
-                }
+            val vManifest = verifyList.contains("AndroidManifest.xml")
+            val vArsc = verifyList.contains("resources.arsc")
+            val vRes = verifyList.contains("res/")
+
+            if (!vManifest || !vArsc || !vRes) {
+                throw GradleException("GuardReleaseResources: fallback copy verification failed (manifest=$vManifest arsc=$vArsc res=$vRes)")
             }
+
+            logger.lifecycle("GuardReleaseResources: fallback — copied linked .ap_ → optimized .ap_ (${optimizedAp.length()} bytes, path shortening skipped)")
         }
     }
-    project.tasks.matching { it.name == "assembleRelease" }.configureEach {
-        finalizedBy("fixReleaseManifest")
+
+    // packageRelease 必须依赖此防护任务
+    project.tasks.matching { it.name == "packageRelease" }.configureEach {
+        dependsOn("guardReleaseResources")
     }
 }
 
