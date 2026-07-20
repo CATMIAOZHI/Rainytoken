@@ -41,6 +41,28 @@ class CodexRepository(
         private const val CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
         private const val REFRESH_BUFFER_MS = 60L * 60 * 1000
         private const val TAG = "Codex"
+
+        internal data class UsageWindow(val label: String, val remainingPct: Int, val resetAt: Long?)
+
+        internal fun parseUsageWindows(data: JsonObject): List<UsageWindow> {
+            val result = mutableListOf<UsageWindow>()
+            fun addWindows(rl: JsonObject?) {
+                if (rl == null) return
+                for (key in listOf("primary_window", "secondary_window")) {
+                    val w = rl[key] as? JsonObject ?: continue
+                    val usedPct = (w["used_percent"] as? JsonPrimitive)?.floatOrNull ?: continue
+                    val remaining = (100 - usedPct).toInt().coerceIn(0, 100)
+                    result.add(UsageWindow(durationLabel((w["limit_window_seconds"] as? JsonPrimitive)?.longOrNull), remaining, (w["reset_at"] as? JsonPrimitive)?.longOrNull?.times(1000L)))
+                }
+            }
+            addWindows(data["rate_limit"] as? JsonObject)
+            (data["additional_rate_limits"] as? kotlinx.serialization.json.JsonArray)?.forEach { item ->
+                if (item is JsonObject) addWindows(item["rate_limit"] as? JsonObject)
+            }
+            return result
+        }
+
+        internal fun durationLabel(seconds: Long?): String = when { seconds == null -> "Usage"; seconds / 60.0 >= 10079 -> "每周"; seconds / 60.0 >= 1439 -> "${(seconds / 86400).toInt()}d"; seconds / 60.0 >= 60 -> "${(seconds / 3600).toInt()}h"; else -> "${maxOf(1, (seconds / 60).toInt())}m" }
     }
 
     suspend fun fetchBalance(): Result<ServiceBalance> = withContext(Dispatchers.IO) {
@@ -368,28 +390,6 @@ class CodexRepository(
         }
     }
 
-    private data class UsageWindow(val label: String, val remainingPct: Int, val resetAt: Long?)
-
-    private fun parseUsageWindows(data: JsonObject): List<UsageWindow> {
-        val result = mutableListOf<UsageWindow>()
-        fun addWindows(rl: JsonObject?) {
-            if (rl == null) return
-            for (key in listOf("primary_window", "secondary_window")) {
-                val w = rl[key] as? JsonObject ?: continue
-                val usedPct = (w["used_percent"] as? JsonPrimitive)?.floatOrNull ?: continue
-                val remaining = (100 - usedPct).toInt().coerceIn(0, 100)
-                result.add(UsageWindow(durationLabel((w["limit_window_seconds"] as? JsonPrimitive)?.longOrNull), remaining, (w["reset_at"] as? JsonPrimitive)?.longOrNull?.times(1000L)))
-            }
-        }
-        addWindows(data["rate_limit"] as? JsonObject)
-        (data["additional_rate_limits"] as? kotlinx.serialization.json.JsonArray)?.forEach { item ->
-            if (item is JsonObject) addWindows(item["rate_limit"] as? JsonObject)
-        }
-        return result
-    }
-
-    private fun durationLabel(seconds: Long?): String = when { seconds == null -> "Usage"; seconds / 60.0 >= 10079 -> "每周"; seconds / 60.0 >= 1439 -> "${(seconds / 86400).toInt()}d"; seconds / 60.0 >= 60 -> "${(seconds / 3600).toInt()}h"; else -> "${maxOf(1, (seconds / 60).toInt())}m" }
-
     @Serializable data class OAuthRefreshResponse(@kotlinx.serialization.SerialName("access_token") val accessToken: String, @kotlinx.serialization.SerialName("refresh_token") val refreshToken: String? = null, @kotlinx.serialization.SerialName("expires_in") val expiresIn: Long = 3600, @kotlinx.serialization.SerialName("token_type") val tokenType: String? = null)
 }
 
@@ -400,7 +400,7 @@ class TriggerError(val summary: String, val responseBody: String) : Exception(su
  * 将 SSE 流响应解析为简洁的文本摘要。
  * 提取：模型回复文本、用量统计（input/output tokens）。
  */
-private fun parseSseResponse(sseText: String, model: String): String {
+internal fun parseSseResponse(sseText: String, model: String): String {
     val sseJson = Json { ignoreUnknownKeys = true }
     val outputText = StringBuilder()
     var inputTokens: String? = null

@@ -74,6 +74,17 @@ CommandCode Go 走 JSON API 抓取用量数据，Codex / ChatGPT Plus 通过 aut
 > CCGO 路由中 `UsageChartViewModel` 和 `UsageViewModel` 用相同 key 会导致类型碰撞、加载失败。
 > 当前方案：`chartVm` 用 `"ccgo_chart_$wid"`，`usageVm` 用 `"ccgo_$wid"`（与 Dashboard 首页 `CommandCodeUsageStatsCard` 共享实例）。
 
+**ARM64 Proot Release 构建红线**：
+
+> ⚠️ AGP 9.0 的 `optimizeReleaseResources` 在 ARM64 Proot 下传入 `--resource-path-shortening-map=<path>`（等号形式），ARM64 AAPT2 不接受此语法（只接受空格分隔），exit code=1 但 AGP `invokeAapt()` 只调 `rethrowFailure()` 不调 `assertNormalExitValue()`，失败被静默吞掉。导致 optimized `.ap_` 缺失，`packageRelease` 生成无 `AndroidManifest.xml` / `resources.arsc` / `res/` 的残缺 APK（BUILD SUCCESSFUL 但 APK 不可用）。
+>
+> 修复链（不可删除任一环节）：
+> 1. `~/.gradle/gradle.properties`（全局，不提交项目仓库）→ `android.aapt2FromMavenOverride` 指向 `~/.local/lib/android-aapt2-wrapper/aapt2` wrapper 脚本，将 `--resource-path-shortening-map=<path>` 拆分为 `--resource-path-shortening-map` `<path>` 两个独立 argv
+> 2. `app/build.gradle.kts` 中 `guardReleaseResources` 任务：`optimizeReleaseResources` 之后验证 optimized `.ap_` 完整性（manifest + arsc + res/），缺失则复制 linked `.ap_` 作为 fallback；`packageRelease` 依赖此任务
+> 3. `app/build.gradle.kts` 中 `resolutionStrategy` 强制 `aapt2:linux-aarch64` classifier
+>
+> CI（GitHub Actions x86_64）不受影响——全局 `~/.gradle/gradle.properties` 不在项目仓库中。Debug 不经过 `optimizeReleaseResources`，无此问题。
+
 **首页布局**：
 
 > Dashboard 使用 `PullToRefreshBox` → `Column` + `verticalScroll`（非 `LazyColumn`）。
@@ -154,6 +165,33 @@ Expanded（平板，≥840dp）：
 
 > `StackedBarChart` / `LineChart` 的 `tooltipBucket` 初始值为 `buckets.lastOrNull()`，进入图表页即可看到最新时段数值详情，暗示图表可交互。
 
+**测试体系**：
+
+- 纯 JVM 单元测试（`testDebugUnitTest`），无 Android 框架依赖，无网络
+- 5 个测试文件，78 个用例：
+  - `OllamaRepositoryTest`（16）— HTML 解析：plan/百分比/时间戳/模型次数/空输入
+  - `OpenCodeGoRepositoryTest`（10）— SSR hydration 解析：三窗口/嵌套/缺失字段
+  - `FormatUtilsTest`（18）— `formatAmount`/`formatResetInSec`/`formatResetForWidget`/`normalizeWindowLabel`
+  - `FormatCodexPrimaryLabelTest`（9）— `formatCodexPrimaryLabel`：null fallback/大小写/未知值
+  - `CodexRepositoryTest`（25）— `durationLabel` 阈值 + `parseUsageWindows` JsonNull 安全 + `parseSseResponse` SSE 解析
+- CodexRepository 中 `parseUsageWindows`/`durationLabel`/`UsageWindow` 为 `internal`（companion object），`parseSseResponse` 为 `internal` 顶层函数——不使用实例状态，便于测试直接调用
+
+**CI workflow（`.github/workflows/ci.yml`）**：
+
+- 触发：push main / 所有 PR
+- 3 个 job 串行（test 通过后才构建）：
+  1. `test`：`testDebugUnitTest` + `lintDebug`，上传 XML 测试报告 + lint 报告 artifact
+  2. `build-debug`：`assembleDebug`，上传 Debug APK artifact
+  3. `build-release`：`assembleRelease` + APK 完整性验证（`AndroidManifest.xml` + `resources.arsc` + `res/`），上传 Release APK artifact
+- Release 签名 fallback：CI 无 `release.jks`，`build.gradle.kts` 自动 fallback 到 `~/.android/debug.keystore`；CI 额外步骤确保 debug keystore 存在
+- artifact 保留 14 天
+
+**重大修改 PR 审计红线**：
+
+> ⚠️ 重大修改（构建配置、签名、CI、架构变更、新服务接入）必须通过 PR 提交，不能直接 push main。
+> PR 触发 CI 三 job 全部通过后才可合并：单元测试 + lint + Debug/Release APK 构建验证。
+> Release APK 完整性验证（manifest + arsc + res/）是防止 ARM64 Proot 构建问题再次发生的最后防线。
+
 ## RemoteViews 兼容性红线
 
 以下元素在 Widget 布局中**不可用**，会导致「载入出现问题」：
@@ -172,8 +210,17 @@ Expanded（平板，≥840dp）：
 cd /data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken
 export ANDROID_HOME=$HOME/Android
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64
+
+./gradlew testDebugUnitTest
+# 78 个单元测试，纯 JVM，无设备依赖
+
 ./gradlew assembleDebug
-# APK: app/build/outputs/apk/debug/app-debug.apk
+# Debug APK: app/build/outputs/apk/debug/app-debug.apk
+
+./gradlew assembleRelease
+# Release APK: app/build/outputs/apk/release/app-release.apk
+# ARM64 Proot 需 ~/.gradle/gradle.properties 配置 aapt2FromMavenOverride（见红线）
+# CI x86_64 无需额外配置
 ```
 
 ## 数据流
