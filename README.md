@@ -2,6 +2,7 @@
 
 > *"AI 用量，尽在掌握 — AI Balance & Usage at a Glance"* 🐱✨
 
+[![CI](https://github.com/CATMIAOZHI/Rainytoken/actions/workflows/ci.yml/badge.svg)](https://github.com/CATMIAOZHI/Rainytoken/actions/workflows/ci.yml)
 [![Release](https://github.com/CATMIAOZHI/Rainytoken/actions/workflows/release.yml/badge.svg)](https://github.com/CATMIAOZHI/Rainytoken/actions)
 [![Version](https://img.shields.io/github/v/release/CATMIAOZHI/Rainytoken?color=ff85a2)](https://github.com/CATMIAOZHI/Rainytoken/releases)
 Android AI 余额与用量查询 APP —— 统一查看 DeepSeek、OpenCode Go、CommandCode Go、Codex / ChatGPT Plus、Ollama Pro 的余额与用量配额。粉色调品牌 UI，配套桌面小组件。
@@ -141,6 +142,9 @@ Rainytoken/
 
 ### 方式二：命令行
 ```bash
+# 运行单元测试
+./gradlew testDebugUnitTest
+
 # 构建 Debug APK
 ./gradlew assembleDebug
 # APK 输出：app/build/outputs/apk/debug/app-debug.apk

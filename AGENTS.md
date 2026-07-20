@@ -165,6 +165,33 @@ Expanded（平板，≥840dp）：
 
 > `StackedBarChart` / `LineChart` 的 `tooltipBucket` 初始值为 `buckets.lastOrNull()`，进入图表页即可看到最新时段数值详情，暗示图表可交互。
 
+**测试体系**：
+
+- 纯 JVM 单元测试（`testDebugUnitTest`），无 Android 框架依赖，无网络
+- 5 个测试文件，78 个用例：
+  - `OllamaRepositoryTest`（16）— HTML 解析：plan/百分比/时间戳/模型次数/空输入
+  - `OpenCodeGoRepositoryTest`（10）— SSR hydration 解析：三窗口/嵌套/缺失字段
+  - `FormatUtilsTest`（18）— `formatAmount`/`formatResetInSec`/`formatResetForWidget`/`normalizeWindowLabel`
+  - `FormatCodexPrimaryLabelTest`（9）— `formatCodexPrimaryLabel`：null fallback/大小写/未知值
+  - `CodexRepositoryTest`（25）— `durationLabel` 阈值 + `parseUsageWindows` JsonNull 安全 + `parseSseResponse` SSE 解析
+- CodexRepository 中 `parseUsageWindows`/`durationLabel`/`UsageWindow` 为 `internal`（companion object），`parseSseResponse` 为 `internal` 顶层函数——不使用实例状态，便于测试直接调用
+
+**CI workflow（`.github/workflows/ci.yml`）**：
+
+- 触发：push main / 所有 PR
+- 3 个 job 串行（test 通过后才构建）：
+  1. `test`：`testDebugUnitTest` + `lintDebug`，上传 XML 测试报告 + lint 报告 artifact
+  2. `build-debug`：`assembleDebug`，上传 Debug APK artifact
+  3. `build-release`：`assembleRelease` + APK 完整性验证（`AndroidManifest.xml` + `resources.arsc` + `res/`），上传 Release APK artifact
+- Release 签名 fallback：CI 无 `release.jks`，`build.gradle.kts` 自动 fallback 到 `~/.android/debug.keystore`；CI 额外步骤确保 debug keystore 存在
+- artifact 保留 14 天
+
+**重大修改 PR 审计红线**：
+
+> ⚠️ 重大修改（构建配置、签名、CI、架构变更、新服务接入）必须通过 PR 提交，不能直接 push main。
+> PR 触发 CI 三 job 全部通过后才可合并：单元测试 + lint + Debug/Release APK 构建验证。
+> Release APK 完整性验证（manifest + arsc + res/）是防止 ARM64 Proot 构建问题再次发生的最后防线。
+
 ## RemoteViews 兼容性红线
 
 以下元素在 Widget 布局中**不可用**，会导致「载入出现问题」：
@@ -183,6 +210,10 @@ Expanded（平板，≥840dp）：
 cd /data/user/0/com.ai.assistance.operit/files/workspace/Rainytoken
 export ANDROID_HOME=$HOME/Android
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64
+
+./gradlew testDebugUnitTest
+# 78 个单元测试，纯 JVM，无设备依赖
+
 ./gradlew assembleDebug
 # Debug APK: app/build/outputs/apk/debug/app-debug.apk
 
