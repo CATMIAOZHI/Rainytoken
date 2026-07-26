@@ -106,7 +106,10 @@ class RefreshBalanceUseCase @Inject constructor(
         }
 
         val committed = try {
-            credentialRepository.commit(session)
+            credentialRepository.commit(
+                session = session,
+                includeBalance = result.isSuccess
+            )
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Throwable) {
