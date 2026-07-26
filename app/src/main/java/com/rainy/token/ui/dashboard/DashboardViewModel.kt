@@ -3,10 +3,9 @@ package com.rainy.token.ui.dashboard
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.rainy.token.data.cache.BalanceCache
 import com.rainy.token.data.cache.CachedBalance
 import com.rainy.token.data.repository.CredentialRepository
-import com.rainy.token.domain.model.Credential
+import com.rainy.token.data.repository.RepositoryError
 import com.rainy.token.domain.model.CredentialStatus
 import com.rainy.token.domain.model.ServiceBalance
 import com.rainy.token.domain.service.ServiceType
@@ -14,6 +13,7 @@ import com.rainy.token.domain.usecase.RefreshBalanceUseCase
 import com.rainy.token.ui.widget.OpenCodeGoWidgetProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -23,20 +23,18 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
-import javax.inject.Inject
 
 /**
  * 仪表盘 ViewModel。
  *
  * 状态聚合：凭据状态 + 余额缓存 + 在线刷新
- *  - 启动时读缓存展示（无网时也能看）
+ *  - 启动时读缓存展示（无网时也能看旧数据）
  *  - refresh() 并行拉取所有服务的最新余额（任一失败不影响其他）
  *  - 下拉刷新触发同一 refresh()
  */
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     private val credentialRepository: CredentialRepository,
-    private val balanceCache: BalanceCache,
     private val refreshBalanceUseCase: RefreshBalanceUseCase,
     @param:ApplicationContext private val appContext: Context
 ) : ViewModel() {
@@ -44,7 +42,7 @@ class DashboardViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
-    /** 防止并发 refresh() 调用交错覆盖 UI */
+    /** 防止并发 refresh() 调用交错覆盖 UI。 */
     private val refreshMutex = Mutex()
 
     init {
@@ -57,23 +55,29 @@ class DashboardViewModel @Inject constructor(
     }
 
     /**
-     * 仅重新读取本地凭据状态 + 余额缓存，不发起网络请求。
-     * 用于从设置页返回 Dashboard 时同步配置变更。
+     * 重新读取本地凭据状态 + 余额缓存，不发起网络请求。
      *
-     * 安全设计：只更新已有卡片的凭据状态字段，不替换余额/refreshing，
-     * 避免与正在运行的 refresh() 产生竞态（AGENTS.md 刷新竞态红线）。
+     * 卡片记录不含明文密钥的 SHA-256 指纹。更新时始终基于 _uiState 的最新卡片：
+     * 凭据没变就保留当前余额、错误和 refreshing；凭据变化才采用已被仓库清理后的
+     * 当前缓存。这样即使网络刷新同时完成，也不会用旧缓存快照回滚新结果。
      */
     fun reloadLocalState() {
         viewModelScope.launch {
-            val cached = balanceCache.getAll()
+            val localStates = credentialRepository.readLocalStates()
             _uiState.update { state ->
                 state.copy(
                     cards = state.cards.map { card ->
-                        val status = credentialRepository.statusFor(card.service)
+                        val local = localStates.getValue(card.service)
+                        val credentialChanged = local.fingerprint != card.credentialFingerprint
                         card.copy(
-                            credentialState = status.state,
-                            // 如果之前因 NOT_CONFIGURED 没有余额，现在配了凭据就补上缓存
-                            cachedBalance = card.cachedBalance ?: cached[card.service]
+                            credentialState = local.status.state,
+                            credentialFingerprint = local.fingerprint,
+                            cachedBalance = if (credentialChanged) {
+                                local.cachedBalance
+                            } else {
+                                card.cachedBalance ?: local.cachedBalance
+                            },
+                            lastFetchError = if (credentialChanged) null else card.lastFetchError
                         )
                     }
                 )
@@ -83,14 +87,14 @@ class DashboardViewModel @Inject constructor(
 
     /** 从本地缓存快速填充一次（不阻塞）。挂起函数，供调用方控制执行顺序。 */
     private suspend fun loadFromCache() {
-        val cached = balanceCache.getAll()
+        val localStates = credentialRepository.readLocalStates()
         val cards = ServiceType.entries.map { type ->
-            buildCard(type, cachedBalance = cached[type], lastFetchError = null)
+            buildCard(localStates.getValue(type), lastFetchError = null)
         }
         _uiState.update { it.copy(loading = false, refreshing = false, cards = cards) }
     }
 
-    /** 拉取所有服务最新余额，更新缓存。失败的服务保留旧数据并把错误信息带上 */
+    /** 拉取所有服务最新余额，更新缓存。失败的服务保留旧数据并把错误信息带上。 */
     fun refresh() {
         viewModelScope.launch {
             // Mutex 防并发：如果已有 refresh 在跑，后来的直接跳过
@@ -102,18 +106,21 @@ class DashboardViewModel @Inject constructor(
                         async {
                             val status = credentialRepository.statusFor(type)
                             if (status.state == CredentialStatus.State.NOT_CONFIGURED) {
-                                type to null  // 未配置的服务不拉
+                                type to null // 未配置的服务不拉
                             } else {
                                 type to refreshBalanceUseCase(type)
                             }
                         }
                     }.awaitAll().toMap()
                 }
-                val newCache = balanceCache.getAll()
+                val localStates = credentialRepository.readLocalStates()
                 val cards = ServiceType.entries.map { type ->
                     val result = results[type]
-                    val errMsg = result?.exceptionOrNull()?.message
-                    buildCard(type, cachedBalance = newCache[type], lastFetchError = errMsg)
+                    val error = result?.exceptionOrNull()
+                    val errMsg = error
+                        ?.takeUnless { it is RepositoryError.CredentialChanged }
+                        ?.message
+                    buildCard(localStates.getValue(type), lastFetchError = errMsg)
                 }
                 _uiState.update { it.copy(refreshing = false, cards = cards) }
                 // 刷新成功后更新桌面小组件
@@ -126,19 +133,16 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    private suspend fun buildCard(
-        type: ServiceType,
-        cachedBalance: CachedBalance?,
+    private fun buildCard(
+        local: CredentialRepository.LocalState,
         lastFetchError: String?
-    ): DashboardCardUi {
-        val status = credentialRepository.statusFor(type)
-        return DashboardCardUi(
-            service = type,
-            credentialState = status.state,
-            cachedBalance = cachedBalance,
-            lastFetchError = lastFetchError
-        )
-    }
+    ): DashboardCardUi = DashboardCardUi(
+        service = local.status.service,
+        credentialState = local.status.state,
+        credentialFingerprint = local.fingerprint,
+        cachedBalance = local.cachedBalance,
+        lastFetchError = lastFetchError
+    )
 }
 
 data class DashboardUiState(
@@ -150,13 +154,14 @@ data class DashboardUiState(
 data class DashboardCardUi(
     val service: ServiceType,
     val credentialState: CredentialStatus.State,
+    val credentialFingerprint: String?,
     val cachedBalance: CachedBalance?,
     val lastFetchError: String?
 ) {
-    /** 余额展示主数字。优先取缓存，错误时也展示（不隐藏，让用户看到旧值 + 红点提示） */
+    /** 余额展示主数字。优先取缓存，错误时也展示（不隐藏，让用户看到旧值 + 红点提示）。 */
     val displayBalance: ServiceBalance? get() = cachedBalance?.balance
 
-    /** 卡片顶部状态徽章 */
+    /** 卡片顶部状态徽章。 */
     val statusBadge: String get() = when {
         credentialState == CredentialStatus.State.NOT_CONFIGURED -> "未配置"
         lastFetchError != null -> "刷新失败"
