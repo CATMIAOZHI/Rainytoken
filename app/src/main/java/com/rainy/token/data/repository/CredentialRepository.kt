@@ -175,8 +175,9 @@ class CredentialRepository @Inject constructor(
     /**
      * 提交 [RefreshWriteSession] 中暂存的写入。
      *
-     * 完全只读的请求无需参与 revision 竞争：即使并发刷新先提交，只读触发的真实成功
-     * 结果仍应返回给用户。存在写入时，revision 和认证指纹都必须仍匹配。
+     * 成功且完全只读的请求无需参与 revision 竞争：即使并发刷新先提交，只读触发的
+     * 真实成功结果仍应返回给用户。失败的只读请求仍校验快照，避免把旧凭据错误显示
+     * 到用户刚替换的新凭据上。
      */
     internal suspend fun commit(
         session: RefreshWriteSession,
@@ -184,7 +185,8 @@ class CredentialRepository @Inject constructor(
     ): Boolean = mutationMutex.withLock {
         val pendingCredential = session.stagedCredential()
         val pendingBalance = session.stagedBalance().takeIf { includeBalance }
-        if (pendingCredential == null && pendingBalance == null) return@withLock true
+        val hasPendingWrites = pendingCredential != null || pendingBalance != null
+        if (!hasPendingWrites && includeBalance) return@withLock true
 
         val snapshot = session.snapshot
         val current = getUnlocked(snapshot.service) ?: return@withLock false
@@ -196,6 +198,7 @@ class CredentialRepository @Inject constructor(
                 currentFingerprint = credentialFingerprint(current)
             )
         ) return@withLock false
+        if (!hasPendingWrites) return@withLock true
 
         val finalCredential = pendingCredential ?: current
         val cacheIdentityChanged =
