@@ -201,8 +201,10 @@ class CredentialRepository @Inject constructor(
         if (!hasPendingWrites) return@withLock true
 
         val finalCredential = pendingCredential ?: current
+        val sameLineage = sameRefreshLineage(current, finalCredential)
         val cacheIdentityChanged =
-            cacheIdentityFingerprint(current) != cacheIdentityFingerprint(finalCredential)
+            cacheIdentityFingerprint(current) != cacheIdentityFingerprint(finalCredential) &&
+                !sameLineage
 
         bumpRevision(snapshot.service)
         if (cacheIdentityChanged) {
