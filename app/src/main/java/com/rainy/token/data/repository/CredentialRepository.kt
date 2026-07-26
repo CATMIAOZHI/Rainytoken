@@ -102,6 +102,36 @@ class CredentialRepository @Inject constructor(
         }
     }
 
+    /**
+     * 仅当测试期间凭据 revision 与认证指纹都未变化时恢复旧凭据。
+     * 防止连接测试失败后的回滚覆盖用户刚保存的另一份凭据。
+     */
+    internal suspend fun restoreIfCurrent(
+        testedSnapshot: CredentialSnapshot,
+        previous: Credential?
+    ): Boolean = mutationMutex.withLock {
+        val service = testedSnapshot.service
+        val current = getUnlocked(service) ?: return@withLock false
+        if (
+            !snapshotMatches(
+                snapshotRevision = testedSnapshot.revision,
+                snapshotFingerprint = testedSnapshot.fingerprint,
+                currentRevision = revisionFor(service),
+                currentFingerprint = credentialFingerprint(current)
+            )
+        ) return@withLock false
+
+        bumpRevision(service)
+        balanceCache.remove(service)
+        if (previous == null) {
+            secureStorage.remove(keyFor(service))
+        } else {
+            require(previous.service == service) { "回滚凭据服务不匹配" }
+            putUnlocked(previous)
+        }
+        true
+    }
+
     /** 获取一次刷新使用的不可变凭据快照。 */
     internal suspend fun snapshot(service: ServiceType): CredentialSnapshot? =
         mutationMutex.withLock {
@@ -119,40 +149,42 @@ class CredentialRepository @Inject constructor(
      * 只有 revision 和认证字段指纹都仍与请求开始时一致才允许提交。凭据与余额缓存在
      * 同一个凭据互斥区内更新；若用户期间保存/删除了凭据，本次旧结果会被完整丢弃。
      */
-    internal suspend fun commit(session: RefreshWriteSession): Boolean =
-        mutationMutex.withLock {
-            val snapshot = session.snapshot
-            val current = getUnlocked(snapshot.service) ?: return@withLock false
-            if (
-                !snapshotMatches(
-                    snapshotRevision = snapshot.revision,
-                    snapshotFingerprint = snapshot.fingerprint,
-                    currentRevision = revisionFor(snapshot.service),
-                    currentFingerprint = credentialFingerprint(current)
-                )
-            ) return@withLock false
+    internal suspend fun commit(
+        session: RefreshWriteSession,
+        includeBalance: Boolean
+    ): Boolean = mutationMutex.withLock {
+        val snapshot = session.snapshot
+        val current = getUnlocked(snapshot.service) ?: return@withLock false
+        if (
+            !snapshotMatches(
+                snapshotRevision = snapshot.revision,
+                snapshotFingerprint = snapshot.fingerprint,
+                currentRevision = revisionFor(snapshot.service),
+                currentFingerprint = credentialFingerprint(current)
+            )
+        ) return@withLock false
 
-            val pendingCredential = session.stagedCredential()
-            val pendingBalance = session.stagedBalance()
-            if (pendingCredential == null && pendingBalance == null) return@withLock true
+        val pendingCredential = session.stagedCredential()
+        val pendingBalance = session.stagedBalance().takeIf { includeBalance }
+        if (pendingCredential == null && pendingBalance == null) return@withLock true
 
-            val finalCredential = pendingCredential ?: current
-            val cacheIdentityChanged =
-                cacheIdentityFingerprint(current) != cacheIdentityFingerprint(finalCredential)
+        val finalCredential = pendingCredential ?: current
+        val cacheIdentityChanged =
+            cacheIdentityFingerprint(current) != cacheIdentityFingerprint(finalCredential)
 
-            // 在任何持久化副作用前推进 revision，阻止另一份同快照请求随后提交。
-            bumpRevision(snapshot.service)
-            if (cacheIdentityChanged) {
-                balanceCache.remove(snapshot.service)
-            }
-            if (pendingCredential != null) {
-                putUnlocked(pendingCredential)
-            }
-            if (pendingBalance != null) {
-                balanceCache.put(snapshot.service, pendingBalance)
-            }
-            true
+        // 在任何持久化副作用前推进 revision，阻止另一份同快照请求随后提交。
+        bumpRevision(snapshot.service)
+        if (cacheIdentityChanged) {
+            balanceCache.remove(snapshot.service)
         }
+        if (pendingCredential != null) {
+            putUnlocked(pendingCredential)
+        }
+        if (pendingBalance != null) {
+            balanceCache.put(snapshot.service, pendingBalance)
+        }
+        true
+    }
 
     /** 读取并转换为 UI 用的 [CredentialStatus]。 */
     suspend fun statusFor(service: ServiceType): CredentialStatus {
