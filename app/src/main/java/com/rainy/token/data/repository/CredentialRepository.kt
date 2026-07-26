@@ -65,7 +65,6 @@ class CredentialRepository @Inject constructor(
             val newIdentity = cacheIdentityFingerprint(credential)
             val cacheIdentityChanged = currentIdentity != newIdentity
 
-            // 先推进 revision，使已经在途的旧快照立即失效。
             bumpRevision(service)
             if (cacheIdentityChanged) {
                 cacheRollbackEntries[service] = CacheRollbackEntry(
@@ -75,7 +74,6 @@ class CredentialRepository @Inject constructor(
                 )
                 balanceCache.remove(service)
             } else {
-                // 同一凭据再次保存，旧的临时回滚记录不再适用。
                 cacheRollbackEntries.remove(service)
             }
             putUnlocked(credential)
@@ -91,14 +89,12 @@ class CredentialRepository @Inject constructor(
         return mutationMutex.withLock { getUnlocked(service) }
     }
 
-    /** 在同一个凭据互斥区内读取凭据状态与缓存，避免拼出跨账户状态。 */
     internal suspend fun readLocalState(service: ServiceType): LocalState =
         mutationMutex.withLock {
             val credential = getUnlocked(service)
             localStateOf(service, credential, balanceCache.get(service))
         }
 
-    /** Dashboard 一次性读取所有服务。 */
     internal suspend fun readLocalStates(): Map<ServiceType, LocalState> =
         mutationMutex.withLock {
             val cached = balanceCache.getAll()
@@ -161,7 +157,6 @@ class CredentialRepository @Inject constructor(
         true
     }
 
-    /** 获取一次刷新使用的不可变凭据快照。 */
     internal suspend fun snapshot(service: ServiceType): CredentialSnapshot? =
         mutationMutex.withLock {
             val credential = getUnlocked(service) ?: return@withLock null
@@ -175,9 +170,9 @@ class CredentialRepository @Inject constructor(
     /**
      * 提交 [RefreshWriteSession] 中暂存的写入。
      *
-     * 成功且完全只读的请求无需参与 revision 竞争：即使并发刷新先提交，只读触发的
-     * 真实成功结果仍应返回给用户。失败的只读请求仍校验快照，避免把旧凭据错误显示
-     * 到用户刚替换的新凭据上。
+     * 成功且完全只读的请求不参与 revision 竞争。存在写入时通常要求快照完全匹配；
+     * 唯一例外是认证字段已经轮换、当前持久化认证仍等于请求起点且账户身份相同，
+     * 此时允许新 Token 越过另一条同账户请求造成的纯 revision 变化。
      */
     internal suspend fun commit(
         session: RefreshWriteSession,
@@ -190,21 +185,25 @@ class CredentialRepository @Inject constructor(
 
         val snapshot = session.snapshot
         val current = getUnlocked(snapshot.service) ?: return@withLock false
-        if (
-            !snapshotMatches(
-                snapshotRevision = snapshot.revision,
-                snapshotFingerprint = snapshot.fingerprint,
-                currentRevision = revisionFor(snapshot.service),
-                currentFingerprint = credentialFingerprint(current)
-            )
-        ) return@withLock false
+        val currentFingerprint = credentialFingerprint(current)
+        val snapshotStillCurrent = snapshotMatches(
+            snapshotRevision = snapshot.revision,
+            snapshotFingerprint = snapshot.fingerprint,
+            currentRevision = revisionFor(snapshot.service),
+            currentFingerprint = currentFingerprint
+        )
+        val canMergeRotatedCredential = pendingCredential != null &&
+            credentialFingerprint(pendingCredential) != snapshot.fingerprint &&
+            currentFingerprint == snapshot.fingerprint &&
+            cacheIdentityFingerprint(current) == cacheIdentityFingerprint(pendingCredential)
+
+        if (!snapshotStillCurrent && !canMergeRotatedCredential) return@withLock false
         if (!hasPendingWrites) return@withLock true
 
         val finalCredential = pendingCredential ?: current
         val cacheIdentityChanged =
             cacheIdentityFingerprint(current) != cacheIdentityFingerprint(finalCredential)
 
-        // 在持久化副作用前推进 revision，阻止另一份同快照请求随后提交。
         bumpRevision(snapshot.service)
         if (cacheIdentityChanged) {
             balanceCache.remove(snapshot.service)
@@ -219,7 +218,6 @@ class CredentialRepository @Inject constructor(
         true
     }
 
-    /** 读取并转换为 UI 用的 [CredentialStatus]。 */
     suspend fun statusFor(service: ServiceType): CredentialStatus {
         val credential = get(service) ?: return CredentialStatus(
             service = service,
