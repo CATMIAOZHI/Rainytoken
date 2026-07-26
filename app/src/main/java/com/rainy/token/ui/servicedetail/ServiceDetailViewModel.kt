@@ -83,9 +83,51 @@ class ServiceDetailViewModel @Inject constructor(
     /**
      * 重新读取凭据状态 + 缓存（不发起网络请求）。
      * 用于从凭据编辑页返回时同步配置变更。
+     *
+     * 安全设计：只更新凭据相关字段（hasCredential / cached），
+     * 保留当前刷新错误状态（State.Error），避免将网络失败错误
+     * 替换为 State.Stale（缓存正常），导致用户看不到刷新失败信息。
      */
     fun reloadCredentialState() {
-        loadFromCache()
+        val type = _serviceType.value ?: return
+        viewModelScope.launch {
+            val status = credentialRepository.statusFor(type)
+            val cached = balanceCache.get(type)
+            val newHasCredential = status.state != CredentialStatus.State.NOT_CONFIGURED
+            val prevHasCredential = _uiState.value.hasCredential
+
+            _uiState.update { current ->
+                val newState: State = when {
+                    // 凭据被删除：展示错误状态
+                    !newHasCredential ->
+                        State.Error(cached?.balance, "凭据未配置", RepositoryError.InvalidCredential())
+                    // 保留网络刷新错误，仅更新缓存引用
+                    current.state is State.Error ->
+                        current.state.copy(cached = cached?.balance ?: current.state.cached)
+                    // 刷新进行中：不中断
+                    current.state is State.Loading ->
+                        current.state
+                    // Fresh：保持最新数据不变
+                    current.state is State.Fresh ->
+                        current.state
+                    // Stale / ManualModeHint：用最新缓存更新
+                    cached != null ->
+                        State.Stale(cached.balance, cached.fetchedAt)
+                    else ->
+                        current.state
+                }
+                current.copy(
+                    hasCredential = newHasCredential,
+                    cached = cached,
+                    state = newState
+                )
+            }
+
+            // 凭据从无到有且无缓存：自动发起刷新
+            if (newHasCredential && !prevHasCredential && cached == null) {
+                refresh()
+            }
+        }
     }
 
     fun refresh() {
