@@ -165,6 +165,8 @@ class ServiceDetailViewModel @Inject constructor(
         val serviceGen = serviceGeneration
         val gen = ++refreshGeneration
         viewModelScope.launch {
+            val requestFingerprint = credentialRepository.readLocalState(type).fingerprint
+            if (isStaleRequest(type, serviceGen, gen)) return@launch
             _uiState.update { it.copy(state = State.Loading) }
 
             val config = com.rainy.token.domain.service.ServiceConfigProvider.get(type)
@@ -189,18 +191,33 @@ class ServiceDetailViewModel @Inject constructor(
 
             val local = credentialRepository.readLocalState(type)
             if (isStaleRequest(type, serviceGen, gen)) return@launch
-
-            if (result.exceptionOrNull() !is RepositoryError.CredentialChanged) {
-                currentCredentialFingerprint = local.fingerprint
-            }
+            val fingerprintChanged = local.fingerprint != requestFingerprint
 
             result
                 .onSuccess { balance ->
+                    // 认证字段可能因 Codex Token 轮换而变化，也可能是用户在请求完成后
+                    // 切换了账户。两种情况下只信任当前凭据对应的持久化缓存；绝不把
+                    // 请求结果中的旧账户余额重新挂到新凭据上。
+                    val currentCache = if (fingerprintChanged) {
+                        local.cachedBalance
+                    } else {
+                        newerOf(_uiState.value.cached, local.cachedBalance)
+                    }
+                    currentCredentialFingerprint = local.fingerprint
+                    if (fingerprintChanged && currentCache == null) {
+                        loadFromCache()
+                        return@onSuccess
+                    }
                     _uiState.update {
+                        val mergedCache = if (fingerprintChanged) {
+                            local.cachedBalance
+                        } else {
+                            newerOf(it.cached, local.cachedBalance)
+                        }
                         it.copy(
                             hasCredential = true,
-                            cached = newerOf(it.cached, local.cachedBalance),
-                            state = State.Fresh(balance)
+                            cached = mergedCache,
+                            state = State.Fresh(mergedCache?.balance ?: balance)
                         )
                     }
                 }
@@ -209,8 +226,17 @@ class ServiceDetailViewModel @Inject constructor(
                         loadFromCache()
                         return@onFailure
                     }
+                    // 指纹变化时不复用当前页面里的旧账户缓存，也不提前接受新指纹；
+                    // 返回页面的 reload 会把它识别为 REPLACED 并按新凭据重验。
+                    if (!fingerprintChanged) {
+                        currentCredentialFingerprint = local.fingerprint
+                    }
                     _uiState.update { current ->
-                        val mergedCache = newerOf(current.cached, local.cachedBalance)
+                        val mergedCache = if (fingerprintChanged) {
+                            local.cachedBalance
+                        } else {
+                            newerOf(current.cached, local.cachedBalance)
+                        }
                         current.copy(
                             cached = mergedCache,
                             state = State.Error(
