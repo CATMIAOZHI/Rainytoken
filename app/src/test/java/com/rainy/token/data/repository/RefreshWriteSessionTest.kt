@@ -4,8 +4,10 @@ import com.rainy.token.domain.model.Credential
 import com.rainy.token.domain.model.ServiceBalance
 import com.rainy.token.domain.service.ServiceType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RefreshWriteSessionTest {
@@ -45,13 +47,7 @@ class RefreshWriteSessionTest {
 
     @Test
     fun `latest changed credential wins when token rotates more than once`() {
-        val original = Credential.CodexCredential(
-            service = ServiceType.CODEX,
-            accessToken = "access-0",
-            refreshToken = "refresh-0",
-            accountId = "account-1",
-            expiresAt = 1000L
-        )
+        val original = codexCredential()
         val session = RefreshWriteSession(
             CredentialRepository.CredentialSnapshot(
                 credential = original,
@@ -92,13 +88,7 @@ class RefreshWriteSessionTest {
 
     @Test
     fun `session reads staged rotated credential on retry`() {
-        val original = Credential.CodexCredential(
-            service = ServiceType.CODEX,
-            accessToken = "access-old",
-            refreshToken = "refresh-old",
-            accountId = "account-1",
-            expiresAt = 1000L
-        )
+        val original = codexCredential()
         val session = RefreshWriteSession(
             CredentialRepository.CredentialSnapshot(
                 credential = original,
@@ -118,29 +108,14 @@ class RefreshWriteSessionTest {
 
     @Test
     fun `snapshot must match both revision and fingerprint`() {
-        assertEquals(
-            true,
-            CredentialRepository.snapshotMatches(3L, "fp-a", 3L, "fp-a")
-        )
-        assertEquals(
-            false,
-            CredentialRepository.snapshotMatches(3L, "fp-a", 4L, "fp-a")
-        )
-        assertEquals(
-            false,
-            CredentialRepository.snapshotMatches(3L, "fp-a", 3L, "fp-b")
-        )
+        assertTrue(CredentialRepository.snapshotMatches(3L, "fp-a", 3L, "fp-a"))
+        assertFalse(CredentialRepository.snapshotMatches(3L, "fp-a", 4L, "fp-a"))
+        assertFalse(CredentialRepository.snapshotMatches(3L, "fp-a", 3L, "fp-b"))
     }
 
     @Test
     fun `Codex token rotation changes auth fingerprint but keeps cache identity`() {
-        val original = Credential.CodexCredential(
-            service = ServiceType.CODEX,
-            accessToken = "access-old",
-            refreshToken = "refresh-old",
-            accountId = "account-1",
-            expiresAt = 1000L
-        )
+        val original = codexCredential()
         val rotated = original.copy(
             accessToken = "access-new",
             refreshToken = "refresh-new",
@@ -155,6 +130,37 @@ class RefreshWriteSessionTest {
             CredentialRepository.cacheIdentityFingerprint(original),
             CredentialRepository.cacheIdentityFingerprint(rotated)
         )
+        assertTrue(CredentialRepository.sameRefreshLineage(original, rotated))
+    }
+
+    @Test
+    fun `Codex rotation without account id remains same refresh lineage`() {
+        val original = codexCredential().copy(accountId = "")
+        val rotated = original.copy(
+            accessToken = "access-new",
+            refreshToken = "refresh-new",
+            expiresAt = 2000L
+        )
+
+        // Without accountId the conservative cache identity changes, but the refresh response
+        // is still a copy of the same credential lineage and its one-time token must be persisted.
+        assertNotEquals(
+            CredentialRepository.cacheIdentityFingerprint(original),
+            CredentialRepository.cacheIdentityFingerprint(rotated)
+        )
+        assertTrue(CredentialRepository.sameRefreshLineage(original, rotated))
+    }
+
+    @Test
+    fun `different Codex account is not same refresh lineage`() {
+        val original = codexCredential()
+        val differentAccount = original.copy(
+            accessToken = "other-access",
+            refreshToken = "other-refresh",
+            accountId = "account-2"
+        )
+
+        assertFalse(CredentialRepository.sameRefreshLineage(original, differentAccount))
     }
 
     @Test
@@ -167,4 +173,13 @@ class RefreshWriteSessionTest {
             CredentialRepository.cacheIdentityFingerprint(newCredential)
         )
     }
+
+    private fun codexCredential(): Credential.CodexCredential =
+        Credential.CodexCredential(
+            service = ServiceType.CODEX,
+            accessToken = "access-old",
+            refreshToken = "refresh-old",
+            accountId = "account-1",
+            expiresAt = 1000L
+        )
 }
