@@ -6,8 +6,10 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.rainy.token.data.repository.RefreshWriteSession
 import com.rainy.token.domain.model.ServiceBalance
 import com.rainy.token.domain.service.ServiceType
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.builtins.MapSerializer
@@ -32,40 +34,64 @@ class BalanceCache(
     suspend fun getAll(): Map<ServiceType, CachedBalance> {
         val raw = dataStore.data.map { it[cacheKey] }.first() ?: return emptyMap()
         return runCatching {
-            val map = json.decodeFromString(
+            json.decodeFromString(
                 MapSerializer(ServiceType.serializer(), CachedBalance.serializer()),
                 raw
             )
-            map
         }.getOrDefault(emptyMap())
     }
 
     suspend fun get(service: ServiceType): CachedBalance? = getAll()[service]
 
     suspend fun put(service: ServiceType, balance: ServiceBalance) {
-        // 在 dataStore.edit 的互斥锁内做 read-modify-write，避免并发覆盖
+        currentCoroutineContext()[RefreshWriteSession]?.let { session ->
+            session.stageBalance(service, balance)
+            return
+        }
+
+        // 在 DataStore.edit 的互斥锁内做 read-modify-write，避免并发覆盖。
         dataStore.edit { prefs ->
-            val raw = prefs[cacheKey]
-            val current = if (raw != null) {
-                runCatching {
-                    json.decodeFromString(
-                        MapSerializer(ServiceType.serializer(), CachedBalance.serializer()),
-                        raw
-                    )
-                }.getOrDefault(emptyMap())
-            } else emptyMap()
+            val current = decode(prefs[cacheKey])
             val updated = current.toMutableMap()
             updated[service] = CachedBalance(balance = balance, fetchedAt = System.currentTimeMillis())
-            prefs[cacheKey] = json.encodeToString(
-                MapSerializer(ServiceType.serializer(), CachedBalance.serializer()),
-                updated
-            )
+            prefs[cacheKey] = encode(updated)
+        }
+    }
+
+    /** 删除单个服务缓存。凭据新增、替换或删除时由 CredentialRepository 调用。 */
+    suspend fun remove(service: ServiceType) {
+        dataStore.edit { prefs ->
+            val current = decode(prefs[cacheKey])
+            if (service !in current) return@edit
+            val updated = current.toMutableMap()
+            updated.remove(service)
+            if (updated.isEmpty()) {
+                prefs.remove(cacheKey)
+            } else {
+                prefs[cacheKey] = encode(updated)
+            }
         }
     }
 
     suspend fun clear() {
         dataStore.edit { it.remove(cacheKey) }
     }
+
+    private fun decode(raw: String?): Map<ServiceType, CachedBalance> {
+        if (raw == null) return emptyMap()
+        return runCatching {
+            json.decodeFromString(
+                MapSerializer(ServiceType.serializer(), CachedBalance.serializer()),
+                raw
+            )
+        }.getOrDefault(emptyMap())
+    }
+
+    private fun encode(value: Map<ServiceType, CachedBalance>): String =
+        json.encodeToString(
+            MapSerializer(ServiceType.serializer(), CachedBalance.serializer()),
+            value
+        )
 
     companion object {
         val DefaultJson = Json {
