@@ -59,10 +59,25 @@ class DashboardViewModel @Inject constructor(
     /**
      * 仅重新读取本地凭据状态 + 余额缓存，不发起网络请求。
      * 用于从设置页返回 Dashboard 时同步配置变更。
+     *
+     * 安全设计：只更新已有卡片的凭据状态字段，不替换余额/refreshing，
+     * 避免与正在运行的 refresh() 产生竞态（AGENTS.md 刷新竞态红线）。
      */
     fun reloadLocalState() {
         viewModelScope.launch {
-            loadFromCache()
+            val cached = balanceCache.getAll()
+            _uiState.update { state ->
+                state.copy(
+                    cards = state.cards.map { card ->
+                        val status = credentialRepository.statusFor(card.service)
+                        card.copy(
+                            credentialState = status.state,
+                            // 如果之前因 NOT_CONFIGURED 没有余额，现在配了凭据就补上缓存
+                            cachedBalance = card.cachedBalance ?: cached[card.service]
+                        )
+                    }
+                )
+            }
         }
     }
 

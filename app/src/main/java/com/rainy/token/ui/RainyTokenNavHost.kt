@@ -38,6 +38,7 @@ import com.rainy.token.ui.components.rememberWindowSizeClass
 import com.rainy.token.ui.components.DebugLogScreen
 import com.rainy.token.ui.components.TipsScreen
 import com.rainy.token.ui.dashboard.DashboardScreen
+import com.rainy.token.ui.dashboard.DashboardViewModel
 import com.rainy.token.ui.dashboard.UsageChartViewModel
 import com.rainy.token.ui.dashboard.UsageDataScreen
 import com.rainy.token.ui.dashboard.UsageDataViewModel
@@ -309,6 +310,17 @@ private fun CompactNavHost() {
 @Composable
 private fun ExpandedLayout() {
     var detailPane by remember { mutableStateOf<DetailPane>(DetailPane.Empty) }
+    val dashboardVm: DashboardViewModel = hiltViewModel()
+
+    // 宽屏布局下 DashboardScreen 永久挂载，不会收到 ON_RESUME。
+    // 当详情面板关闭时手动触发 Dashboard 刷新凭据状态。
+    var prevPane by remember { mutableStateOf<DetailPane>(DetailPane.Empty) }
+    LaunchedEffect(detailPane) {
+        if (prevPane != DetailPane.Empty && detailPane == DetailPane.Empty) {
+            dashboardVm.reloadLocalState()
+        }
+        prevPane = detailPane
+    }
 
     Row(modifier = Modifier.fillMaxSize()) {
         Box(
@@ -320,7 +332,8 @@ private fun ExpandedLayout() {
                 onOpenSettings = { detailPane = DetailPane.Settings },
                 onOpenService = { type -> detailPane = DetailPane.ServiceDetail(type) },
                 onOpenUsageDetail = { detailPane = DetailPane.OCGOUsage },
-                onOpenCcgoUsageDetail = { detailPane = DetailPane.CCGOUsage }
+                onOpenCcgoUsageDetail = { detailPane = DetailPane.CCGOUsage },
+                viewModel = dashboardVm
             )
         }
 
