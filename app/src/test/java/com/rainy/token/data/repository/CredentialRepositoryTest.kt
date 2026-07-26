@@ -2,6 +2,7 @@ package com.rainy.token.data.repository
 
 import com.rainy.token.domain.model.CredentialStatus
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 /**
@@ -103,5 +104,15 @@ class CredentialRepositoryTest {
         // This test documents that behavior — NOT_CONFIGURED comes from statusFor's
         // null check, not from determineCredentialState.
         // (Cannot test statusFor directly without Android Keystore.)
+        // Verify that determineCredentialState is never the source of NOT_CONFIGURED:
+        // it only returns WARNING or OK.
+        for (lastVerifiedAt in listOf(0L, System.currentTimeMillis(), System.currentTimeMillis() + 10000L)) {
+            val state = CredentialRepository.determineCredentialState(lastVerifiedAt, System.currentTimeMillis())
+            assertNotEquals(
+                "determineCredentialState must never return NOT_CONFIGURED (only statusFor does)",
+                CredentialStatus.State.NOT_CONFIGURED,
+                state
+            )
+        }
     }
 }

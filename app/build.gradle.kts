@@ -26,17 +26,6 @@ android {
     }
 
     signingConfigs {
-        getByName("debug") {
-            // 使用项目根目录的 debug.keystore（统一签名指纹，方便团队共享安装）
-            val debugKeystoreFile = rootProject.file("debug.keystore")
-            if (debugKeystoreFile.exists()) {
-                storeFile = debugKeystoreFile
-                storePassword = "android"
-                keyAlias = "androiddebugkey"
-                keyPassword = "android"
-            }
-            // 文件不存在时保留 AGP 默认 ~/.android/debug.keystore
-        }
         create("release") {
             // CI 环境没有 release.jks，自动 fallback 到 debug keystore
             // Release workflow 通过 Secret 注入 release.jks
@@ -69,7 +58,6 @@ android {
     buildTypes {
         debug {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
         }
         release {
             isMinifyEnabled = false
