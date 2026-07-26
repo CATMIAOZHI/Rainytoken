@@ -1,25 +1,18 @@
 package com.rainy.token.ui.servicedetail
 
+import com.rainy.token.domain.model.CookieEntry
 import com.rainy.token.domain.model.Credential
 import com.rainy.token.domain.service.ServiceType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Unit tests for [ServiceDetailViewModel] companion object pure functions.
- *
- * Tests credential fingerprint computation and credential change classification
- * — the core logic for detecting whether a credential was replaced (not just
- * toggled between configured/unconfigured) when returning from the credential
- * edit page.
- *
- * Regression for Codex review P2: "更换凭据后继续显示旧错误或旧账户数据".
+ * Tests credential fingerprint computation and credential change classification.
  */
 class ServiceDetailViewModelTest {
-
-    // ── credentialFingerprint ──
 
     @Test
     fun `null credential returns null fingerprint`() {
@@ -27,7 +20,7 @@ class ServiceDetailViewModelTest {
     }
 
     @Test
-    fun `same ApiKeyCredential produces same fingerprint`() {
+    fun `same ApiKeyCredential ignores lastVerifiedAt`() {
         val cred = Credential.ApiKeyCredential(
             service = ServiceType.DEEPSEEK,
             key = "sk-abc123",
@@ -36,6 +29,8 @@ class ServiceDetailViewModelTest {
         val fp1 = ServiceDetailViewModel.credentialFingerprint(cred)
         val fp2 = ServiceDetailViewModel.credentialFingerprint(cred.copy(lastVerifiedAt = 2000L))
         assertEquals(fp1, fp2)
+        assertEquals(64, fp1?.length)
+        assertFalse(fp1.orEmpty().contains(cred.key))
     }
 
     @Test
@@ -50,15 +45,9 @@ class ServiceDetailViewModelTest {
     }
 
     @Test
-    fun `CodexCredential fingerprint includes accessToken and accountId`() {
-        val cred1 = Credential.CodexCredential(
-            service = ServiceType.CODEX,
-            accessToken = "at-AAA",
-            refreshToken = "rt-AAA",
-            accountId = "acc-1",
-            expiresAt = 1000L
-        )
-        val cred2 = cred1.copy(accessToken = "at-BBB") // different token
+    fun `Codex fingerprint varies with access token`() {
+        val cred1 = codexCredential()
+        val cred2 = cred1.copy(accessToken = "at-BBB")
         assertNotEquals(
             ServiceDetailViewModel.credentialFingerprint(cred1),
             ServiceDetailViewModel.credentialFingerprint(cred2)
@@ -66,7 +55,17 @@ class ServiceDetailViewModelTest {
     }
 
     @Test
-    fun `SessionCredential fingerprint varies with authCookie`() {
+    fun `Codex fingerprint varies when only refresh token is rotated`() {
+        val cred1 = codexCredential()
+        val cred2 = cred1.copy(refreshToken = "rt-ROTATED")
+        assertNotEquals(
+            ServiceDetailViewModel.credentialFingerprint(cred1),
+            ServiceDetailViewModel.credentialFingerprint(cred2)
+        )
+    }
+
+    @Test
+    fun `Session fingerprint varies with authCookie`() {
         val cred1 = Credential.SessionCredential(
             service = ServiceType.OPENCODE_GO,
             authCookie = "cookie-AAA"
@@ -78,7 +77,26 @@ class ServiceDetailViewModelTest {
         )
     }
 
-    // ── classifyCredentialChange ──
+    @Test
+    fun `Session fingerprint includes Cookie list and is order independent`() {
+        val cookieA = CookieEntry(name = "a", value = "1", domain = "example.com")
+        val cookieB = CookieEntry(name = "b", value = "2", domain = "example.com")
+        val cred1 = Credential.SessionCredential(
+            service = ServiceType.OLLAMA,
+            cookies = listOf(cookieA, cookieB)
+        )
+        val reordered = cred1.copy(cookies = listOf(cookieB, cookieA))
+        val changed = cred1.copy(cookies = listOf(cookieA, cookieB.copy(value = "3")))
+
+        assertEquals(
+            ServiceDetailViewModel.credentialFingerprint(cred1),
+            ServiceDetailViewModel.credentialFingerprint(reordered)
+        )
+        assertNotEquals(
+            ServiceDetailViewModel.credentialFingerprint(cred1),
+            ServiceDetailViewModel.credentialFingerprint(changed)
+        )
+    }
 
     @Test
     fun `null to null is NONE_TO_NONE`() {
@@ -92,7 +110,7 @@ class ServiceDetailViewModelTest {
     fun `null to fingerprint is NEW`() {
         assertEquals(
             ServiceDetailViewModel.Companion.CredentialChange.NEW,
-            ServiceDetailViewModel.classifyCredentialChange(null, "ak:key-1")
+            ServiceDetailViewModel.classifyCredentialChange(null, "fp-1")
         )
     }
 
@@ -100,7 +118,7 @@ class ServiceDetailViewModelTest {
     fun `fingerprint to null is DELETED`() {
         assertEquals(
             ServiceDetailViewModel.Companion.CredentialChange.DELETED,
-            ServiceDetailViewModel.classifyCredentialChange("ak:key-1", null)
+            ServiceDetailViewModel.classifyCredentialChange("fp-1", null)
         )
     }
 
@@ -108,7 +126,7 @@ class ServiceDetailViewModelTest {
     fun `same fingerprint is UNCHANGED`() {
         assertEquals(
             ServiceDetailViewModel.Companion.CredentialChange.UNCHANGED,
-            ServiceDetailViewModel.classifyCredentialChange("ak:key-1", "ak:key-1")
+            ServiceDetailViewModel.classifyCredentialChange("fp-1", "fp-1")
         )
     }
 
@@ -116,14 +134,12 @@ class ServiceDetailViewModelTest {
     fun `different fingerprints is REPLACED`() {
         assertEquals(
             ServiceDetailViewModel.Companion.CredentialChange.REPLACED,
-            ServiceDetailViewModel.classifyCredentialChange("ak:key-1", "ak:key-2")
+            ServiceDetailViewModel.classifyCredentialChange("fp-1", "fp-2")
         )
     }
 
-    // ── Scenario coverage (matches Codex review requirements) ──
-
     @Test
-    fun `scenario 1 - invalid credential Error then replaced with valid credential triggers REPLACED`() {
+    fun `invalid credential replaced by valid credential is REPLACED`() {
         val oldFp = ServiceDetailViewModel.credentialFingerprint(
             Credential.ApiKeyCredential(ServiceType.DEEPSEEK, "invalid-key")
         )
@@ -137,23 +153,13 @@ class ServiceDetailViewModelTest {
     }
 
     @Test
-    fun `scenario 2 - account A Fresh replaced by account B triggers REPLACED`() {
-        val accountA = ServiceDetailViewModel.credentialFingerprint(
-            Credential.CodexCredential(
-                service = ServiceType.CODEX,
-                accessToken = "token-A",
-                refreshToken = "rt-A",
-                accountId = "acc-A",
-                expiresAt = 0L
-            )
-        )
+    fun `account A replaced by account B is REPLACED`() {
+        val accountA = ServiceDetailViewModel.credentialFingerprint(codexCredential())
         val accountB = ServiceDetailViewModel.credentialFingerprint(
-            Credential.CodexCredential(
-                service = ServiceType.CODEX,
+            codexCredential().copy(
                 accessToken = "token-B",
                 refreshToken = "rt-B",
-                accountId = "acc-B",
-                expiresAt = 0L
+                accountId = "acc-B"
             )
         )
         assertEquals(
@@ -163,7 +169,7 @@ class ServiceDetailViewModelTest {
     }
 
     @Test
-    fun `scenario 3 - credential deleted during refresh triggers DELETED`() {
+    fun `credential deleted during refresh is DELETED`() {
         val oldFp = ServiceDetailViewModel.credentialFingerprint(
             Credential.ApiKeyCredential(ServiceType.DEEPSEEK, "key-1")
         )
@@ -174,7 +180,7 @@ class ServiceDetailViewModelTest {
     }
 
     @Test
-    fun `scenario 4 - normal resume with unchanged credential triggers UNCHANGED`() {
+    fun `normal resume with unchanged credential is UNCHANGED`() {
         val fp = ServiceDetailViewModel.credentialFingerprint(
             Credential.ApiKeyCredential(ServiceType.DEEPSEEK, "same-key")
         )
@@ -183,4 +189,13 @@ class ServiceDetailViewModelTest {
             ServiceDetailViewModel.classifyCredentialChange(fp, fp)
         )
     }
+
+    private fun codexCredential(): Credential.CodexCredential =
+        Credential.CodexCredential(
+            service = ServiceType.CODEX,
+            accessToken = "at-AAA",
+            refreshToken = "rt-AAA",
+            accountId = "acc-1",
+            expiresAt = 1000L
+        )
 }
