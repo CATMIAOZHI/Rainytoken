@@ -58,8 +58,9 @@ class DashboardViewModel @Inject constructor(
      * 重新读取本地凭据状态 + 余额缓存，不发起网络请求。
      *
      * 卡片记录不含明文密钥的 SHA-256 指纹。更新时始终基于 _uiState 的最新卡片：
-     * 凭据没变就保留当前余额、错误和 refreshing；凭据变化才采用已被仓库清理后的
-     * 当前缓存。这样即使网络刷新同时完成，也不会用旧缓存快照回滚新结果。
+     * - 凭据变化时采用已清理过的当前账户缓存；
+     * - 凭据未变时按 fetchedAt 采用更新缓存，支持 Widget 后台刷新结果回显；
+     * - 不修改 refreshing，旧缓存快照也不能回滚新数据。
      */
     fun reloadLocalState() {
         viewModelScope.launch {
@@ -69,15 +70,24 @@ class DashboardViewModel @Inject constructor(
                     cards = state.cards.map { card ->
                         val local = localStates.getValue(card.service)
                         val credentialChanged = local.fingerprint != card.credentialFingerprint
+                        val cacheAdvanced = !credentialChanged && isNewer(
+                            candidate = local.cachedBalance,
+                            current = card.cachedBalance
+                        )
                         card.copy(
                             credentialState = local.status.state,
                             credentialFingerprint = local.fingerprint,
                             cachedBalance = if (credentialChanged) {
                                 local.cachedBalance
                             } else {
-                                card.cachedBalance ?: local.cachedBalance
+                                newerOf(card.cachedBalance, local.cachedBalance)
                             },
-                            lastFetchError = if (credentialChanged) null else card.lastFetchError
+                            // 凭据变化或出现更新的成功缓存时，旧错误已不再代表当前数据。
+                            lastFetchError = if (credentialChanged || cacheAdvanced) {
+                                null
+                            } else {
+                                card.lastFetchError
+                            }
                         )
                     }
                 )
@@ -143,6 +153,21 @@ class DashboardViewModel @Inject constructor(
         cachedBalance = local.cachedBalance,
         lastFetchError = lastFetchError
     )
+
+    private fun newerOf(
+        current: CachedBalance?,
+        candidate: CachedBalance?
+    ): CachedBalance? = when {
+        current == null -> candidate
+        candidate == null -> current
+        candidate.fetchedAt > current.fetchedAt -> candidate
+        else -> current
+    }
+
+    private fun isNewer(
+        candidate: CachedBalance?,
+        current: CachedBalance?
+    ): Boolean = candidate != null && (current == null || candidate.fetchedAt > current.fetchedAt)
 }
 
 data class DashboardUiState(
