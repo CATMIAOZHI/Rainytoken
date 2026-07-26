@@ -14,12 +14,12 @@ import com.rainy.token.domain.model.ServiceBalance
 import com.rainy.token.domain.service.ServiceType
 import com.rainy.token.domain.usecase.RefreshBalanceUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /**
  * 服务详情页 ViewModel。计划 3.3：UiState = Loading | Fresh | Stale | Error
@@ -53,11 +53,14 @@ class ServiceDetailViewModel @Inject constructor(
     private val _modelsLoading = MutableStateFlow(false)
     val modelsLoading: StateFlow<Boolean> = _modelsLoading.asStateFlow()
 
-    /** 当前凭据指纹（用于检测凭据替换）。null = 无凭据。 */
+    /** 当前凭据的不可逆 SHA-256 指纹；null 表示无凭据或尚未完成初始读取。 */
     private var currentCredentialFingerprint: String? = null
 
-    /** 刷新 generation：每次发起新刷新 +1，旧刷新返回时丢弃结果 */
+    /** 每次发起刷新 +1；凭据变化时旧刷新结果会被丢弃。 */
     private var refreshGeneration: Int = 0
+
+    /** 每次切换服务 +1；防止宽屏快速切换时旧服务协程覆盖新服务 UI。 */
+    private var serviceGeneration: Int = 0
 
     companion object {
         private const val CODEX_PREFS = "codex_trigger_prefs"
@@ -67,38 +70,14 @@ class ServiceDetailViewModel @Inject constructor(
         private const val OLLAMA_PREFS = "ollama_trigger_prefs"
 
         /**
-         * 计算凭据指纹（用于检测凭据是否被替换）。
-         * 不同凭据值 → 不同指纹；同一凭据值 → 同一指纹。
-         *
-         * - ApiKeyCredential: key 值
-         * - SessionCredential: token || authCookie || ollamaCookie + apiKey
-         * - CodexCredential: accessToken + refreshToken + accountId
+         * 认证相关字段的不可逆指纹。实现统一下沉到 CredentialRepository，包含：
+         * API Key、Session Cookie/Token/专用字段，以及 Codex accessToken +
+         * refreshToken + accountId；不包含 lastVerifiedAt。
          */
-        internal fun credentialFingerprint(credential: Credential?): String? {
-            if (credential == null) return null
-            return when (credential) {
-                is Credential.ApiKeyCredential -> "ak:${credential.key}"
-                is Credential.SessionCredential -> buildString {
-                    append("sc:")
-                    credential.token?.let { append("t:$it:") }
-                    credential.authCookie?.let { append("ac:$it:") }
-                    credential.ollamaCookie?.let { append("oc:$it:") }
-                    credential.apiKey?.let { append("ak:$it:") }
-                    credential.workspaceId?.let { append("wi:$it:") }
-                }
-                is Credential.CodexCredential -> "cx:${credential.accessToken}:${credential.accountId}"
-            }
-        }
+        internal fun credentialFingerprint(credential: Credential?): String? =
+            CredentialRepository.credentialFingerprint(credential)
 
-        /**
-         * 分类凭据变化类型。纯函数，便于单元测试。
-         *
-         * - UNCHANGED: 指纹相同（含 null → null）
-         * - NEW: 从无到有
-         * - REPLACED: 从有到不同的有
-         * - DELETED: 从有到无
-         * - NONE_TO_NONE: 无 → 无（不应触发任何刷新）
-         */
+        /** 凭据变化分类。 */
         enum class CredentialChange { UNCHANGED, NEW, REPLACED, DELETED, NONE_TO_NONE }
 
         internal fun classifyCredentialChange(
@@ -122,7 +101,16 @@ class ServiceDetailViewModel @Inject constructor(
 
     fun bind(service: ServiceType) {
         if (_serviceType.value == service) return
+
+        serviceGeneration++
+        refreshGeneration++ // 使前一个服务仍在执行的刷新结果失效
         _serviceType.value = service
+        currentCredentialFingerprint = null
+        _models.value = emptyList()
+        _selectedModel.value = null
+        _modelsLoading.value = false
+        _triggerState.value = TriggerState.Idle
+
         // 恢复持久化状态
         if (service == ServiceType.CODEX || service == ServiceType.OPENCODE_GO || service == ServiceType.OLLAMA) {
             val savedModel = loadSelectedModel(service)
@@ -131,52 +119,42 @@ class ServiceDetailViewModel @Inject constructor(
             if (cachedModels.isNotEmpty()) _models.value = cachedModels
         }
         loadFromCache()
-        // 初始化凭据指纹
-        viewModelScope.launch {
-            currentCredentialFingerprint = credentialFingerprint(credentialRepository.get(service))
-        }
     }
 
     /**
      * 重新读取凭据状态 + 缓存（不发起网络请求，除非凭据被替换/新增）。
      * 用于从凭据编辑页返回时同步配置变更。
      *
-     * 安全设计：
-     * - 通过指纹检测凭据是否被替换（旧→新），而不仅是 hasCredential 布尔值。
-     *   替换凭据后废弃旧 Fresh/Error 状态并自动刷新。
-     * - 保留未替换时的网络刷新错误，避免普通 resume 把 Error 降级为 Stale。
-     * - 刷新 generation 防止旧请求返回后覆盖新状态。
+     * - 指纹变化时废弃旧 Fresh/Error，并自动用新凭据刷新；
+     * - 普通 resume 保留当前网络错误；
+     * - CredentialRepository 会在凭据变化时先删除旧账户缓存，因此失败状态不会再
+     *   展示其他账户的余额。
      */
     fun reloadCredentialState() {
         val type = _serviceType.value ?: return
+        val serviceGen = serviceGeneration
         viewModelScope.launch {
-            val status = credentialRepository.statusFor(type)
-            val credential = credentialRepository.get(type)
-            val newFingerprint = credentialFingerprint(credential)
+            val local = credentialRepository.readLocalState(type)
+            val status = local.status
+            val newFingerprint = local.fingerprint
             val oldFingerprint = currentCredentialFingerprint
             val change = classifyCredentialChange(oldFingerprint, newFingerprint)
-            val cached = balanceCache.get(type)
+            val cached = local.cachedBalance
             val newHasCredential = status.state != CredentialStatus.State.NOT_CONFIGURED
 
-            // 更新指纹
+            if (serviceGen != serviceGeneration || _serviceType.value != type) return@launch
             currentCredentialFingerprint = newFingerprint
 
             when (change) {
                 CredentialChange.NONE_TO_NONE, CredentialChange.UNCHANGED -> {
-                    // 凭据没变：只更新凭据状态字段，保留现有 State
                     _uiState.update { current ->
                         val newState: State = when {
-                            // 凭据被删除（不应发生但防御）：展示错误
                             !newHasCredential ->
                                 State.Error(cached?.balance, "凭据未配置", RepositoryError.InvalidCredential())
-                            // 刷新进行中：不中断
                             current.state is State.Loading -> current.state
-                            // 保留网络刷新错误，仅更新缓存引用
                             current.state is State.Error ->
                                 current.state.copy(cached = cached?.balance ?: current.state.cached)
-                            // Fresh：保持不变
                             current.state is State.Fresh -> current.state
-                            // Stale / ManualModeHint：用最新缓存更新
                             cached != null -> State.Stale(cached.balance, cached.fetchedAt)
                             else -> current.state
                         }
@@ -184,20 +162,22 @@ class ServiceDetailViewModel @Inject constructor(
                     }
                 }
                 CredentialChange.NEW, CredentialChange.REPLACED -> {
-                    // 凭据新增或被替换：废弃旧状态，自动刷新
                     _uiState.update {
                         it.copy(hasCredential = true, cached = cached, state = State.Loading)
                     }
                     refresh()
                 }
                 CredentialChange.DELETED -> {
-                    // 凭据被删除：废弃旧状态
-                    refreshGeneration++ // 使在途刷新结果失效
+                    refreshGeneration++
                     _uiState.update {
                         it.copy(
                             hasCredential = false,
                             cached = cached,
-                            state = State.Error(cached?.balance, "凭据未配置", RepositoryError.InvalidCredential())
+                            state = State.Error(
+                                cached?.balance,
+                                "凭据未配置",
+                                RepositoryError.InvalidCredential()
+                            )
                         )
                     }
                 }
@@ -207,6 +187,7 @@ class ServiceDetailViewModel @Inject constructor(
 
     fun refresh() {
         val type = _serviceType.value ?: return
+        val serviceGen = serviceGeneration
         val gen = ++refreshGeneration
         viewModelScope.launch {
             _uiState.update { it.copy(state = State.Loading) }
@@ -214,8 +195,12 @@ class ServiceDetailViewModel @Inject constructor(
             // 手动输入模式：直接展示用户上次输入的余额（如果有）
             val config = com.rainy.token.domain.service.ServiceConfigProvider.get(type)
             if (config.method == com.rainy.token.domain.service.FetchMethod.MANUAL) {
-                if (gen != refreshGeneration) return@launch // 被新一代刷新取代
                 val cached = balanceCache.get(type)
+                if (
+                    gen != refreshGeneration ||
+                    serviceGen != serviceGeneration ||
+                    _serviceType.value != type
+                ) return@launch
                 _uiState.update {
                     it.copy(
                         state = if (cached != null) {
@@ -229,11 +214,29 @@ class ServiceDetailViewModel @Inject constructor(
             }
 
             val result = refreshBalanceUseCase(type)
-            // generation 检查：如果凭据在请求期间被替换/删除，丢弃旧结果
-            if (gen != refreshGeneration) return@launch
+            if (
+                gen != refreshGeneration ||
+                serviceGen != serviceGeneration ||
+                _serviceType.value != type
+            ) return@launch
+
+            // 正常请求可能在仓库中轮换 Token；同步指纹，避免下次 resume 把
+            // 内部 Token 刷新误判为用户替换凭据。CredentialChanged 则交给 reload 处理。
+            if (result.exceptionOrNull() !is RepositoryError.CredentialChanged) {
+                currentCredentialFingerprint = credentialFingerprint(credentialRepository.get(type))
+            }
+
             result
-                .onSuccess { balance -> _uiState.update { it.copy(state = State.Fresh(balance)) } }
+                .onSuccess { balance ->
+                    _uiState.update { it.copy(state = State.Fresh(balance)) }
+                }
                 .onFailure { error ->
+                    if (error is RepositoryError.CredentialChanged) {
+                        // 请求期间凭据或同服务刷新版本发生变化。当前请求已经结束，
+                        // 直接从当前凭据/缓存重建状态，避免保留一个无人完成的 Loading。
+                        loadFromCache()
+                        return@onFailure
+                    }
                     val cached = balanceCache.get(type)
                     _uiState.update {
                         it.copy(
@@ -254,6 +257,7 @@ class ServiceDetailViewModel @Inject constructor(
      */
     fun loadModels(force: Boolean = false) {
         val service = _serviceType.value ?: return
+        val serviceGen = serviceGeneration
         if (!force && _models.value.isNotEmpty()) return
         viewModelScope.launch {
             _modelsLoading.value = true
@@ -263,6 +267,7 @@ class ServiceDetailViewModel @Inject constructor(
                 ServiceType.OLLAMA -> refreshBalanceUseCase.fetchOllamaModels()
                 else -> Result.failure(RepositoryError.Unknown(IllegalArgumentException("不支持模型列表")))
             }
+            if (serviceGen != serviceGeneration || _serviceType.value != service) return@launch
             result
                 .onSuccess { list ->
                     _models.value = list
@@ -301,6 +306,7 @@ class ServiceDetailViewModel @Inject constructor(
      */
     fun triggerUsage() {
         val service = _serviceType.value ?: return
+        val serviceGen = serviceGeneration
         val model = _selectedModel.value ?: run {
             _triggerState.value = TriggerState.Error("请先选择模型", null)
             return
@@ -313,12 +319,16 @@ class ServiceDetailViewModel @Inject constructor(
                 ServiceType.OLLAMA -> refreshBalanceUseCase.triggerOllamaUsage(model)
                 else -> Result.failure(RepositoryError.Unknown(IllegalArgumentException("不支持激活用量")))
             }
+            if (serviceGen != serviceGeneration || _serviceType.value != service) return@launch
+
             result
                 .onSuccess { responseBody ->
                     _triggerState.value = TriggerState.Success(responseBody)
                     // 等待 2 秒让服务端处理用量，再刷新余额
                     kotlinx.coroutines.delay(2000)
-                    refresh()
+                    if (serviceGen == serviceGeneration && _serviceType.value == service) {
+                        refresh()
+                    }
                 }
                 .onFailure { error ->
                     val msg: String
@@ -330,6 +340,10 @@ class ServiceDetailViewModel @Inject constructor(
                         }
                         is RepositoryError.InvalidCredential -> {
                             msg = error.message ?: "凭据无效，请重新登录"
+                            respBody = null
+                        }
+                        is RepositoryError.CredentialChanged -> {
+                            msg = "凭据已变更，请重新操作"
                             respBody = null
                         }
                         is RepositoryError.Network -> {
@@ -351,11 +365,10 @@ class ServiceDetailViewModel @Inject constructor(
         _triggerState.value = TriggerState.Idle
     }
 
-    /**
-     * 手动输入模式：保存用户填的余额值。
-     */
+    /** 手动输入模式：保存用户填的余额值。 */
     fun saveManualBalance(amount: Double) {
         val type = _serviceType.value ?: return
+        val serviceGen = serviceGeneration
         viewModelScope.launch {
             val config = com.rainy.token.domain.service.ServiceConfigProvider.get(type)
             val balance = com.rainy.token.domain.model.ServiceBalance(
@@ -365,7 +378,9 @@ class ServiceDetailViewModel @Inject constructor(
                 isAvailable = true
             )
             balanceCache.put(type, balance)
-            _uiState.update { it.copy(state = State.Fresh(balance)) }
+            if (serviceGen == serviceGeneration && _serviceType.value == type) {
+                _uiState.update { it.copy(state = State.Fresh(balance)) }
+            }
         }
     }
 
@@ -374,11 +389,11 @@ class ServiceDetailViewModel @Inject constructor(
         viewModelScope.launch {
             val credential = credentialRepository.get(type) ?: return@launch
             val updated = when (credential) {
-                is com.rainy.token.domain.model.Credential.ApiKeyCredential ->
+                is Credential.ApiKeyCredential ->
                     credential.copy(lastVerifiedAt = System.currentTimeMillis())
-                is com.rainy.token.domain.model.Credential.SessionCredential ->
+                is Credential.SessionCredential ->
                     credential.copy(lastVerifiedAt = System.currentTimeMillis())
-                is com.rainy.token.domain.model.Credential.CodexCredential ->
+                is Credential.CodexCredential ->
                     credential.copy(lastVerifiedAt = System.currentTimeMillis())
             }
             credentialRepository.save(updated)
@@ -388,18 +403,27 @@ class ServiceDetailViewModel @Inject constructor(
 
     private fun loadFromCache() {
         val type = _serviceType.value ?: return
+        val serviceGen = serviceGeneration
         viewModelScope.launch {
-            val status = credentialRepository.statusFor(type)
-            val cached = balanceCache.get(type)
+            val local = credentialRepository.readLocalState(type)
+            val status = local.status
+            val cached = local.cachedBalance
             val config = com.rainy.token.domain.service.ServiceConfigProvider.get(type)
             val isManual = config.method == com.rainy.token.domain.service.FetchMethod.MANUAL
             val newState: State = when {
                 isManual && cached != null -> State.Stale(cached.balance, cached.fetchedAt)
                 isManual -> State.ManualModeHint
-                cached != null && status.state == CredentialStatus.State.OK -> State.Stale(cached.balance, cached.fetchedAt)
-                cached != null -> State.Error(cached.balance, "凭据未配置或已过期", RepositoryError.InvalidCredential())
+                status.state == CredentialStatus.State.NOT_CONFIGURED ->
+                    State.Error(null, "凭据未配置", RepositoryError.InvalidCredential())
+                cached != null && status.state == CredentialStatus.State.OK ->
+                    State.Stale(cached.balance, cached.fetchedAt)
+                cached != null ->
+                    State.Error(cached.balance, "凭据未配置或已过期", RepositoryError.InvalidCredential())
                 else -> State.Loading
             }
+
+            if (serviceGen != serviceGeneration || _serviceType.value != type) return@launch
+            currentCredentialFingerprint = local.fingerprint
             _uiState.update {
                 it.copy(
                     hasCredential = status.state != CredentialStatus.State.NOT_CONFIGURED,
@@ -415,7 +439,9 @@ class ServiceDetailViewModel @Inject constructor(
 
     private fun errorMessage(error: Throwable): String = when (error) {
         is RepositoryError.InvalidCredential -> "凭据无效，请在设置中重新配置"
-        is RepositoryError.RateLimited -> "请求过于频繁${error.retryAfterSeconds?.let { "，请 ${it} 秒后重试" } ?: ""}"
+        is RepositoryError.CredentialChanged -> "凭据已变更，正在重新加载"
+        is RepositoryError.RateLimited ->
+            "请求过于频繁${error.retryAfterSeconds?.let { "，请 ${it} 秒后重试" } ?: ""}"
         is RepositoryError.Network -> "网络异常，请检查网络"
         is RepositoryError.ServerError -> "服务端异常 (HTTP ${error.code})"
         is RepositoryError.ParseError -> "数据解析失败: ${error.message}"
@@ -425,25 +451,30 @@ class ServiceDetailViewModel @Inject constructor(
     // ── 模型持久化（Codex / OCGO / Ollama 各自独立 prefs） ──
 
     private fun prefs(service: ServiceType): android.content.SharedPreferences =
-        com.rainy.token.RainyTokenApplication.appContext.getSharedPreferences(prefsNameFor(service), android.content.Context.MODE_PRIVATE)
+        com.rainy.token.RainyTokenApplication.appContext.getSharedPreferences(
+            prefsNameFor(service),
+            android.content.Context.MODE_PRIVATE
+        )
 
     private fun persistSelectedModel(service: ServiceType, model: String?) {
         prefs(service).edit().putString(KEY_SELECTED_MODEL, model).apply()
     }
 
-    private fun loadSelectedModel(service: ServiceType): String? = prefs(service).getString(KEY_SELECTED_MODEL, null)
+    private fun loadSelectedModel(service: ServiceType): String? =
+        prefs(service).getString(KEY_SELECTED_MODEL, null)
 
     private fun persistModelsCache(service: ServiceType, models: List<String>) {
         prefs(service).edit().putString(KEY_MODELS_CACHE, models.joinToString("\n")).apply()
     }
 
     private fun loadModelsCache(service: ServiceType): List<String> =
-        prefs(service).getString(KEY_MODELS_CACHE, "")?.split("\n")?.filter { it.isNotBlank() } ?: emptyList()
+        prefs(service).getString(KEY_MODELS_CACHE, "")
+            ?.split("\n")
+            ?.filter { it.isNotBlank() }
+            ?: emptyList()
 }
 
-/**
- * 计划 7.1 规定的 UI 状态。
- */
+/** 计划 7.1 规定的 UI 状态。 */
 sealed class State {
     data object Loading : State()
     data class Fresh(val data: ServiceBalance) : State()
@@ -453,6 +484,7 @@ sealed class State {
         val message: String,
         val error: Throwable
     ) : State()
+
     /** 手动输入模式：尚未填入任何余额 */
     data object ManualModeHint : State()
 }
