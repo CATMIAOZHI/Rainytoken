@@ -170,9 +170,9 @@ class CredentialRepository @Inject constructor(
     /**
      * 提交 [RefreshWriteSession] 中暂存的写入。
      *
-     * 成功且完全只读的请求不参与 revision 竞争。存在写入时通常要求快照完全匹配；
-     * 唯一例外是认证字段已经轮换、当前持久化认证仍等于请求起点且属于同一刷新链，
-     * 此时允许新 Token 越过另一条同账户请求造成的纯 revision 变化。
+     * 完全只读的请求忽略同一凭据的 revision-only 变化，但成功和失败都必须确认认证
+     * 指纹仍与请求起点一致，避免把旧账户结果发布到用户刚替换的新凭据。存在写入时
+     * 通常要求快照完全匹配；认证字段合法轮换时允许越过同账户纯元数据版本变化。
      */
     internal suspend fun commit(
         session: RefreshWriteSession,
@@ -181,11 +181,17 @@ class CredentialRepository @Inject constructor(
         val pendingCredential = session.stagedCredential()
         val pendingBalance = session.stagedBalance().takeIf { includeBalance }
         val hasPendingWrites = pendingCredential != null || pendingBalance != null
-        if (!hasPendingWrites && includeBalance) return@withLock true
 
         val snapshot = session.snapshot
         val current = getUnlocked(snapshot.service) ?: return@withLock false
         val currentFingerprint = credentialFingerprint(current)
+
+        // 一键激活等只读会话不应被同凭据刷新造成的 revision 变化误伤；但凭据真正
+        // 替换/删除后，旧账户的成功响应和失败信息都必须丢弃。
+        if (!hasPendingWrites) {
+            return@withLock currentFingerprint == snapshot.fingerprint
+        }
+
         val snapshotStillCurrent = snapshotMatches(
             snapshotRevision = snapshot.revision,
             snapshotFingerprint = snapshot.fingerprint,
@@ -198,7 +204,6 @@ class CredentialRepository @Inject constructor(
             sameRefreshLineage(snapshot.credential, pendingCredential)
 
         if (!snapshotStillCurrent && !canMergeRotatedCredential) return@withLock false
-        if (!hasPendingWrites) return@withLock true
 
         val finalCredential = pendingCredential ?: current
         val sameLineage = sameRefreshLineage(current, finalCredential)
