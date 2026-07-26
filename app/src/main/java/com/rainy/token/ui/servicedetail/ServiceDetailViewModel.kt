@@ -80,6 +80,14 @@ class ServiceDetailViewModel @Inject constructor(
         loadFromCache()
     }
 
+    /**
+     * 重新读取凭据状态 + 缓存（不发起网络请求）。
+     * 用于从凭据编辑页返回时同步配置变更。
+     */
+    fun reloadCredentialState() {
+        loadFromCache()
+    }
+
     fun refresh() {
         val type = _serviceType.value ?: return
         viewModelScope.launch {

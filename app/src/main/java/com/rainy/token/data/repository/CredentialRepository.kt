@@ -47,13 +47,7 @@ class CredentialRepository @Inject constructor(
             state = CredentialStatus.State.NOT_CONFIGURED,
             lastVerifiedAt = 0L
         )
-        val now = System.currentTimeMillis()
-        // 简单启发：最近 7 天内有验证 → OK；否则按 lastVerifiedAt 是否为 0 判断
-        val state = when {
-            credential.lastVerifiedAt == 0L -> CredentialStatus.State.WARNING
-            now - credential.lastVerifiedAt > 7L * 24 * 3600 * 1000 -> CredentialStatus.State.WARNING
-            else -> CredentialStatus.State.OK
-        }
+        val state = determineCredentialState(credential.lastVerifiedAt, System.currentTimeMillis())
         return CredentialStatus(
             service = service,
             state = state,
@@ -63,4 +57,21 @@ class CredentialRepository @Inject constructor(
 
     suspend fun statusForAll(): List<CredentialStatus> =
         ServiceConfigProvider.all().map { statusFor(it.type) }
+
+    companion object {
+        /**
+         * 根据上次验证时间判断凭据状态。纯函数，便于单元测试。
+         *
+         * - [lastVerifiedAt] == 0 → WARNING（已保存但未验证）
+         * - 距上次验证 > 7 天 → WARNING
+         * - 否则 → OK
+         */
+        internal fun determineCredentialState(lastVerifiedAt: Long, now: Long): CredentialStatus.State {
+            return when {
+                lastVerifiedAt == 0L -> CredentialStatus.State.WARNING
+                now - lastVerifiedAt > 7L * 24 * 3600 * 1000 -> CredentialStatus.State.WARNING
+                else -> CredentialStatus.State.OK
+            }
+        }
+    }
 }

@@ -56,6 +56,16 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 仅重新读取本地凭据状态 + 余额缓存，不发起网络请求。
+     * 用于从设置页返回 Dashboard 时同步配置变更。
+     */
+    fun reloadLocalState() {
+        viewModelScope.launch {
+            loadFromCache()
+        }
+    }
+
     /** 从本地缓存快速填充一次（不阻塞）。挂起函数，供调用方控制执行顺序。 */
     private suspend fun loadFromCache() {
         val cached = balanceCache.getAll()
