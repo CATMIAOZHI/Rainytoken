@@ -171,7 +171,7 @@ class CredentialRepository @Inject constructor(
      * 提交 [RefreshWriteSession] 中暂存的写入。
      *
      * 成功且完全只读的请求不参与 revision 竞争。存在写入时通常要求快照完全匹配；
-     * 唯一例外是认证字段已经轮换、当前持久化认证仍等于请求起点且账户身份相同，
+     * 唯一例外是认证字段已经轮换、当前持久化认证仍等于请求起点且属于同一刷新链，
      * 此时允许新 Token 越过另一条同账户请求造成的纯 revision 变化。
      */
     internal suspend fun commit(
@@ -195,7 +195,7 @@ class CredentialRepository @Inject constructor(
         val canMergeRotatedCredential = pendingCredential != null &&
             credentialFingerprint(pendingCredential) != snapshot.fingerprint &&
             currentFingerprint == snapshot.fingerprint &&
-            cacheIdentityFingerprint(current) == cacheIdentityFingerprint(pendingCredential)
+            sameRefreshLineage(snapshot.credential, pendingCredential)
 
         if (!snapshotStillCurrent && !canMergeRotatedCredential) return@withLock false
         if (!hasPendingWrites) return@withLock true
@@ -293,6 +293,19 @@ class CredentialRepository @Inject constructor(
             lastVerifiedAt == 0L -> CredentialStatus.State.WARNING
             now - lastVerifiedAt > 7L * 24 * 3600 * 1000 -> CredentialStatus.State.WARNING
             else -> CredentialStatus.State.OK
+        }
+
+        /**
+         * 判断认证更新是否来自同一条合法刷新链。Codex 的 refresh 响应由旧凭据 copy
+         * 产生，因此 accountId（即使为空）必须保持一致；其他类型要求余额账户身份一致。
+         */
+        internal fun sameRefreshLineage(
+            original: Credential,
+            updated: Credential
+        ): Boolean = when {
+            original is Credential.CodexCredential && updated is Credential.CodexCredential ->
+                original.service == updated.service && original.accountId == updated.accountId
+            else -> cacheIdentityFingerprint(original) == cacheIdentityFingerprint(updated)
         }
 
         /**
