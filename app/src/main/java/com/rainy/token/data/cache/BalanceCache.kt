@@ -33,12 +33,7 @@ class BalanceCache(
 
     suspend fun getAll(): Map<ServiceType, CachedBalance> {
         val raw = dataStore.data.map { it[cacheKey] }.first() ?: return emptyMap()
-        return runCatching {
-            json.decodeFromString(
-                MapSerializer(ServiceType.serializer(), CachedBalance.serializer()),
-                raw
-            )
-        }.getOrDefault(emptyMap())
+        return decode(raw)
     }
 
     suspend fun get(service: ServiceType): CachedBalance? = getAll()[service]
@@ -48,12 +43,20 @@ class BalanceCache(
             session.stageBalance(service, balance)
             return
         }
+        putCached(
+            service = service,
+            cachedBalance = CachedBalance(
+                balance = balance,
+                fetchedAt = System.currentTimeMillis()
+            )
+        )
+    }
 
-        // 在 DataStore.edit 的互斥锁内做 read-modify-write，避免并发覆盖。
+    /** 恢复一份已有缓存并保留原 fetchedAt；仅供凭据测试安全回滚使用。 */
+    internal suspend fun putCached(service: ServiceType, cachedBalance: CachedBalance) {
         dataStore.edit { prefs ->
-            val current = decode(prefs[cacheKey])
-            val updated = current.toMutableMap()
-            updated[service] = CachedBalance(balance = balance, fetchedAt = System.currentTimeMillis())
+            val updated = decode(prefs[cacheKey]).toMutableMap()
+            updated[service] = cachedBalance
             prefs[cacheKey] = encode(updated)
         }
     }
