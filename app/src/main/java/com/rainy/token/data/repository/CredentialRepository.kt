@@ -15,12 +15,10 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * 凭据的统一读写入口。封装 SecureStorage 的 key 命名规则（用 [ServiceType.storageKey]），
- * 把 JSON 反序列化成密封类 [Credential]。
+ * 凭据的统一读写入口。
  *
- * 所有凭据变更都经过 [mutationMutex] 串行化，并维护进程内 revision。余额刷新先取得
- * [CredentialSnapshot]，网络完成后只有快照仍为当前版本时才能提交凭据与缓存，防止
- * 旧请求覆盖用户刚保存、替换或删除的凭据。
+ * 所有凭据变更都经过 [mutationMutex] 串行化，并维护进程内 revision。网络刷新先取得
+ * [CredentialSnapshot]；请求结束后只有快照仍为当前版本时，暂存的凭据与余额才会提交。
  */
 @Singleton
 class CredentialRepository @Inject constructor(
@@ -42,8 +40,15 @@ class CredentialRepository @Inject constructor(
         val cachedBalance: CachedBalance?
     )
 
+    private data class CacheRollbackEntry(
+        val testedFingerprint: String,
+        val previousIdentity: String?,
+        val cachedBalance: CachedBalance?
+    )
+
     private val mutationMutex = Mutex()
     private val revisions = mutableMapOf<ServiceType, Long>()
+    private val cacheRollbackEntries = mutableMapOf<ServiceType, CacheRollbackEntry>()
 
     private fun keyFor(service: ServiceType): String = "credential_${service.storageKey}"
 
@@ -54,14 +59,24 @@ class CredentialRepository @Inject constructor(
         }
 
         mutationMutex.withLock {
-            val current = getUnlocked(credential.service)
-            val cacheIdentityChanged =
-                cacheIdentityFingerprint(current) != cacheIdentityFingerprint(credential)
+            val service = credential.service
+            val current = getUnlocked(service)
+            val currentIdentity = cacheIdentityFingerprint(current)
+            val newIdentity = cacheIdentityFingerprint(credential)
+            val cacheIdentityChanged = currentIdentity != newIdentity
 
-            // 先推进 revision，使已在途的旧快照立即失效。即使后续存储异常，旧请求也不能回写。
-            bumpRevision(credential.service)
+            // 先推进 revision，使已经在途的旧快照立即失效。
+            bumpRevision(service)
             if (cacheIdentityChanged) {
-                balanceCache.remove(credential.service)
+                cacheRollbackEntries[service] = CacheRollbackEntry(
+                    testedFingerprint = credentialFingerprint(credential)!!,
+                    previousIdentity = currentIdentity,
+                    cachedBalance = if (current != null) balanceCache.get(service) else null
+                )
+                balanceCache.remove(service)
+            } else {
+                // 同一凭据再次保存，旧的临时回滚记录不再适用。
+                cacheRollbackEntries.remove(service)
             }
             putUnlocked(credential)
         }
@@ -76,15 +91,14 @@ class CredentialRepository @Inject constructor(
         return mutationMutex.withLock { getUnlocked(service) }
     }
 
-    /** 在凭据互斥区内读取凭据、状态与对应缓存，避免账户切换时拼出跨版本状态。 */
+    /** 在同一个凭据互斥区内读取凭据状态与缓存，避免拼出跨账户状态。 */
     internal suspend fun readLocalState(service: ServiceType): LocalState =
         mutationMutex.withLock {
             val credential = getUnlocked(service)
-            val cached = balanceCache.get(service)
-            localStateOf(service, credential, cached)
+            localStateOf(service, credential, balanceCache.get(service))
         }
 
-    /** Dashboard 一次性读取所有服务，缓存与凭据来自同一受保护快照。 */
+    /** Dashboard 一次性读取所有服务。 */
     internal suspend fun readLocalStates(): Map<ServiceType, LocalState> =
         mutationMutex.withLock {
             val cached = balanceCache.getAll()
@@ -97,6 +111,7 @@ class CredentialRepository @Inject constructor(
     suspend fun remove(service: ServiceType) {
         mutationMutex.withLock {
             bumpRevision(service)
+            cacheRollbackEntries.remove(service)
             balanceCache.remove(service)
             secureStorage.remove(keyFor(service))
         }
@@ -104,7 +119,7 @@ class CredentialRepository @Inject constructor(
 
     /**
      * 仅当测试期间凭据 revision 与认证指纹都未变化时恢复旧凭据。
-     * 防止连接测试失败后的回滚覆盖用户刚保存的另一份凭据。
+     * 若替换凭据时清除了旧账户缓存，这里会一并恢复原缓存和原 fetchedAt。
      */
     internal suspend fun restoreIfCurrent(
         testedSnapshot: CredentialSnapshot,
@@ -121,14 +136,28 @@ class CredentialRepository @Inject constructor(
             )
         ) return@withLock false
 
+        val currentIdentity = cacheIdentityFingerprint(current)
+        val previousIdentity = cacheIdentityFingerprint(previous)
+        val identityChanged = currentIdentity != previousIdentity
+        val rollbackEntry = cacheRollbackEntries[service]?.takeIf {
+            it.testedFingerprint == testedSnapshot.fingerprint &&
+                it.previousIdentity == previousIdentity
+        }
+
         bumpRevision(service)
-        balanceCache.remove(service)
+        if (identityChanged) {
+            balanceCache.remove(service)
+        }
         if (previous == null) {
             secureStorage.remove(keyFor(service))
         } else {
             require(previous.service == service) { "回滚凭据服务不匹配" }
             putUnlocked(previous)
         }
+        if (identityChanged) {
+            rollbackEntry?.cachedBalance?.let { balanceCache.putCached(service, it) }
+        }
+        cacheRollbackEntries.remove(service)
         true
     }
 
@@ -146,13 +175,17 @@ class CredentialRepository @Inject constructor(
     /**
      * 提交 [RefreshWriteSession] 中暂存的写入。
      *
-     * 只有 revision 和认证字段指纹都仍与请求开始时一致才允许提交。凭据与余额缓存在
-     * 同一个凭据互斥区内更新；若用户期间保存/删除了凭据，本次旧结果会被完整丢弃。
+     * 完全只读的请求无需参与 revision 竞争：即使并发刷新先提交，只读触发的真实成功
+     * 结果仍应返回给用户。存在写入时，revision 和认证指纹都必须仍匹配。
      */
     internal suspend fun commit(
         session: RefreshWriteSession,
         includeBalance: Boolean
     ): Boolean = mutationMutex.withLock {
+        val pendingCredential = session.stagedCredential()
+        val pendingBalance = session.stagedBalance().takeIf { includeBalance }
+        if (pendingCredential == null && pendingBalance == null) return@withLock true
+
         val snapshot = session.snapshot
         val current = getUnlocked(snapshot.service) ?: return@withLock false
         if (
@@ -164,15 +197,11 @@ class CredentialRepository @Inject constructor(
             )
         ) return@withLock false
 
-        val pendingCredential = session.stagedCredential()
-        val pendingBalance = session.stagedBalance().takeIf { includeBalance }
-        if (pendingCredential == null && pendingBalance == null) return@withLock true
-
         val finalCredential = pendingCredential ?: current
         val cacheIdentityChanged =
             cacheIdentityFingerprint(current) != cacheIdentityFingerprint(finalCredential)
 
-        // 在任何持久化副作用前推进 revision，阻止另一份同快照请求随后提交。
+        // 在持久化副作用前推进 revision，阻止另一份同快照请求随后提交。
         bumpRevision(snapshot.service)
         if (cacheIdentityChanged) {
             balanceCache.remove(snapshot.service)
@@ -182,6 +211,7 @@ class CredentialRepository @Inject constructor(
         }
         if (pendingBalance != null) {
             balanceCache.put(snapshot.service, pendingBalance)
+            cacheRollbackEntries.remove(snapshot.service)
         }
         true
     }
@@ -255,27 +285,18 @@ class CredentialRepository @Inject constructor(
     }
 
     companion object {
-        /**
-         * 根据上次验证时间判断凭据状态。纯函数，便于单元测试。
-         *
-         * - [lastVerifiedAt] == 0 → WARNING（已保存但未验证）
-         * - 距上次验证 > 7 天 → WARNING
-         * - 否则 → OK
-         */
-        internal fun determineCredentialState(lastVerifiedAt: Long, now: Long): CredentialStatus.State {
-            return when {
-                lastVerifiedAt == 0L -> CredentialStatus.State.WARNING
-                now - lastVerifiedAt > 7L * 24 * 3600 * 1000 -> CredentialStatus.State.WARNING
-                else -> CredentialStatus.State.OK
-            }
+        internal fun determineCredentialState(
+            lastVerifiedAt: Long,
+            now: Long
+        ): CredentialStatus.State = when {
+            lastVerifiedAt == 0L -> CredentialStatus.State.WARNING
+            now - lastVerifiedAt > 7L * 24 * 3600 * 1000 -> CredentialStatus.State.WARNING
+            else -> CredentialStatus.State.OK
         }
 
         /**
-         * 余额缓存所属账户的不可逆标识。
-         *
-         * 与 [credentialFingerprint] 不同，Codex 的短期 Token 轮换不会改变账户标识；
-         * SessionCredential 的触发用 API Key 也不会影响余额账户。无法取得稳定账户 ID
-         * 的服务采用其主要认证字段，宁可保守失效缓存，也不跨账户展示余额。
+         * 余额缓存所属账户的不可逆标识。Codex 的短期 Token 轮换不会改变账户标识；
+         * SessionCredential 的触发用 API Key 也不会影响余额账户。
          */
         internal fun cacheIdentityFingerprint(credential: Credential?): String? {
             if (credential == null) return null
@@ -292,21 +313,12 @@ class CredentialRepository @Inject constructor(
                         field("authCookie", credential.authCookie)
                         field("workspaceId", credential.workspaceId)
                         field("ollamaCookie", credential.ollamaCookie)
-                        credential.cookies
-                            .sortedWith(
-                                compareBy(
-                                    { it.name },
-                                    { it.domain.orEmpty() },
-                                    { it.path.orEmpty() },
-                                    { it.value }
-                                )
-                            )
-                            .forEachIndexed { index, cookie ->
-                                field("cookie[$index].name", cookie.name)
-                                field("cookie[$index].value", cookie.value)
-                                field("cookie[$index].domain", cookie.domain)
-                                field("cookie[$index].path", cookie.path)
-                            }
+                        credential.cookies.sortedForFingerprint().forEachIndexed { index, cookie ->
+                            field("cookie[$index].name", cookie.name)
+                            field("cookie[$index].value", cookie.value)
+                            field("cookie[$index].domain", cookie.domain)
+                            field("cookie[$index].path", cookie.path)
+                        }
                     }
                     is Credential.CodexCredential -> {
                         field("type", "codex")
@@ -322,7 +334,6 @@ class CredentialRepository @Inject constructor(
             return sha256(material)
         }
 
-        /** 纯函数：revision 与认证指纹都一致时，旧请求才允许提交。 */
         internal fun snapshotMatches(
             snapshotRevision: Long,
             snapshotFingerprint: String,
@@ -331,13 +342,7 @@ class CredentialRepository @Inject constructor(
         ): Boolean =
             snapshotRevision == currentRevision && snapshotFingerprint == currentFingerprint
 
-        /**
-         * 对认证相关字段生成不可逆 SHA-256 指纹。
-         *
-         * 指纹不包含 lastVerifiedAt 等展示元数据；Codex 明确包含 refreshToken，Session
-         * 同时包含 Cookie 列表及各服务专用认证字段。返回值可安全用于内存状态比较，
-         * 不会额外保留 API Key、Cookie 或 Token 原文。
-         */
+        /** 对认证相关字段生成不可逆 SHA-256 指纹；不包含 lastVerifiedAt。 */
         internal fun credentialFingerprint(credential: Credential?): String? {
             if (credential == null) return null
             val material = buildString {
@@ -354,24 +359,15 @@ class CredentialRepository @Inject constructor(
                         field("workspaceId", credential.workspaceId)
                         field("ollamaCookie", credential.ollamaCookie)
                         field("apiKey", credential.apiKey)
-                        credential.cookies
-                            .sortedWith(
-                                compareBy(
-                                    { it.name },
-                                    { it.domain.orEmpty() },
-                                    { it.path.orEmpty() },
-                                    { it.value }
-                                )
-                            )
-                            .forEachIndexed { index, cookie ->
-                                field("cookie[$index].name", cookie.name)
-                                field("cookie[$index].value", cookie.value)
-                                field("cookie[$index].domain", cookie.domain)
-                                field("cookie[$index].path", cookie.path)
-                                field("cookie[$index].expiresAt", cookie.expiresAt?.toString())
-                                field("cookie[$index].secure", cookie.isSecure.toString())
-                                field("cookie[$index].httpOnly", cookie.isHttpOnly.toString())
-                            }
+                        credential.cookies.sortedForFingerprint().forEachIndexed { index, cookie ->
+                            field("cookie[$index].name", cookie.name)
+                            field("cookie[$index].value", cookie.value)
+                            field("cookie[$index].domain", cookie.domain)
+                            field("cookie[$index].path", cookie.path)
+                            field("cookie[$index].expiresAt", cookie.expiresAt?.toString())
+                            field("cookie[$index].secure", cookie.isSecure.toString())
+                            field("cookie[$index].httpOnly", cookie.isHttpOnly.toString())
+                        }
                     }
                     is Credential.CodexCredential -> {
                         field("type", "codex")
@@ -383,6 +379,16 @@ class CredentialRepository @Inject constructor(
             }
             return sha256(material)
         }
+
+        private fun List<com.rainy.token.domain.model.CookieEntry>.sortedForFingerprint() =
+            sortedWith(
+                compareBy(
+                    { it.name },
+                    { it.domain.orEmpty() },
+                    { it.path.orEmpty() },
+                    { it.value }
+                )
+            )
 
         private fun StringBuilder.field(name: String, value: String?) {
             append(name)
