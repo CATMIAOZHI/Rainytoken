@@ -55,6 +55,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rainy.token.domain.model.ServiceBalance
 import com.rainy.token.domain.service.FetchMethod
@@ -94,6 +96,10 @@ fun ServiceDetailScreen(
     viewModel: ServiceDetailViewModel = hiltViewModel()
 ) {
     LaunchedEffect(service) { viewModel.bind(service) }
+    // 从凭据编辑页返回时重新读取凭据状态 + 缓存
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.reloadCredentialState()
+    }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val triggerState by viewModel.triggerState.collectAsStateWithLifecycle()
     val models by viewModel.models.collectAsStateWithLifecycle()

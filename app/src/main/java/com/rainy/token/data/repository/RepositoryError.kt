@@ -9,6 +9,9 @@ sealed class RepositoryError(message: String, cause: Throwable? = null) : Except
     class InvalidCredential(detail: String? = null, cause: Throwable? = null) :
         RepositoryError("凭据无效" + (detail?.let { ": $it" } ?: ""), cause)
 
+    /** 请求期间凭据被保存、替换或删除；旧结果已安全丢弃。 */
+    class CredentialChanged : RepositoryError("凭据已变更，本次请求结果已丢弃")
+
     /** 限流（429 Too Many Requests） */
     class RateLimited(val retryAfterSeconds: Long? = null) :
         RepositoryError("请求过于频繁${retryAfterSeconds?.let { "，请 ${it} 秒后重试" } ?: ""}")

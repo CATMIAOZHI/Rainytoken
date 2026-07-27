@@ -30,6 +30,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.rainy.token.data.repository.CommandCodeUsageRepository
@@ -38,6 +39,7 @@ import com.rainy.token.ui.components.rememberWindowSizeClass
 import com.rainy.token.ui.components.DebugLogScreen
 import com.rainy.token.ui.components.TipsScreen
 import com.rainy.token.ui.dashboard.DashboardScreen
+import com.rainy.token.ui.dashboard.DashboardViewModel
 import com.rainy.token.ui.dashboard.UsageChartViewModel
 import com.rainy.token.ui.dashboard.UsageDataScreen
 import com.rainy.token.ui.dashboard.UsageDataViewModel
@@ -309,6 +311,17 @@ private fun CompactNavHost() {
 @Composable
 private fun ExpandedLayout() {
     var detailPane by remember { mutableStateOf<DetailPane>(DetailPane.Empty) }
+    val dashboardVm: DashboardViewModel = hiltViewModel()
+
+    // 宽屏布局下 DashboardScreen 永久挂载，不会收到 ON_RESUME。
+    // 当详情面板关闭时手动触发 Dashboard 刷新凭据状态。
+    var prevPane by remember { mutableStateOf<DetailPane>(DetailPane.Empty) }
+    LaunchedEffect(detailPane) {
+        if (prevPane != DetailPane.Empty && detailPane == DetailPane.Empty) {
+            dashboardVm.reloadLocalState()
+        }
+        prevPane = detailPane
+    }
 
     Row(modifier = Modifier.fillMaxSize()) {
         Box(
@@ -320,7 +333,8 @@ private fun ExpandedLayout() {
                 onOpenSettings = { detailPane = DetailPane.Settings },
                 onOpenService = { type -> detailPane = DetailPane.ServiceDetail(type) },
                 onOpenUsageDetail = { detailPane = DetailPane.OCGOUsage },
-                onOpenCcgoUsageDetail = { detailPane = DetailPane.CCGOUsage }
+                onOpenCcgoUsageDetail = { detailPane = DetailPane.CCGOUsage },
+                viewModel = dashboardVm
             )
         }
 
@@ -337,7 +351,8 @@ private fun ExpandedLayout() {
         ) {
             ExpandedDetailPane(
                 pane = detailPane,
-                onClose = { detailPane = DetailPane.Empty }
+                onClose = { detailPane = DetailPane.Empty },
+                onCredentialEditClosed = { dashboardVm.reloadLocalState() }
             )
         }
     }
@@ -346,7 +361,8 @@ private fun ExpandedLayout() {
 @Composable
 private fun ExpandedDetailPane(
     pane: DetailPane,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    onCredentialEditClosed: () -> Unit = {}
 ) {
     when (pane) {
         is DetailPane.Empty -> {
@@ -426,6 +442,17 @@ private fun ExpandedDetailPane(
         }
         is DetailPane.Settings -> {
             val settingsNavController = rememberNavController()
+            // 监听嵌套 NavHost 路由变化：当从凭据编辑页/WebView 返回 settings_main 时
+            // 通知 Dashboard 刷新凭据状态（宽屏布局 Dashboard 永久挂载不产生 ON_RESUME）
+            val routeStack by settingsNavController.currentBackStackEntryAsState()
+            val currentRoute = routeStack?.destination?.route
+            var prevRoute by remember { mutableStateOf("settings_main") }
+            LaunchedEffect(currentRoute) {
+                if (prevRoute != currentRoute && currentRoute == "settings_main") {
+                    onCredentialEditClosed()
+                }
+                prevRoute = currentRoute ?: "settings_main"
+            }
             NavHost(
                 navController = settingsNavController,
                 startDestination = "settings_main",

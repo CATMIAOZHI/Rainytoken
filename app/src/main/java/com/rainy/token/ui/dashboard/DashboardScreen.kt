@@ -74,6 +74,8 @@ import androidx.compose.ui.zIndex
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rainy.token.domain.model.CredentialStatus
 import com.rainy.token.domain.model.ServiceBalance
@@ -118,6 +120,11 @@ fun DashboardScreen(
     onOpenCcgoUsageDetail: () -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
+    // 从设置页返回时重新读取本地凭据状态 + 缓存（不自动发起网络请求）
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.reloadLocalState()
+    }
+
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var showAddWidgetConfirm by remember { mutableStateOf(false) }

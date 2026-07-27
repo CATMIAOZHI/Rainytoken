@@ -36,6 +36,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rainy.token.domain.model.CredentialStatus
 import com.rainy.token.domain.service.ServiceType
@@ -64,6 +66,11 @@ fun SettingsScreen(
     onOpenDebugLog: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
+    // 重新进入设置页时刷新凭据状态（从凭据编辑页保存/删除后返回）
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.refresh()
+    }
+
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold(
