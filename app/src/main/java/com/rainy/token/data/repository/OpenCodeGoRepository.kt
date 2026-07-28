@@ -136,7 +136,7 @@ class OpenCodeGoRepository(
     }
 
     /**
-     * 从 models.dev/api.json 获取 OpenCode 可用模型列表（provider key = "opencode"）。
+     * 从 models.dev/api.json 获取 OpenCode Go 可用模型列表（provider key = "opencode-go"）。
      * 该 API 不需要认证。
      */
     suspend fun fetchModels(): Result<List<String>> = withContext(Dispatchers.IO) {
@@ -152,10 +152,10 @@ class OpenCodeGoRepository(
                 }
                 val root = json.parseToJsonElement(resp.body?.string() ?: throw RepositoryError.ParseError("响应体为空")) as? JsonObject
                     ?: throw RepositoryError.ParseError("响应根节点不是 JSON 对象")
-                val provider = root["opencode"] as? JsonObject
+                val provider = root["opencode-go"] as? JsonObject
                 val modelsObj = provider?.get("models") as? JsonObject
                 modelsObj?.keys?.toList()?.sorted()
-                    ?: throw RepositoryError.ParseError("未找到 OpenCode 模型列表")
+                    ?: throw RepositoryError.ParseError("未找到 OpenCode Go 模型列表")
             }
             if (models.isEmpty()) {
                 return@withContext Result.failure(RepositoryError.ParseError("模型列表为空"))
@@ -225,7 +225,7 @@ class OpenCodeGoRepository(
     companion object {
         private const val TAG = "OCGO"
         private const val MODELS_API = "https://models.dev/api.json"
-        private const val CHAT_API = "https://opencode.ai/zen/v1/chat/completions"
+        private const val CHAT_API = "https://opencode.ai/zen/go/v1/chat/completions"
         private val SCRAPED_FIELDS = listOf("rollingUsage", "weeklyUsage", "monthlyUsage")
 
         /**
