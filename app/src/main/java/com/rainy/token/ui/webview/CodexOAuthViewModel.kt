@@ -2,11 +2,13 @@ package com.rainy.token.ui.webview
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rainy.token.R
 import com.rainy.token.data.debug.DebugLog
 import com.rainy.token.data.repository.CodexOAuthHelper
 import com.rainy.token.data.repository.CredentialRepository
 import com.rainy.token.domain.model.Credential
 import com.rainy.token.domain.service.ServiceType
+import com.rainy.token.ui.components.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -80,7 +82,14 @@ class CodexOAuthViewModel @Inject constructor(
      */
     private fun handleCallbackUrl(url: String) {
         if (!url.startsWith(CodexOAuthHelper.CALLBACK_PREFIX)) {
-            _uiState.update { it.copy(error = "URL 应以 ${CodexOAuthHelper.CALLBACK_PREFIX} 开头") }
+            _uiState.update {
+                it.copy(
+                    error = UiText.Resource(
+                        R.string.error_oauth_url_prefix,
+                        listOf(CodexOAuthHelper.CALLBACK_PREFIX)
+                    )
+                )
+            }
             return
         }
 
@@ -92,19 +101,21 @@ class CodexOAuthViewModel @Inject constructor(
         if (error != null) {
             val errorDesc = uri.getQueryParameter("error_description") ?: error
             DebugLog.e(TAG, "OAuth 授权失败: $errorDesc")
-            _uiState.update { it.copy(error = "授权失败: $errorDesc") }
+            _uiState.update {
+                it.copy(error = UiText.Resource(R.string.error_oauth_auth_failed, listOf(errorDesc)))
+            }
             return
         }
 
         if (receivedState != _uiState.value.expectedState) {
             DebugLog.e(TAG, "OAuth state 不匹配（CSRF 防护）")
-            _uiState.update { it.copy(error = "State 不匹配，请重试") }
+            _uiState.update { it.copy(error = UiText.Resource(R.string.error_oauth_state_mismatch)) }
             return
         }
 
         if (code.isNullOrBlank()) {
             DebugLog.e(TAG, "OAuth 回调缺少 code 参数")
-            _uiState.update { it.copy(error = "回调缺少授权码") }
+            _uiState.update { it.copy(error = UiText.Resource(R.string.error_oauth_missing_code)) }
             return
         }
 
@@ -118,7 +129,12 @@ class CodexOAuthViewModel @Inject constructor(
 
             if (result == null) {
                 DebugLog.e(TAG, "token 交换失败")
-                _uiState.update { it.copy(exchanging = false, error = "Token 交换失败，请查看调试日志") }
+                _uiState.update {
+                    it.copy(
+                        exchanging = false,
+                        error = UiText.Resource(R.string.error_oauth_token_exchange)
+                    )
+                }
                 return@launch
             }
 
@@ -149,5 +165,5 @@ data class CodexOAuthUiState(
     val expectedState: String? = null,
     val exchanging: Boolean = false,
     val loginSucceeded: Boolean = false,
-    val error: String? = null
+    val error: UiText? = null
 )

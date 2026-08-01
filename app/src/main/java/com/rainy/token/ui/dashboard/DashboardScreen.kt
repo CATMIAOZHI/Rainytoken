@@ -67,6 +67,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -77,6 +78,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rainy.token.R
 import com.rainy.token.domain.model.CredentialStatus
 import com.rainy.token.domain.model.ServiceBalance
 import com.rainy.token.domain.service.ServiceType
@@ -85,6 +87,7 @@ import com.rainy.token.ui.components.StatusChip
 import com.rainy.token.ui.components.StatusLevel
 import com.rainy.token.ui.components.StatusStyle
 import com.rainy.token.ui.components.AppTips
+import com.rainy.token.ui.components.asString
 import com.rainy.token.ui.theme.inkMuted
 import com.rainy.token.ui.theme.StrawberryPink
 import android.app.AppOpsManager
@@ -161,8 +164,8 @@ fun DashboardScreen(
     if (showAddWidgetConfirm) {
         AlertDialog(
             onDismissRequest = { showAddWidgetConfirm = false },
-            title = { Text("添加桌面小组件？") },
-            text = { Text("确认后会请求桌面启动器添加雨晴Token小组件。部分系统仍会弹出系统确认窗口。") },
+            title = { Text(stringResource(R.string.dialog_add_widget_title)) },
+            text = { Text(stringResource(R.string.dialog_add_widget_body)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -170,12 +173,12 @@ fun DashboardScreen(
                         requestRainyTokenWidgetPin(context)
                     }
                 ) {
-                    Text("确认添加", color = StrawberryPink)
+                    Text(stringResource(R.string.action_confirm_add), color = StrawberryPink)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showAddWidgetConfirm = false }) {
-                    Text("取消")
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         )
@@ -193,7 +196,7 @@ fun DashboardScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "AI 余额一览",
+                            text = stringResource(R.string.dashboard_subtitle),
                             style = MaterialTheme.typography.bodySmall,
                             color = inkMuted()
                         )
@@ -203,7 +206,7 @@ fun DashboardScreen(
                     IconButton(onClick = { showAddWidgetConfirm = true }) {
                         Icon(
                             imageVector = Icons.Filled.Add,
-                            contentDescription = "添加小组件到桌面",
+                            contentDescription = stringResource(R.string.action_add_widget),
                             tint = StrawberryPink
                         )
                     }
@@ -213,14 +216,14 @@ fun DashboardScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Refresh,
-                            contentDescription = "刷新",
+                            contentDescription = stringResource(R.string.action_refresh),
                             tint = StrawberryPink
                         )
                     }
                     IconButton(onClick = onOpenSettings) {
                         Icon(
                             imageVector = Icons.Filled.Settings,
-                            contentDescription = "设置",
+                            contentDescription = stringResource(R.string.action_settings),
                             tint = StrawberryPink
                         )
                     }
@@ -263,9 +266,9 @@ fun DashboardScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         // 随机小技巧提示（每次启动随机一条）
-                        val tipText = remember { AppTips.randomHint() }
+                        val tipTextRes = remember { AppTips.randomHintRes() }
                         Text(
-                            text = "💡 $tipText",
+                            text = "💡 " + stringResource(tipTextRes),
                             style = MaterialTheme.typography.bodySmall,
                             color = inkMuted(),
                             modifier = Modifier.padding(horizontal = 4.dp)
@@ -314,13 +317,13 @@ fun DashboardScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "💡 长按卡片可拖拽排序",
+                                        text = stringResource(R.string.dashboard_drag_hint),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = StrawberryPink,
                                         modifier = Modifier.weight(1f)
                                     )
                                     Text(
-                                        text = "知道了",
+                                        text = stringResource(R.string.action_got_it),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = StrawberryPink,
                                         fontWeight = FontWeight.SemiBold
@@ -639,7 +642,7 @@ private fun DashboardCard(card: DashboardCardUi, onClick: () -> Unit, onOpenUsag
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = secondaryLine(card),
+                        text = stringResource(secondaryLineRes(card)),
                         style = MaterialTheme.typography.bodySmall,
                         color = inkMuted()
                     )
@@ -656,7 +659,7 @@ private fun DashboardCard(card: DashboardCardUi, onClick: () -> Unit, onOpenUsag
             if (onOpenUsageDetail != null && card.credentialState != com.rainy.token.domain.model.CredentialStatus.State.NOT_CONFIGURED) {
                 Spacer(modifier = Modifier.height(8.dp))
                 TextButton(onClick = onOpenUsageDetail) {
-                    Text("查看用量详情", color = StrawberryPink)
+                    Text(stringResource(R.string.action_view_usage_detail), color = StrawberryPink)
                     Spacer(modifier = Modifier.width(2.dp))
                     Icon(
                         imageVector = Icons.Filled.KeyboardArrowRight,
@@ -670,7 +673,7 @@ private fun DashboardCard(card: DashboardCardUi, onClick: () -> Unit, onOpenUsag
             // ─── 底部：更新时间 / 错误信息 ───
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = footerText(card),
+                text = footerText(card).asString(),
                 style = MaterialTheme.typography.bodySmall,
                 color = if (card.lastFetchError != null)
                     MaterialTheme.colorScheme.error
@@ -694,13 +697,13 @@ private fun DashboardFooter() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "RainyToken · v1.0",
+            text = stringResource(R.string.dashboard_footer_version),
             style = MaterialTheme.typography.bodySmall,
             color = inkMuted()
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "本地加密存储，不上传任何数据",
+            text = stringResource(R.string.dashboard_footer_privacy),
             style = MaterialTheme.typography.bodySmall,
             color = inkMuted()
         )
@@ -726,14 +729,14 @@ private fun requestRainyTokenWidgetPin(context: Context) {
     val appWidgetManager = AppWidgetManager.getInstance(context)
     val component = ComponentName(context, OpenCodeGoWidgetProvider::class.java)
     if (!canInstallLauncherShortcut(context)) {
-        Toast.makeText(context, "桌面快捷方式权限已被拒绝，请在系统设置中允许后重试", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, context.getString(R.string.toast_shortcut_permission_denied), Toast.LENGTH_LONG).show()
         return
     }
 
     if (appWidgetManager.isRequestPinAppWidgetSupported) {
         val requested = appWidgetManager.requestPinAppWidget(component, null, null)
         if (!requested) {
-            Toast.makeText(context, "桌面未接受添加请求，请检查启动器权限", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, context.getString(R.string.toast_add_rejected), Toast.LENGTH_LONG).show()
         }
         return
     }
@@ -745,6 +748,6 @@ private fun requestRainyTokenWidgetPin(context: Context) {
     if (canOpenPicker) {
         context.startActivity(pickerIntent)
     } else {
-        Toast.makeText(context, "当前桌面不支持应用内添加，请在桌面长按 → 小组件 → 查找雨晴Token", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, context.getString(R.string.toast_picker_unsupported), Toast.LENGTH_LONG).show()
     }
 }

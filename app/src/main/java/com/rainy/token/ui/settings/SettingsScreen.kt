@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -45,6 +46,7 @@ import com.rainy.token.ui.components.ServiceIcon
 import com.rainy.token.ui.components.StatusChip
 import com.rainy.token.ui.components.StatusLevel
 import com.rainy.token.ui.components.StatusStyle
+import com.rainy.token.R
 import com.rainy.token.ui.components.AppTips
 import com.rainy.token.ui.theme.InkMuted
 import com.rainy.token.ui.theme.StrawberryPink
@@ -79,7 +81,7 @@ fun SettingsScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "设置",
+                        stringResource(R.string.title_settings),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -88,7 +90,7 @@ fun SettingsScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.Filled.ArrowBack,
-                            contentDescription = "返回",
+                            contentDescription = stringResource(R.string.action_back),
                             tint = StrawberryPink
                         )
                     }
@@ -118,7 +120,7 @@ fun SettingsScreen(
             ) {
                 item {
                     Text(
-                        text = "凭据管理",
+                        text = stringResource(R.string.title_credentials),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = InkMuted,
@@ -190,13 +192,13 @@ private fun AboutCard() {
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                text = "关于 RainyToken",
+                text = stringResource(R.string.title_about),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(modifier = Modifier.padding(top = 8.dp))
             Text(
-                text = "统一查询 AI 余额的小工具。\n本地加密存储凭据，不上传任何数据。",
+                text = stringResource(R.string.about_description),
                 style = MaterialTheme.typography.bodyMedium,
                 color = InkMuted
             )
@@ -204,18 +206,19 @@ private fun AboutCard() {
     }
 }
 
+@Composable
 private fun stateLabel(state: CredentialStatus.State): String = when (state) {
-    CredentialStatus.State.NOT_CONFIGURED -> "未配置 · 点击添加"
-    CredentialStatus.State.OK -> "已配置 · 凭据有效"
-    CredentialStatus.State.EXPIRED -> "已过期 · 点击重新配置"
-    CredentialStatus.State.WARNING -> "需要重新验证"
+    CredentialStatus.State.NOT_CONFIGURED -> stringResource(R.string.status_not_configured_add)
+    CredentialStatus.State.OK -> stringResource(R.string.status_ok_valid)
+    CredentialStatus.State.EXPIRED -> stringResource(R.string.status_expired_reconfigure)
+    CredentialStatus.State.WARNING -> stringResource(R.string.status_need_reverify)
 }
 
 private fun stateToChip(state: CredentialStatus.State): StatusStyle = when (state) {
-    CredentialStatus.State.NOT_CONFIGURED -> StatusStyle("未配置", StatusLevel.WARNING)
-    CredentialStatus.State.OK -> StatusStyle("已配置", StatusLevel.OK)
-    CredentialStatus.State.EXPIRED -> StatusStyle("已过期", StatusLevel.ERROR)
-    CredentialStatus.State.WARNING -> StatusStyle("需重登", StatusLevel.WARNING)
+    CredentialStatus.State.NOT_CONFIGURED -> StatusStyle(R.string.status_not_configured, StatusLevel.WARNING)
+    CredentialStatus.State.OK -> StatusStyle(R.string.status_configured, StatusLevel.OK)
+    CredentialStatus.State.EXPIRED -> StatusStyle(R.string.status_expired, StatusLevel.ERROR)
+    CredentialStatus.State.WARNING -> StatusStyle(R.string.status_relogin, StatusLevel.WARNING)
 }
 
 @Composable
@@ -239,13 +242,13 @@ private fun TipsCard(onClick: () -> Unit) {
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "使用小技巧",
+                    text = stringResource(R.string.title_tips),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = StrawberryPink
                 )
                 Text(
-                    text = "查看全部 ${AppTips.tips.size} 条隐藏操作",
+                    text = stringResource(R.string.tips_view_all, AppTips.tips.size),
                     style = MaterialTheme.typography.bodySmall,
                     color = InkMuted,
                     modifier = Modifier.padding(top = 2.dp)
@@ -276,13 +279,13 @@ private fun DebugLogCard(onClick: () -> Unit) {
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "调试日志",
+                    text = stringResource(R.string.title_debug_log),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = InkMuted
                 )
                 Text(
-                    text = "查看 token 刷新、网络请求等调试记录",
+                    text = stringResource(R.string.debug_log_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = InkMuted,
                     modifier = Modifier.padding(top = 2.dp)

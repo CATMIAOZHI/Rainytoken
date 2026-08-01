@@ -41,11 +41,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import com.rainy.token.ui.components.resolve
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rainy.token.R
 import com.rainy.token.domain.service.ServiceType
 
 /**
@@ -77,7 +80,7 @@ fun CredentialEditScreen(
 
     LaunchedEffect(uiState.message) {
         uiState.message?.let { msg ->
-            snackbarHostState.showSnackbar(msg)
+            snackbarHostState.showSnackbar(msg.resolve(context))
             viewModel.clearMessage()
         }
     }
@@ -88,13 +91,13 @@ fun CredentialEditScreen(
                 title = { Text(service.displayName) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
                 actions = {
                     if (uiState.hasExisting) {
                         IconButton(onClick = { viewModel.deleteCredential() }) {
-                            Icon(Icons.Filled.Delete, contentDescription = "删除")
+                            Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.action_delete))
                         }
                     }
                 }
@@ -193,7 +196,7 @@ fun CredentialEditScreen(
                         )
                         if (uiState.hasExisting) {
                             Text(
-                                text = "✓ 已配置登录态（${uiState.cookieCount} 个 Cookie）",
+                                text = stringResource(R.string.credential_configured_cookies, uiState.cookieCount),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -207,19 +210,19 @@ fun CredentialEditScreen(
     if (showCookieHelp) {
         AlertDialog(
             onDismissRequest = { showCookieHelp = false },
-            title = { Text("如何获取 Cookie？") },
+            title = { Text(stringResource(R.string.help_cookie_title)) },
             text = {
                 Column {
-                    Text("1. 在桌面 Chrome 打开下方登录入口")
-                    Text("2. 用 GitHub / Google 登录（不会被拦截）")
-                    Text("3. 登录后按 F12 → Application → Cookies")
-                    Text("4. 复制该站点下的所有 Cookie 粘贴到上面输入框")
-                    Text("格式：name1=value1; name2=value2")
+                    Text(stringResource(R.string.help_cookie_1))
+                    Text(stringResource(R.string.help_cookie_2))
+                    Text(stringResource(R.string.help_cookie_3))
+                    Text(stringResource(R.string.help_cookie_4))
+                    Text(stringResource(R.string.help_cookie_5))
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showCookieHelp = false }) {
-                    Text("我知道了")
+                    Text(stringResource(R.string.action_got_it))
                 }
             }
         )
@@ -228,23 +231,23 @@ fun CredentialEditScreen(
     if (showGoHelp) {
         AlertDialog(
             onDismissRequest = { showGoHelp = false },
-            title = { Text("如何获取 OpenCode Go 凭据？") },
+            title = { Text(stringResource(R.string.help_ocgo_title)) },
             text = {
                 Column {
-                    Text("1. 桌面 Chrome 打开 opencode.ai/auth")
-                    Text("2. 用 GitHub / Google 登录（Google 不会拦截 Chrome）")
-                    Text("3. 登录后跳转到 dashboard，URL 形如：")
-                    Text("   https://opencode.ai/workspace/{id}/go")
-                    Text("4. 复制 URL 中的 {id} 段 → workspaceId")
-                    Text("5. F12 → Application → Cookies")
-                    Text("6. 找到域名 opencode.ai 下名为 auth 的 Cookie")
-                    Text("7. 复制它的 Value 字段 → auth cookie")
-                    Text("注意：只填 auth 一个 Cookie 即可，不要整个 Cookie 字符串")
+                    Text(stringResource(R.string.help_ocgo_1))
+                    Text(stringResource(R.string.help_ocgo_2))
+                    Text(stringResource(R.string.help_ocgo_3))
+                    Text(stringResource(R.string.help_ocgo_4))
+                    Text(stringResource(R.string.help_ocgo_5))
+                    Text(stringResource(R.string.help_ocgo_6))
+                    Text(stringResource(R.string.help_ocgo_7))
+                    Text(stringResource(R.string.help_ocgo_8))
+                    Text(stringResource(R.string.help_ocgo_note))
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showGoHelp = false }) {
-                    Text("我知道了")
+                    Text(stringResource(R.string.action_got_it))
                 }
             }
         )
@@ -253,25 +256,25 @@ fun CredentialEditScreen(
     if (showOpenCcgoHelp) {
         AlertDialog(
             onDismissRequest = { showOpenCcgoHelp = false },
-            title = { Text("如何获取 CommandCode Go 凭据？") },
+            title = { Text(stringResource(R.string.help_ccgo_title)) },
             text = {
                 Column {
-                    Text("1. 打开 https://commandcode.ai 并登录 GitHub")
+                    Text(stringResource(R.string.help_ccgo_1))
                     Text("")
-                    Text("▸ 获取 API Key（必填）：")
-                    Text("   右上角头像 → Settings → API Keys → 创建一个 Key")
+                    Text(stringResource(R.string.help_ccgo_2))
+                    Text(stringResource(R.string.help_ccgo_3))
                     Text("")
-                    Text("▸ 获取全部 Cookie（用于用量记录）：")
-                    Text("   F12 → Application → Cookies → commandcode.ai")
-                    Text("   选中所有 Cookie，复制整个 Cookie 字符串")
-                    Text("   粘贴到下方输入框即可，无需逐个挑选")
+                    Text(stringResource(R.string.help_ccgo_4))
+                    Text(stringResource(R.string.help_ccgo_5))
+                    Text(stringResource(R.string.help_ccgo_6))
+                    Text(stringResource(R.string.help_ccgo_7))
                     Text("")
-                    Text("提示：不填 Cookie 也能正常查看余额，只是用量记录为空。")
+                    Text(stringResource(R.string.help_ccgo_note))
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showOpenCcgoHelp = false }) {
-                    Text("我知道了")
+                    Text(stringResource(R.string.action_got_it))
                 }
             }
         )
@@ -280,32 +283,32 @@ fun CredentialEditScreen(
     if (showCodexHelp) {
         AlertDialog(
             onDismissRequest = { showCodexHelp = false },
-            title = { Text("如何获取 Codex auth.json？") },
+            title = { Text(stringResource(R.string.help_codex_title)) },
             text = {
                 Column {
-                    Text("1. 在终端运行 codex-oauth-proxy 或")
-                    Text("   codex-proxy，完成 ChatGPT 登录")
+                    Text(stringResource(R.string.help_codex_1))
+                    Text(stringResource(R.string.help_codex_2))
                     Text("")
-                    Text("2. 凭证文件保存在：")
-                    Text("   ~/.config/codex-oauth-proxy/auth.json")
+                    Text(stringResource(R.string.help_codex_3))
+                    Text(stringResource(R.string.help_codex_4))
                     Text("")
-                    Text("3. 用文本编辑器打开该文件，")
-                    Text("   复制全部内容粘贴到上方输入框")
+                    Text(stringResource(R.string.help_codex_5))
+                    Text(stringResource(R.string.help_codex_6))
                     Text("")
-                    Text("   JSON 格式示例：")
-                    Text("   {\"tokens\": {")
-                    Text("     \"access_token\": \"...\",")
-                    Text("     \"refresh_token\": \"...\",")
-                    Text("     \"expiresAt\": 1783727108252")
-                    Text("   }}")
+                    Text(stringResource(R.string.help_codex_7))
+                    Text(stringResource(R.string.help_codex_8))
+                    Text(stringResource(R.string.help_codex_9))
+                    Text(stringResource(R.string.help_codex_10))
+                    Text(stringResource(R.string.help_codex_11))
+                    Text(stringResource(R.string.help_codex_12))
                     Text("")
-                    Text("提示：导入后 APP 会自动刷新 token，")
-                    Text("不需要手动更新。")
+                    Text(stringResource(R.string.help_codex_note))
+                    Text(stringResource(R.string.help_codex_note2))
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showCodexHelp = false }) {
-                    Text("我知道了")
+                    Text(stringResource(R.string.action_got_it))
                 }
             }
         )
@@ -326,9 +329,9 @@ private fun OllamaCookieForm(
     onApiKeyChange: (String) -> Unit,
     onSaveApiKey: () -> Unit
 ) {
-    Text(text = "Ollama Pro 凭据", style = MaterialTheme.typography.titleMedium)
+    Text(text = stringResource(R.string.credential_title_ollama), style = MaterialTheme.typography.titleMedium)
     Text(
-        text = "需要从浏览器复制完整 Cookie。登录 ollama.com/settings 后，在 DevTools → Network → 请求头里找到 Cookie 行复制。",
+        text = stringResource(R.string.credential_hint_ollama),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.outline
     )
@@ -351,34 +354,34 @@ private fun OllamaCookieForm(
             modifier = Modifier.weight(1f),
             enabled = cookie.isNotBlank()
         ) {
-            Text(text = if (hasExisting) "更新凭据" else "保存凭据")
+            Text(text = if (hasExisting) stringResource(R.string.credential_update) else stringResource(R.string.credential_save))
         }
         OutlinedButton(
             onClick = onTestAndSave,
             modifier = Modifier.weight(1f),
             enabled = cookie.isNotBlank()
         ) {
-            Text(text = "测试并保存")
+            Text(text = stringResource(R.string.action_test_and_save))
         }
     }
     OutlinedButton(
         onClick = onOpenLoginUrl,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text(text = "在浏览器中打开 Ollama Settings")
+        Text(text = stringResource(R.string.action_open_ollama_settings))
     }
     TextButton(onClick = onCopyLoginUrl, modifier = Modifier.fillMaxWidth()) {
-        Text(text = "复制登录 URL 到剪贴板")
+        Text(text = stringResource(R.string.action_copy_login_url))
     }
 
     // ── 一键激活用量 API Key ──
     androidx.compose.material3.HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
     Text(
-        text = "一键激活用量 API Key（可选）",
+        text = stringResource(R.string.activate_api_key_optional),
         style = MaterialTheme.typography.titleSmall
     )
     Text(
-        text = "填入 Ollama Cloud API Key 后，可在详情页一键发送请求激活用量统计。从 ollama.com/settings → API Keys 获取。",
+        text = stringResource(R.string.hint_ollama_trigger_key),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.outline
     )
@@ -386,7 +389,7 @@ private fun OllamaCookieForm(
         value = triggerApiKey,
         onValueChange = onApiKeyChange,
         label = { Text("API Key") },
-        placeholder = { Text("ollama-xxx 或 sk-xxx") },
+        placeholder = { Text(stringResource(R.string.placeholder_ollama_api_key)) },
         singleLine = true,
         visualTransformation = PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -397,7 +400,7 @@ private fun OllamaCookieForm(
         modifier = Modifier.fillMaxWidth(),
         enabled = triggerApiKey.isNotBlank()
     ) {
-        Text("保存 API Key")
+        Text(stringResource(R.string.action_save_api_key))
     }
 }
 
@@ -419,28 +422,28 @@ private fun OpenCodeGoForm(
     onApiKeyChange: (String) -> Unit,
     onSaveApiKey: () -> Unit
 ) {
-    Text(text = "OpenCode Go 凭据", style = MaterialTheme.typography.titleMedium)
+    Text(text = stringResource(R.string.credential_title_opencode_go), style = MaterialTheme.typography.titleMedium)
     Text(
-        text = "需要 auth cookie + workspaceId 两个值。APP 会用 OkHttp 抓 dashboard 并自动解析 5h/周/月 三档用量。",
+        text = stringResource(R.string.credential_hint_opencode_go),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.outline
     )
     OutlinedButton(onClick = onImportFromClipboard, modifier = Modifier.fillMaxWidth()) {
-        Text(text = "从剪贴板自动导入")
+        Text(text = stringResource(R.string.action_import_from_clipboard))
     }
     OutlinedTextField(
         value = workspaceId,
         onValueChange = onWorkspaceIdChange,
         label = { Text("Workspace ID") },
-        placeholder = { Text("dashboard URL 中的 {id} 段") },
+        placeholder = { Text(stringResource(R.string.placeholder_workspace_id)) },
         singleLine = true,
         modifier = Modifier.fillMaxWidth()
     )
     OutlinedTextField(
         value = authCookie,
         onValueChange = onAuthCookieChange,
-        label = { Text("auth Cookie 值") },
-        placeholder = { Text("F12 → Cookies → opencode.ai → auth 的 Value") },
+        label = { Text(stringResource(R.string.field_auth_cookie_value)) },
+        placeholder = { Text(stringResource(R.string.placeholder_auth_cookie)) },
         singleLine = true,
         visualTransformation = PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -451,36 +454,36 @@ private fun OpenCodeGoForm(
         modifier = Modifier.fillMaxWidth(),
         enabled = authCookie.isNotBlank() && workspaceId.isNotBlank()
     ) {
-        Text(text = if (hasExisting) "更新凭据" else "保存凭据")
+        Text(text = if (hasExisting) stringResource(R.string.credential_update) else stringResource(R.string.credential_save))
     }
     OutlinedButton(
         onClick = onTestAndSave,
         modifier = Modifier.fillMaxWidth(),
         enabled = authCookie.isNotBlank() && workspaceId.isNotBlank()
     ) {
-        Text(text = "测试并保存")
+        Text(text = stringResource(R.string.action_test_and_save))
     }
     OutlinedButton(onClick = onShowHelp, modifier = Modifier.fillMaxWidth()) {
-        Text(text = "如何获取这两个值？")
+        Text(text = stringResource(R.string.action_how_get_two_values))
     }
     OutlinedButton(
         onClick = onOpenLoginUrl,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text(text = "在浏览器中打开登录入口")
+        Text(text = stringResource(R.string.action_open_login_entry))
     }
     TextButton(onClick = onCopyLoginUrl, modifier = Modifier.fillMaxWidth()) {
-        Text(text = "复制登录 URL 到剪贴板")
+        Text(text = stringResource(R.string.action_copy_login_url))
     }
 
     // ── 一键激活用量 API Key ──
     androidx.compose.material3.HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
     Text(
-        text = "一键激活用量 API Key（可选）",
+        text = stringResource(R.string.activate_api_key_optional),
         style = MaterialTheme.typography.titleSmall
     )
     Text(
-        text = "填入 OpenCode Zen API Key 后，可在详情页一键发送请求激活用量统计。从 opencode.ai/settings → API Keys 获取。",
+        text = stringResource(R.string.hint_opencode_trigger_key),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.outline
     )
@@ -499,7 +502,7 @@ private fun OpenCodeGoForm(
         modifier = Modifier.fillMaxWidth(),
         enabled = triggerApiKey.isNotBlank()
     ) {
-        Text("保存 API Key")
+        Text(stringResource(R.string.action_save_api_key))
     }
 }
 
@@ -514,9 +517,9 @@ private fun CommandCodeGoForm(
     onTestAndSave: () -> Unit,
     onShowHelp: () -> Unit
 ) {
-    Text(text = "CommandCode Go 凭据", style = MaterialTheme.typography.titleMedium)
+    Text(text = stringResource(R.string.credential_title_ccgo), style = MaterialTheme.typography.titleMedium)
     Text(
-        text = "需要 API Key（拉余额）。Session Cookie（可选）在浏览器 DevTools 复制，用于拉用量记录。不填也可正常查看余额。",
+        text = stringResource(R.string.credential_hint_ccgo),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.outline
     )
@@ -524,7 +527,7 @@ private fun CommandCodeGoForm(
         value = apiKey,
         onValueChange = onApiKeyChange,
         label = { Text("API Key") },
-        placeholder = { Text("从 Settings → API Keys 生成") },
+        placeholder = { Text(stringResource(R.string.placeholder_api_key_from_settings)) },
         singleLine = true,
         visualTransformation = PasswordVisualTransformation(),
         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -533,23 +536,23 @@ private fun CommandCodeGoForm(
     OutlinedTextField(
         value = cookieInput,
         onValueChange = onCookieChange,
-        label = { Text("Session Cookie（可选）") },
-        placeholder = { Text("F12 → Cookies → commandcode.ai → 全选复制粘贴即可") },
+        label = { Text(stringResource(R.string.field_session_cookie_optional)) },
+        placeholder = { Text(stringResource(R.string.placeholder_session_cookie)) },
         modifier = Modifier.fillMaxWidth(),
         minLines = 2
     )
     Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) {
-        Text(if (hasExisting) "更新凭据" else "保存凭据")
+        Text(if (hasExisting) stringResource(R.string.credential_update) else stringResource(R.string.credential_save))
     }
     OutlinedButton(
         onClick = onTestAndSave,
         modifier = Modifier.fillMaxWidth(),
         enabled = apiKey.isNotBlank()
     ) {
-        Text(text = "测试并保存")
+        Text(text = stringResource(R.string.action_test_and_save))
     }
     OutlinedButton(onClick = onShowHelp, modifier = Modifier.fillMaxWidth()) {
-        Text(text = "如何获取 API Key 和 Cookie？")
+        Text(text = stringResource(R.string.action_how_get_api_key_cookie))
     }
 }
 
@@ -561,9 +564,9 @@ private fun ApiKeyForm(
     onSave: () -> Unit,
     onTestAndSave: () -> Unit
 ) {
-    Text(text = "请输入 API Key", style = MaterialTheme.typography.titleMedium)
+    Text(text = stringResource(R.string.api_key_form_title), style = MaterialTheme.typography.titleMedium)
     Text(
-        text = "凭据会使用 Android Keystore (AES-256 GCM) 加密后存储到本机 DataStore。",
+        text = stringResource(R.string.api_key_form_hint),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.outline
     )
@@ -579,14 +582,14 @@ private fun ApiKeyForm(
         modifier = Modifier.fillMaxWidth()
     )
 Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) {
-            Text(if (hasExisting) "更新" else "保存")
+            Text(if (hasExisting) stringResource(R.string.action_update) else stringResource(R.string.action_save))
         }
         OutlinedButton(
             onClick = onTestAndSave,
             modifier = Modifier.fillMaxWidth(),
             enabled = apiKey.isNotBlank()
         ) {
-            Text(text = "测试并保存")
+            Text(text = stringResource(R.string.action_test_and_save))
         }
     }
 
@@ -599,17 +602,17 @@ private fun CodexAuthJsonForm(
     onShowHelp: () -> Unit,
     onStartOAuth: () -> Unit = {}
 ) {
-    Text(text = "Codex / ChatGPT Plus 凭据", style = MaterialTheme.typography.titleMedium)
+    Text(text = stringResource(R.string.credential_title_codex), style = MaterialTheme.typography.titleMedium)
     Text(
-        text = "推荐使用 OAuth 登录自动获取凭据。也可手动粘贴 auth.json 内容。",
+        text = stringResource(R.string.credential_hint_codex),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.outline
     )
     Button(onClick = onStartOAuth, modifier = Modifier.fillMaxWidth()) {
-        Text("🔐 OAuth 登录（推荐）")
+        Text(stringResource(R.string.action_oauth_login))
     }
     Text(
-        text = "── 或手动导入 ──",
+        text = stringResource(R.string.or_manual_import),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.outline,
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -618,16 +621,16 @@ private fun CodexAuthJsonForm(
     OutlinedTextField(
         value = authJson,
         onValueChange = onAuthJsonChange,
-        label = { Text("auth.json 完整内容") },
-        placeholder = { Text("粘贴 {\"tokens\": {...}} 完整 JSON") },
+        label = { Text(stringResource(R.string.field_auth_json)) },
+        placeholder = { Text(stringResource(R.string.placeholder_auth_json)) },
         modifier = Modifier.fillMaxWidth(),
         minLines = 6
     )
     Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) {
-        Text(if (hasExisting) "更新凭据" else "导入并保存")
+        Text(if (hasExisting) stringResource(R.string.credential_update) else stringResource(R.string.credential_import_save))
     }
     OutlinedButton(onClick = onShowHelp, modifier = Modifier.fillMaxWidth()) {
-        Text(text = "如何获取 auth.json？")
+        Text(text = stringResource(R.string.action_how_get_auth_json))
     }
 }
 
@@ -640,16 +643,16 @@ private fun ManualCookieForm(
     onOpenLoginUrl: () -> Unit,
     onShowHelp: () -> Unit
 ) {
-    Text(text = "粘贴登录态", style = MaterialTheme.typography.titleMedium)
+    Text(text = stringResource(R.string.manual_cookie_title), style = MaterialTheme.typography.titleMedium)
     Text(
-        text = "Google OAuth 会拒绝 APP 内置 WebView，所以请用浏览器登录后把 Cookie 粘到这里。",
+        text = stringResource(R.string.manual_cookie_hint),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.outline
     )
     OutlinedTextField(
         value = cookieValue,
         onValueChange = onCookieChange,
-        label = { Text("Cookie 字符串") },
+        label = { Text(stringResource(R.string.field_cookie_string)) },
         placeholder = { Text("name1=value1; name2=value2; ...") },
         modifier = Modifier
             .fillMaxWidth()
@@ -657,19 +660,19 @@ private fun ManualCookieForm(
         minLines = 4
     )
     Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) {
-        Text(text = "保存 Cookie")
+        Text(text = stringResource(R.string.action_save_cookie))
     }
     OutlinedButton(onClick = onShowHelp, modifier = Modifier.fillMaxWidth()) {
-        Text(text = "如何获取 Cookie？")
+        Text(text = stringResource(R.string.help_cookie_title))
     }
     OutlinedButton(
         onClick = onOpenLoginUrl,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text(text = "在浏览器中打开登录入口")
+        Text(text = stringResource(R.string.action_open_login_entry))
     }
     TextButton(onClick = onCopyLoginUrl, modifier = Modifier.fillMaxWidth()) {
-        Text(text = "复制登录 URL 到剪贴板")
+        Text(text = stringResource(R.string.action_copy_login_url))
     }
 }
 

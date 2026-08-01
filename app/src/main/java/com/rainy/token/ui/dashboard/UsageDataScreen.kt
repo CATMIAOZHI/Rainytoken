@@ -46,12 +46,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rainy.token.R
 import com.rainy.token.data.local.UsageRecord
 import com.rainy.token.ui.theme.inkMuted
 import com.rainy.token.ui.theme.StrawberryPink
@@ -93,8 +95,8 @@ fun UsageDataScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("详细数据") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, "返回") } },
+                title = { Text(stringResource(R.string.title_raw_data)) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, stringResource(R.string.action_back)) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
         }
@@ -105,7 +107,7 @@ fun UsageDataScreen(
                 // 时间筛选
                 Box {
                     TextButton(onClick = { timeMenuExpanded = true }) {
-                        Text(state.timeFilter.label, color = StrawberryPink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text(stringResource(state.timeFilter.labelRes), color = StrawberryPink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                         Icon(Icons.Filled.ArrowDropDown, null, tint = StrawberryPink)
                     }
                     DropdownMenu(timeMenuExpanded, { timeMenuExpanded = false }) {
@@ -114,17 +116,17 @@ fun UsageDataScreen(
                             TimeFilter.Today, TimeFilter.Yesterday,
                             TimeFilter.Last7Days, TimeFilter.Last30Days, TimeFilter.ThisMonth
                         ).forEach { f ->
-                            DropdownMenuItem(text = { Text(f.label) }, onClick = {
+                            DropdownMenuItem(text = { Text(stringResource(f.labelRes)) }, onClick = {
                                 timeMenuExpanded = false; viewModel.setTimeFilter(f)
                             })
                         }
-                        DropdownMenuItem(text = { Text("自定义天") }, onClick = {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.time_custom_day)) }, onClick = {
                             timeMenuExpanded = false; showCustomDayPicker = true
                         })
-                        DropdownMenuItem(text = { Text("自定义月") }, onClick = {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.time_custom_month)) }, onClick = {
                             timeMenuExpanded = false; showCustomMonthPicker = true
                         })
-                        DropdownMenuItem(text = { Text("自定义时间") }, onClick = {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.time_custom_range)) }, onClick = {
                             timeMenuExpanded = false; viewModel.setTimeFilter(TimeFilter.Custom(0L, 0L))
                         })
                     }
@@ -133,13 +135,13 @@ fun UsageDataScreen(
                 Spacer(Modifier.weight(1f))
                 // 模型筛选
                 Box {
-                    val label = if (state.selectedModels.isEmpty()) "全部模型" else "${state.selectedModels.size} 个"
+                    val label = if (state.selectedModels.isEmpty()) stringResource(R.string.common_all_models) else stringResource(R.string.model_count_short, state.selectedModels.size)
                     TextButton(onClick = { modelMenuExpanded = true }) {
                         Text(label, color = StrawberryPink, fontSize = 13.sp)
                         Icon(Icons.Filled.ArrowDropDown, null, tint = StrawberryPink)
                     }
                     DropdownMenu(modelMenuExpanded, { modelMenuExpanded = false }) {
-                        DropdownMenuItem(text = { Text("全部模型", fontWeight = FontWeight.Bold) },
+                        DropdownMenuItem(text = { Text(stringResource(R.string.common_all_models), fontWeight = FontWeight.Bold) },
                             onClick = { modelMenuExpanded = false; viewModel.selectAllModels() })
                         state.allModels.forEach { m ->
                             DropdownMenuItem(text = {
@@ -158,12 +160,12 @@ fun UsageDataScreen(
                 CustomTimeRangeRow(customStartMs, customEndMs,
                     { showStartPicker = true }, { showEndPicker = true },
                     { viewModel.setTimeFilter(TimeFilter.Custom(customStartMs, customEndMs)) })
-                Text("所有时间按 UTC+0 计算", style = MaterialTheme.typography.bodySmall, color = inkMuted())
+                Text(stringResource(R.string.usage_utc0_note), style = MaterialTheme.typography.bodySmall, color = inkMuted())
             }
 
             // ─── 记录数 + 分页 ───
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Text("${state.totalRecords} 条记录", style = MaterialTheme.typography.bodySmall, color = inkMuted())
+                Text(stringResource(R.string.usage_record_count, state.totalRecords), style = MaterialTheme.typography.bodySmall, color = inkMuted())
                 if (state.totalPages > 1) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = { viewModel.prevPage() }, enabled = state.currentPage > 1) {
@@ -188,7 +190,7 @@ fun UsageDataScreen(
                             val p = pageInput.toIntOrNull()
                             if (p != null) { viewModel.goToPage(p); pageInput = "" }
                         }) {
-                            Text("跳转", color = StrawberryPink, fontSize = 12.sp)
+                            Text(stringResource(R.string.action_jump), color = StrawberryPink, fontSize = 12.sp)
                         }
                     }
                 }
@@ -198,22 +200,22 @@ fun UsageDataScreen(
             Card(Modifier.fillMaxWidth(), RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp),
                 CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)) {
-                    HeaderCell("时间", Modifier.weight(1.5f), false)
-                    HeaderCell("模型", Modifier.weight(1.8f), false)
-                    HeaderCell("输入(缓存)", Modifier.weight(1.5f), false)
-                    HeaderCell("输出", Modifier.weight(1.2f), false)
-                    HeaderCell("成本", Modifier.weight(1.0f), false)
+                    HeaderCell(stringResource(R.string.header_time), Modifier.weight(1.5f), false)
+                    HeaderCell(stringResource(R.string.header_model), Modifier.weight(1.8f), false)
+                    HeaderCell(stringResource(R.string.header_input_cache), Modifier.weight(1.5f), false)
+                    HeaderCell(stringResource(R.string.header_output), Modifier.weight(1.2f), false)
+                    HeaderCell(stringResource(R.string.header_cost), Modifier.weight(1.0f), false)
                 }
             }
 
             // ─── 记录列表 ───
             if (state.loading) {
                 Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                    Text("加载中…", color = inkMuted())
+                    Text(stringResource(R.string.common_loading), color = inkMuted())
                 }
             } else if (state.records.isEmpty()) {
                 Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                    Text("暂无数据", color = inkMuted())
+                    Text(stringResource(R.string.common_no_data), color = inkMuted())
                 }
             } else {
                 LazyColumn(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(1.dp)) {
@@ -226,18 +228,18 @@ fun UsageDataScreen(
         }
 
         // 日期选择器
-        if (showCustomDayPicker) DateTimePickerDialog("选择日期", { ms ->
+        if (showCustomDayPicker) DateTimePickerDialog(stringResource(R.string.date_select_day), { ms ->
             val utc = ZoneOffset.UTC; val ds = Instant.ofEpochMilli(ms).atOffset(utc).toLocalDate().atStartOfDay(utc).toInstant().toEpochMilli()
             viewModel.setTimeFilter(TimeFilter.Custom(ds, ds + 86400_000L - 1)); showCustomDayPicker = false
         }, { showCustomDayPicker = false })
-        if (showCustomMonthPicker) DateTimePickerDialog("选择月份（任意一天）", { ms ->
+        if (showCustomMonthPicker) DateTimePickerDialog(stringResource(R.string.date_select_month), { ms ->
             val utc = ZoneOffset.UTC; val ld = Instant.ofEpochMilli(ms).atOffset(utc).toLocalDate()
             val msStart = ld.withDayOfMonth(1).atStartOfDay(utc).toInstant().toEpochMilli()
             val msEnd = ld.withDayOfMonth(ld.lengthOfMonth()).plusDays(1).atStartOfDay(utc).toInstant().toEpochMilli() - 1
             viewModel.setTimeFilter(TimeFilter.Custom(msStart, msEnd)); showCustomMonthPicker = false
         }, { showCustomMonthPicker = false })
-        if (showStartPicker) DateTimePickerDialog("开始时间", { customStartMs = it; showStartPicker = false }, { showStartPicker = false })
-        if (showEndPicker) DateTimePickerDialog("结束时间", { ms ->
+        if (showStartPicker) DateTimePickerDialog(stringResource(R.string.date_start), { customStartMs = it; showStartPicker = false }, { showStartPicker = false })
+        if (showEndPicker) DateTimePickerDialog(stringResource(R.string.date_end), { ms ->
             viewModel.setTimeFilter(TimeFilter.Custom(customStartMs, ms)); showEndPicker = false
         }, { showEndPicker = false })
 
@@ -245,26 +247,26 @@ fun UsageDataScreen(
         rawRecord?.let { record ->
             AlertDialog(
                 onDismissRequest = { rawRecord = null },
-                title = { Text("原始数据", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.raw_record_title), fontWeight = FontWeight.Bold) },
                 text = {
                     Column(Modifier.horizontalScroll(rememberScrollState())) {
                         RawField("ID", record.id)
-                        RawField("时间", formatUtcTime(record.timeCreated))
-                        RawField("模型", record.model)
+                        RawField(stringResource(R.string.header_time), formatUtcTime(record.timeCreated))
+                        RawField(stringResource(R.string.header_model), record.model)
                         RawField("Provider", record.provider)
-                        RawField("输入 Token", "%,d".format(Locale.US, record.inputTokens))
-                        RawField("输出 Token", "%,d".format(Locale.US, record.outputTokens))
-                        RawField("推理 Token", "%,d".format(Locale.US, record.reasoningTokens))
-                        RawField("缓存读取", "%,d".format(Locale.US, record.cacheReadTokens))
-                        RawField("缓存写入(5m)", "%,d".format(Locale.US, record.cacheWrite5mTokens))
-                        RawField("缓存写入(1h)", "%,d".format(Locale.US, record.cacheWrite1hTokens))
-                        RawField("成本(USD)", "$${String.format(Locale.US, "%.6f", record.costUsd)}")
-                        RawField("成本(Raw)", "${record.cost}")
+                        RawField(stringResource(R.string.usage_input_tokens), "%,d".format(Locale.US, record.inputTokens))
+                        RawField(stringResource(R.string.usage_output_tokens), "%,d".format(Locale.US, record.outputTokens))
+                        RawField(stringResource(R.string.usage_reasoning_tokens), "%,d".format(Locale.US, record.reasoningTokens))
+                        RawField(stringResource(R.string.stat_cache_read), "%,d".format(Locale.US, record.cacheReadTokens))
+                        RawField(stringResource(R.string.stat_cache_write_5m), "%,d".format(Locale.US, record.cacheWrite5mTokens))
+                        RawField(stringResource(R.string.stat_cache_write_1h), "%,d".format(Locale.US, record.cacheWrite1hTokens))
+                        RawField(stringResource(R.string.raw_cost_usd), "$${String.format(Locale.US, "%.6f", record.costUsd)}")
+                        RawField(stringResource(R.string.raw_cost_raw), "${record.cost}")
                         RawField("KeyId", record.keyId)
                         RawField("SessionId", record.sessionId)
                     }
                 },
-                confirmButton = { TextButton(onClick = { rawRecord = null }) { Text("关闭") } }
+                confirmButton = { TextButton(onClick = { rawRecord = null }) { Text(stringResource(R.string.action_close)) } }
             )
         }
     }

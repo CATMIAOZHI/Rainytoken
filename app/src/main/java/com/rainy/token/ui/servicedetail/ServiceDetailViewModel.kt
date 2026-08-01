@@ -11,8 +11,10 @@ import com.rainy.token.data.repository.TriggerError
 import com.rainy.token.domain.model.Credential
 import com.rainy.token.domain.model.CredentialStatus
 import com.rainy.token.domain.model.ServiceBalance
+import com.rainy.token.R
 import com.rainy.token.domain.service.ServiceType
 import com.rainy.token.domain.usecase.RefreshBalanceUseCase
+import com.rainy.token.ui.components.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -150,7 +152,7 @@ class ServiceDetailViewModel @Inject constructor(
                             cached = local.cachedBalance,
                             state = State.Error(
                                 local.cachedBalance?.balance,
-                                "凭据未配置",
+                                UiText.Resource(R.string.error_credential_not_configured),
                                 RepositoryError.InvalidCredential()
                             )
                         )
@@ -303,7 +305,10 @@ class ServiceDetailViewModel @Inject constructor(
         val service = _serviceType.value ?: return
         val serviceGen = serviceGeneration
         val model = _selectedModel.value ?: run {
-            _triggerState.value = TriggerState.Error("请先选择模型", null)
+            _triggerState.value = TriggerState.Error(
+                UiText.Resource(R.string.error_select_model_first),
+                null
+            )
             return
         }
         viewModelScope.launch {
@@ -327,31 +332,36 @@ class ServiceDetailViewModel @Inject constructor(
                     }
                 }
                 .onFailure { error ->
-                    val message: String
+                    val message: UiText
                     val responseBody: String?
                     when (error) {
                         is TriggerError -> {
-                            message = error.summary
+                            message = UiText.Dynamic(error.summary)
                             responseBody = error.responseBody.ifBlank { null }
                         }
 
                         is RepositoryError.InvalidCredential -> {
-                            message = error.message ?: "凭据无效，请重新登录"
+                            message = UiText.Resource(R.string.error_credential_invalid_relogin)
                             responseBody = null
                         }
 
                         is RepositoryError.CredentialChanged -> {
-                            message = "凭据已变更，请重新操作"
+                            message = UiText.Resource(R.string.error_credential_changed_retry)
                             responseBody = null
                         }
 
                         is RepositoryError.Network -> {
-                            message = "网络异常"
+                            message = UiText.Resource(R.string.error_network_generic)
                             responseBody = null
                         }
 
                         else -> {
-                            message = error.message ?: "未知错误"
+                            message = if ((error as? RepositoryError.Unknown)?.cause is IllegalArgumentException) {
+                                UiText.Resource(R.string.error_trigger_not_supported)
+                            } else {
+                                error.message?.let { UiText.Dynamic(it) }
+                                    ?: UiText.Resource(R.string.common_unknown)
+                            }
                             responseBody = null
                         }
                     }
@@ -418,13 +428,17 @@ class ServiceDetailViewModel @Inject constructor(
                 isManual && cached != null -> State.Stale(cached.balance, cached.fetchedAt)
                 isManual -> State.ManualModeHint
                 status.state == CredentialStatus.State.NOT_CONFIGURED ->
-                    State.Error(null, "凭据未配置", RepositoryError.InvalidCredential())
+                    State.Error(
+                        null,
+                        UiText.Resource(R.string.error_credential_not_configured),
+                        RepositoryError.InvalidCredential()
+                    )
                 cached != null && status.state == CredentialStatus.State.OK ->
                     State.Stale(cached.balance, cached.fetchedAt)
                 cached != null ->
                     State.Error(
                         cached.balance,
-                        "凭据未配置或已过期",
+                        UiText.Resource(R.string.error_credential_not_configured_expired),
                         RepositoryError.InvalidCredential()
                     )
                 else -> State.Loading
@@ -455,7 +469,7 @@ class ServiceDetailViewModel @Inject constructor(
         val mergedState: State = when {
             !hasCredential -> State.Error(
                 mergedCache?.balance,
-                "凭据未配置",
+                UiText.Resource(R.string.error_credential_not_configured),
                 RepositoryError.InvalidCredential()
             )
             current.state is State.Loading -> current.state
@@ -498,15 +512,26 @@ class ServiceDetailViewModel @Inject constructor(
             serviceGen != serviceGeneration ||
             _serviceType.value != type
 
-    private fun errorMessage(error: Throwable): String = when (error) {
-        is RepositoryError.InvalidCredential -> "凭据无效，请在设置中重新配置"
-        is RepositoryError.CredentialChanged -> "凭据已变更，正在重新加载"
-        is RepositoryError.RateLimited ->
-            "请求过于频繁${error.retryAfterSeconds?.let { "，请 ${it} 秒后重试" } ?: ""}"
-        is RepositoryError.Network -> "网络异常，请检查网络"
-        is RepositoryError.ServerError -> "服务端异常 (HTTP ${error.code})"
-        is RepositoryError.ParseError -> "数据解析失败: ${error.message}"
-        else -> error.message ?: "未知错误"
+    private fun errorMessage(error: Throwable): UiText = when (error) {
+        is RepositoryError.InvalidCredential ->
+            UiText.Resource(R.string.error_credential_invalid_reconfigure)
+        is RepositoryError.CredentialChanged ->
+            UiText.Resource(R.string.error_credential_changed_reload)
+        is RepositoryError.RateLimited -> UiText.Resource(
+            R.string.error_rate_limited_retry,
+            listOf(
+                error.retryAfterSeconds?.let {
+                    UiText.Resource(R.string.error_rate_limited_retry_suffix, listOf(it))
+                } ?: ""
+            )
+        )
+        is RepositoryError.Network -> UiText.Resource(R.string.error_network_check)
+        is RepositoryError.ServerError ->
+            UiText.Resource(R.string.error_server_http, listOf(error.code))
+        is RepositoryError.ParseError ->
+            UiText.Resource(R.string.error_parse_failed, listOf(error.message ?: ""))
+        else -> error.message?.let { UiText.Dynamic(it) }
+            ?: UiText.Resource(R.string.common_unknown)
     }
 
     private fun prefs(service: ServiceType): android.content.SharedPreferences =
@@ -539,7 +564,7 @@ sealed class State {
     data class Stale(val data: ServiceBalance, val lastFetchedAt: Long) : State()
     data class Error(
         val cached: ServiceBalance?,
-        val message: String,
+        val message: UiText,
         val error: Throwable
     ) : State()
     data object ManualModeHint : State()
@@ -555,5 +580,5 @@ sealed class TriggerState {
     data object Idle : TriggerState()
     data object Loading : TriggerState()
     data class Success(val responseBody: String) : TriggerState()
-    data class Error(val message: String, val responseBody: String?) : TriggerState()
+    data class Error(val message: UiText, val responseBody: String?) : TriggerState()
 }

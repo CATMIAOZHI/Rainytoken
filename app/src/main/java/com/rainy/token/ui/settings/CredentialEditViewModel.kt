@@ -4,6 +4,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rainy.token.R
 import com.rainy.token.data.repository.CredentialRepository
 import com.rainy.token.data.repository.RepositoryError
 import com.rainy.token.domain.model.CookieEntry
@@ -12,6 +13,7 @@ import com.rainy.token.domain.service.FetchMethod
 import com.rainy.token.domain.service.ServiceConfigProvider
 import com.rainy.token.domain.service.ServiceType
 import com.rainy.token.domain.usecase.RefreshBalanceUseCase
+import com.rainy.token.ui.components.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import javax.inject.Provider
@@ -117,7 +119,7 @@ class CredentialEditViewModel @Inject constructor(
         val current = _uiState.value
         val trimmedKey = current.apiKey.trim()
         if (trimmedKey.isBlank()) {
-            _uiState.update { it.copy(message = "API Key 不能为空") }
+            _uiState.update { it.copy(message = UiText.Resource(R.string.error_api_key_empty)) }
             return
         }
         viewModelScope.launch {
@@ -131,7 +133,7 @@ class CredentialEditViewModel @Inject constructor(
             _uiState.update {
                 it.copy(
                     apiKey = trimmedKey,
-                    message = "已保存",
+                    message = UiText.Resource(R.string.msg_saved),
                     hasExisting = true
                 )
             }
@@ -142,7 +144,7 @@ class CredentialEditViewModel @Inject constructor(
     private suspend fun testAndRollback(
         type: ServiceType,
         saveAndPrep: suspend () -> Pair<Credential?, suspend () -> Result<com.rainy.token.domain.model.ServiceBalance>>,
-        formatSuccess: (com.rainy.token.domain.model.ServiceBalance) -> String,
+        formatSuccess: (com.rainy.token.domain.model.ServiceBalance) -> UiText,
         rollbackOnFailure: Boolean
     ) {
         val (previous, testBlock) = saveAndPrep()
@@ -158,23 +160,29 @@ class CredentialEditViewModel @Inject constructor(
                 false
             }
             val err = result.exceptionOrNull()
-            val reason = when (err) {
-                is RepositoryError.InvalidCredential -> "服务拒绝该凭据 (401/403)"
-                is RepositoryError.CredentialChanged -> "测试期间凭据已变更"
-                is RepositoryError.RateLimited -> "请求过于频繁 (429)"
-                is RepositoryError.ServerError -> "服务端错误 (${err.code})"
-                is RepositoryError.Network -> "网络错误：${err.cause?.message ?: "未知"}"
-                else -> err?.message ?: "未知错误"
+            val reason: UiText = when (err) {
+                is RepositoryError.InvalidCredential ->
+                    UiText.Resource(R.string.error_credential_rejected)
+                is RepositoryError.CredentialChanged ->
+                    UiText.Resource(R.string.error_credential_changed_test)
+                is RepositoryError.RateLimited ->
+                    UiText.Resource(R.string.error_rate_limited)
+                is RepositoryError.ServerError ->
+                    UiText.Resource(R.string.error_server, listOf(err.code))
+                is RepositoryError.Network ->
+                    UiText.Resource(R.string.error_network, listOf(err.cause?.message ?: "未知"))
+                else -> err?.message?.let { UiText.Dynamic(it) }
+                    ?: UiText.Resource(R.string.common_unknown)
             }
             val hasExisting = credentialRepository.get(type) != null
-            val rollbackNote = when {
+            val rollbackNote: Any = when {
                 !rollbackOnFailure -> ""
-                rolledBack -> "，已恢复原凭据"
-                else -> "，检测到凭据已变化，未执行回滚"
+                rolledBack -> UiText.Resource(R.string.error_rollback_done)
+                else -> UiText.Resource(R.string.error_rollback_skipped)
             }
             _uiState.update {
                 it.copy(
-                    message = "测试失败。$reason$rollbackNote",
+                    message = UiText.Resource(R.string.error_test_failed, listOf(reason, rollbackNote)),
                     hasExisting = hasExisting
                 )
             }
@@ -184,13 +192,13 @@ class CredentialEditViewModel @Inject constructor(
     fun testAndSaveApiKey() {
         val type = serviceType ?: return
         if (type != ServiceType.DEEPSEEK && type != ServiceType.COMMANDCODE_GO && type != ServiceType.CODEX) {
-            _uiState.update { it.copy(message = "暂不支持测试此服务") }
+            _uiState.update { it.copy(message = UiText.Resource(R.string.error_test_not_supported)) }
             return
         }
         val current = _uiState.value
         val trimmedKey = current.apiKey.trim()
         if (trimmedKey.isBlank()) {
-            _uiState.update { it.copy(message = "API Key 不能为空") }
+            _uiState.update { it.copy(message = UiText.Resource(R.string.error_api_key_empty)) }
             return
         }
         viewModelScope.launch {
@@ -205,30 +213,41 @@ class CredentialEditViewModel @Inject constructor(
             testAndRollback(
                 type = type,
                 saveAndPrep = { existing to { refreshBalanceUseCaseProvider.get().invoke(type) } },
-                formatSuccess = { bal -> "连接成功！余额: ${bal.amount} ${bal.unit}" },
+                formatSuccess = { bal ->
+                    UiText.Resource(
+                        R.string.msg_connect_success_balance,
+                        listOf(bal.amount.toString(), bal.unit)
+                    )
+                },
                 rollbackOnFailure = false
             )
         }
     }
 
     /** 把 API Key 缩成 'sk-a***xyz' 这种形式，前 4 后 4，中间用 *** 代替。 */
-    private fun maskedKeyPreview(key: String): String {
-        if (key.length <= 8) return "*** (长度 ${key.length}) ***"
+    private fun maskedKeyPreview(key: String): UiText {
+        if (key.length <= 8) {
+            return UiText.Resource(R.string.msg_key_length, listOf(key.length))
+        }
         val head = key.take(4)
         val tail = key.takeLast(4)
-        return "$head***$tail (长度 ${key.length})"
+        return UiText.Resource(R.string.msg_key_masked, listOf(head, tail, key.length))
     }
 
     fun saveOpenCodeGoSession() {
         val type = serviceType ?: return
         val current = _uiState.value
         if (current.authCookie.isBlank() || current.workspaceId.isBlank()) {
-            _uiState.update { it.copy(message = "auth cookie 和 workspaceId 都需要填写") }
+            _uiState.update {
+                it.copy(message = UiText.Resource(R.string.error_auth_cookie_workspace))
+            }
             return
         }
         viewModelScope.launch {
             doSaveOpenCodeGo(current.workspaceId.trim(), current.authCookie.trim())
-            _uiState.update { it.copy(message = "已保存凭据", hasExisting = true) }
+            _uiState.update {
+                it.copy(message = UiText.Resource(R.string.msg_credentials_saved), hasExisting = true)
+            }
         }
     }
 
@@ -236,7 +255,9 @@ class CredentialEditViewModel @Inject constructor(
         val type = serviceType ?: return
         val current = _uiState.value
         if (current.authCookie.isBlank() || current.workspaceId.isBlank()) {
-            _uiState.update { it.copy(message = "auth cookie 和 workspaceId 都需要填写") }
+            _uiState.update {
+                it.copy(message = UiText.Resource(R.string.error_auth_cookie_workspace))
+            }
             return
         }
         viewModelScope.launch {
@@ -245,7 +266,7 @@ class CredentialEditViewModel @Inject constructor(
             testAndRollback(
                 type = type,
                 saveAndPrep = { previous to { refreshBalanceUseCaseProvider.get().invoke(type) } },
-                formatSuccess = { "连接成功，凭据已保存" },
+                formatSuccess = { UiText.Resource(R.string.msg_connect_success_saved) },
                 rollbackOnFailure = true
             )
         }
@@ -269,12 +290,12 @@ class CredentialEditViewModel @Inject constructor(
         val type = serviceType ?: return
         val current = _uiState.value
         if (current.cookieInput.isBlank()) {
-            _uiState.update { it.copy(message = "Cookie 不能为空") }
+            _uiState.update { it.copy(message = UiText.Resource(R.string.error_cookie_empty)) }
             return
         }
         val cookies = parseCookieString(current.cookieInput)
         if (cookies.isEmpty()) {
-            _uiState.update { it.copy(message = "Cookie 格式错误，应为 name1=value1; name2=value2") }
+            _uiState.update { it.copy(message = UiText.Resource(R.string.error_cookie_format)) }
             return
         }
         viewModelScope.launch {
@@ -289,7 +310,7 @@ class CredentialEditViewModel @Inject constructor(
             credentialRepository.save(updated)
             _uiState.update {
                 it.copy(
-                    message = "已保存 ${cookies.size} 个 Cookie",
+                    message = UiText.Resource(R.string.msg_cookies_saved, listOf(cookies.size)),
                     hasExisting = true,
                     cookieCount = cookies.size
                 )
@@ -306,7 +327,7 @@ class CredentialEditViewModel @Inject constructor(
         val current = _uiState.value
         val text = current.codexAuthJson.trim()
         if (text.isBlank()) {
-            _uiState.update { it.copy(message = "请粘贴 auth.json 内容") }
+            _uiState.update { it.copy(message = UiText.Resource(R.string.error_auth_json_empty)) }
             return
         }
         viewModelScope.launch {
@@ -324,7 +345,9 @@ class CredentialEditViewModel @Inject constructor(
                     ?: System.currentTimeMillis() + 10L * 24 * 3600 * 1000
 
                 if (accessToken.isNullOrBlank() || refreshToken.isNullOrBlank()) {
-                    _uiState.update { it.copy(message = "auth.json 缺少 access_token 或 refresh_token") }
+                    _uiState.update {
+                        it.copy(message = UiText.Resource(R.string.error_auth_json_missing_tokens))
+                    }
                     return@launch
                 }
 
@@ -339,12 +362,19 @@ class CredentialEditViewModel @Inject constructor(
                 credentialRepository.save(newCred)
                 _uiState.update {
                     it.copy(
-                        message = "已保存 Codex 凭据，token 到期后会自动刷新",
+                        message = UiText.Resource(R.string.msg_codex_saved),
                         hasExisting = true
                     )
                 }
             } catch (e: Exception) {
-                _uiState.update { it.copy(message = "解析失败：${e.message ?: "JSON 格式错误"}") }
+                _uiState.update {
+                    it.copy(
+                        message = UiText.Resource(
+                            R.string.error_auth_json_parse,
+                            listOf(e.message ?: "JSON 格式错误")
+                        )
+                    )
+                }
             }
         }
     }
@@ -354,7 +384,7 @@ class CredentialEditViewModel @Inject constructor(
         val current = _uiState.value
         val trimmedKey = current.apiKey.trim()
         if (trimmedKey.isBlank()) {
-            _uiState.update { it.copy(message = "API Key 不能为空") }
+            _uiState.update { it.copy(message = UiText.Resource(R.string.error_api_key_empty)) }
             return
         }
         val cookies = if (current.cookieInput.isNotBlank()) {
@@ -378,7 +408,7 @@ class CredentialEditViewModel @Inject constructor(
             _uiState.update {
                 it.copy(
                     apiKey = trimmedKey,
-                    message = "已保存凭据",
+                    message = UiText.Resource(R.string.msg_credentials_saved),
                     hasExisting = true,
                     cookieCount = cookies.size
                 )
@@ -391,7 +421,7 @@ class CredentialEditViewModel @Inject constructor(
         val current = _uiState.value
         val trimmedKey = current.apiKey.trim()
         if (trimmedKey.isBlank()) {
-            _uiState.update { it.copy(message = "API Key 不能为空") }
+            _uiState.update { it.copy(message = UiText.Resource(R.string.error_api_key_empty)) }
             return
         }
         viewModelScope.launch {
@@ -416,7 +446,10 @@ class CredentialEditViewModel @Inject constructor(
                 type = type,
                 saveAndPrep = { existing to { refreshBalanceUseCaseProvider.get().invoke(type) } },
                 formatSuccess = { bal ->
-                    "连接成功！余额: \$${String.format(java.util.Locale.US, "%.2f", bal.amount)}"
+                    UiText.Resource(
+                        R.string.msg_connect_success_dollar,
+                        listOf(String.format(java.util.Locale.US, "%.2f", bal.amount))
+                    )
                 },
                 rollbackOnFailure = false
             )
@@ -448,7 +481,7 @@ class CredentialEditViewModel @Inject constructor(
             _uiState.update {
                 it.copy(
                     triggerApiKey = trimmedKey,
-                    message = "API Key 已保存",
+                    message = UiText.Resource(R.string.msg_api_key_saved),
                     hasExisting = true
                 )
             }
@@ -459,12 +492,14 @@ class CredentialEditViewModel @Inject constructor(
         val type = serviceType ?: return
         val current = _uiState.value
         if (current.ollamaCookie.isBlank()) {
-            _uiState.update { it.copy(message = "Cookie 不能为空") }
+            _uiState.update { it.copy(message = UiText.Resource(R.string.error_cookie_empty)) }
             return
         }
         viewModelScope.launch {
             doSaveOllama(current.ollamaCookie.trim())
-            _uiState.update { it.copy(message = "已保存凭据", hasExisting = true) }
+            _uiState.update {
+                it.copy(message = UiText.Resource(R.string.msg_credentials_saved), hasExisting = true)
+            }
         }
     }
 
@@ -472,7 +507,7 @@ class CredentialEditViewModel @Inject constructor(
         val type = serviceType ?: return
         val current = _uiState.value
         if (current.ollamaCookie.isBlank()) {
-            _uiState.update { it.copy(message = "Cookie 不能为空") }
+            _uiState.update { it.copy(message = UiText.Resource(R.string.error_cookie_empty)) }
             return
         }
         viewModelScope.launch {
@@ -482,7 +517,10 @@ class CredentialEditViewModel @Inject constructor(
                 type = type,
                 saveAndPrep = { previous to { refreshBalanceUseCaseProvider.get().invoke(type) } },
                 formatSuccess = { bal ->
-                    "连接成功！Session: ${bal.amount}% · ${bal.extras["plan"] ?: "—"}"
+                    UiText.Resource(
+                        R.string.msg_connect_success_session,
+                        listOf(bal.amount.toString(), bal.extras["plan"] ?: "—")
+                    )
                 },
                 rollbackOnFailure = true
             )
@@ -508,7 +546,7 @@ class CredentialEditViewModel @Inject constructor(
             credentialRepository.remove(type)
             _uiState.update {
                 it.copy(
-                    message = "凭据已删除",
+                    message = UiText.Resource(R.string.msg_credential_deleted),
                     hasExisting = false,
                     apiKey = "",
                     cookieInput = "",
@@ -530,7 +568,7 @@ class CredentialEditViewModel @Inject constructor(
         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
         val text = cm.primaryClip?.getItemAt(0)?.text?.toString()
         if (text.isNullOrBlank()) {
-            _uiState.update { it.copy(message = "剪贴板为空") }
+            _uiState.update { it.copy(message = UiText.Resource(R.string.error_clipboard_empty)) }
             return
         }
         val ws = extractWorkspaceId(text)
@@ -543,13 +581,13 @@ class CredentialEditViewModel @Inject constructor(
         }
         when {
             ws != null && auth != null ->
-                _uiState.update { it.copy(message = "已识别 workspaceId 和 auth cookie") }
+                _uiState.update { it.copy(message = UiText.Resource(R.string.msg_clipboard_ws_auth)) }
             ws != null ->
-                _uiState.update { it.copy(message = "已识别 workspaceId，请再粘贴 auth cookie") }
+                _uiState.update { it.copy(message = UiText.Resource(R.string.msg_clipboard_ws_only)) }
             auth != null ->
-                _uiState.update { it.copy(message = "已识别 auth cookie，请再粘贴 workspaceId") }
+                _uiState.update { it.copy(message = UiText.Resource(R.string.msg_clipboard_auth_only)) }
             else ->
-                _uiState.update { it.copy(message = "未识别到有效凭据") }
+                _uiState.update { it.copy(message = UiText.Resource(R.string.error_clipboard_none)) }
         }
     }
 
@@ -594,5 +632,5 @@ data class CredentialEditUiState(
     val ollamaCookie: String = "",
     /** OCGO / Ollama 的一键激活用量 API Key */
     val triggerApiKey: String = "",
-    val message: String? = null
+    val message: UiText? = null
 )

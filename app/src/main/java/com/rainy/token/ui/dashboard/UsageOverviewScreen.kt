@@ -40,10 +40,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rainy.token.R
 import com.rainy.token.data.local.ModelStats
 import com.rainy.token.data.local.OverviewStats
 import com.rainy.token.ui.theme.inkMuted
@@ -80,9 +82,9 @@ fun UsageOverviewScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("总统计") },
+                title = { Text(stringResource(R.string.title_overview)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, "返回") }
+                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, stringResource(R.string.action_back)) }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
@@ -96,7 +98,7 @@ fun UsageOverviewScreen(
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { menuExpanded = true }) {
-                        Text(uiState.timeFilter.label, color = StrawberryPink, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(uiState.timeFilter.labelRes), color = StrawberryPink, fontWeight = FontWeight.SemiBold)
                         Icon(Icons.Filled.ArrowDropDown, null, tint = StrawberryPink)
                     }
                     Text("UTC+0", style = MaterialTheme.typography.bodySmall, color = inkMuted(), modifier = Modifier.padding(start = 4.dp))
@@ -106,12 +108,12 @@ fun UsageOverviewScreen(
                             TimeFilter.Last7Days, TimeFilter.Last30Days, TimeFilter.ThisMonth
                         ).forEach { filter ->
                             DropdownMenuItem(
-                                text = { Text(filter.label) },
+                                text = { Text(stringResource(filter.labelRes)) },
                                 onClick = { menuExpanded = false; viewModel.setTimeFilter(filter) }
                             )
                         }
                         DropdownMenuItem(
-                            text = { Text("自定义") },
+                            text = { Text(stringResource(R.string.time_custom)) },
                             onClick = { menuExpanded = false; viewModel.setTimeFilter(TimeFilter.Custom(0L, 0L)) }
                         )
                     }
@@ -122,7 +124,7 @@ fun UsageOverviewScreen(
                     CustomTimeRangeRow(customStartMs, customEndMs,
                         { showStartPicker = true }, { showEndPicker = true },
                         { viewModel.setTimeFilter(TimeFilter.Custom(customStartMs, customEndMs)) })
-                    Text("所有时间按 UTC+0 计算", style = MaterialTheme.typography.bodySmall, color = inkMuted())
+                    Text(stringResource(R.string.usage_utc0_note), style = MaterialTheme.typography.bodySmall, color = inkMuted())
                 }
             }
             // 总览
@@ -134,7 +136,7 @@ fun UsageOverviewScreen(
             }
             // 按模型
             if (uiState.modelStats.isNotEmpty()) {
-                item { SectionHeader("按模型统计") }
+                item { SectionHeader(stringResource(R.string.section_by_model)) }
                 items(uiState.modelStats, key = { it.model }) { ModelDetailRow(it) }
             }
             // 按天
@@ -144,14 +146,14 @@ fun UsageOverviewScreen(
                 val shown = uiState.dailyStats.drop(startIdx).take(DAILY_PAGE_SIZE)
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        SectionHeader("按天统计（UTC+0）"); Spacer(Modifier.weight(1f))
+                        SectionHeader(stringResource(R.string.section_by_day)); Spacer(Modifier.weight(1f))
                         Box {
                             TextButton(onClick = { modelMenuExpanded = true }) {
-                                Text(uiState.modelFilter ?: "全部模型", color = StrawberryPink, style = MaterialTheme.typography.bodySmall)
+                                Text(uiState.modelFilter ?: stringResource(R.string.common_all_models), color = StrawberryPink, style = MaterialTheme.typography.bodySmall)
                                 Icon(Icons.Filled.ArrowDropDown, null, tint = StrawberryPink)
                             }
                             DropdownMenu(modelMenuExpanded, { modelMenuExpanded = false }) {
-                                DropdownMenuItem(text = { Text("全部模型", fontWeight = FontWeight.Bold) },
+                                DropdownMenuItem(text = { Text(stringResource(R.string.common_all_models), fontWeight = FontWeight.Bold) },
                                     onClick = { modelMenuExpanded = false; viewModel.setModelFilter(null) })
                                 uiState.modelStats.forEach { stat ->
                                     DropdownMenuItem(text = { Text(stat.model) },
@@ -166,18 +168,18 @@ fun UsageOverviewScreen(
                     item {
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                             TextButton(onClick = { viewModel.prevDailyPage() }, enabled = uiState.dailyPage > 1) {
-                                Text("◀ 上一页", color = StrawberryPink, style = MaterialTheme.typography.bodySmall) }
+                                Text(stringResource(R.string.action_prev_page), color = StrawberryPink, style = MaterialTheme.typography.bodySmall) }
                             Text("${uiState.dailyPage} / $totalPages", style = MaterialTheme.typography.bodySmall, color = inkMuted())
                             TextButton(onClick = { viewModel.nextDailyPage() }, enabled = uiState.dailyPage < totalPages) {
-                                Text("下一页 ▶", color = StrawberryPink, style = MaterialTheme.typography.bodySmall) }
+                                Text(stringResource(R.string.action_next_page), color = StrawberryPink, style = MaterialTheme.typography.bodySmall) }
                         }
                     }
                 }
             }
             item { Spacer(Modifier.height(24.dp)) }
         }
-        if (showStartPicker) DateTimePickerDialog("开始时间", { customStartMs = it; showStartPicker = false }, { showStartPicker = false })
-        if (showEndPicker) DateTimePickerDialog("结束时间", { customEndMs = it; showEndPicker = false }, { showEndPicker = false })
+        if (showStartPicker) DateTimePickerDialog(stringResource(R.string.date_start), { customStartMs = it; showStartPicker = false }, { showStartPicker = false })
+        if (showEndPicker) DateTimePickerDialog(stringResource(R.string.date_end), { customEndMs = it; showEndPicker = false }, { showEndPicker = false })
     }
 }
 
@@ -193,24 +195,24 @@ fun UsageOverviewScreen(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    StatItem("输入 Token", formatTokenCount(inputTotal))
-                    StatItem("输出 Token", formatTokenCount(overview.outputTokens))
-                    StatItem("推理 Token", formatTokenCount(overview.reasoningTokens))
-                    StatItem("总计", formatTokenCount(overview.totalTokens))
-                    StatItem("总花费", "$${String.format(Locale.US, "%.4f", overview.totalCost / 100_000_000.0)}")
-                    StatItem("记录数", "${overview.totalCount}")
+                    StatItem(stringResource(R.string.usage_input_tokens), formatTokenCount(inputTotal))
+                    StatItem(stringResource(R.string.usage_output_tokens), formatTokenCount(overview.outputTokens))
+                    StatItem(stringResource(R.string.usage_reasoning_tokens), formatTokenCount(overview.reasoningTokens))
+                    StatItem(stringResource(R.string.usage_total), formatTokenCount(overview.totalTokens))
+                    StatItem(stringResource(R.string.usage_total_cost), "$${String.format(Locale.US, "%.4f", overview.totalCost / 100_000_000.0)}")
+                    StatItem(stringResource(R.string.usage_records), "${overview.totalCount}")
                 }
             } else {
                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly) {
-                    StatItem("输入 Token", formatTokenCount(inputTotal))
-                    StatItem("输出 Token", formatTokenCount(overview.outputTokens))
-                    StatItem("推理 Token", formatTokenCount(overview.reasoningTokens))
+                    StatItem(stringResource(R.string.usage_input_tokens), formatTokenCount(inputTotal))
+                    StatItem(stringResource(R.string.usage_output_tokens), formatTokenCount(overview.outputTokens))
+                    StatItem(stringResource(R.string.usage_reasoning_tokens), formatTokenCount(overview.reasoningTokens))
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly) {
-                    StatItem("总计", formatTokenCount(overview.totalTokens))
-                    StatItem("总花费", "$${String.format(Locale.US, "%.4f", overview.totalCost / 100_000_000.0)}")
-                    StatItem("记录数", "${overview.totalCount}")
+                    StatItem(stringResource(R.string.usage_total), formatTokenCount(overview.totalTokens))
+                    StatItem(stringResource(R.string.usage_total_cost), "$${String.format(Locale.US, "%.4f", overview.totalCost / 100_000_000.0)}")
+                    StatItem(stringResource(R.string.usage_records), "${overview.totalCount}")
                 }
             }
         }
@@ -220,15 +222,15 @@ fun UsageOverviewScreen(
 @Composable private fun CacheBreakdownCard(overview: OverviewStats) {
     Card(Modifier.fillMaxWidth(), RoundedCornerShape(20.dp), CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(16.dp)) {
-            Text("缓存 Token 细分", style = MaterialTheme.typography.labelMedium, color = inkMuted())
+            Text(stringResource(R.string.usage_cache_breakdown), style = MaterialTheme.typography.labelMedium, color = inkMuted())
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly) {
-                StatItem("缓存读取", formatTokenCount(overview.cacheReadTokens))
-                StatItem("缓存写入", formatTokenCount(overview.cacheWriteTokens))
+                StatItem(stringResource(R.string.stat_cache_read), formatTokenCount(overview.cacheReadTokens))
+                StatItem(stringResource(R.string.stat_cache_write), formatTokenCount(overview.cacheWriteTokens))
             }
             if (overview.cacheReadTokens > 0) {
                 Spacer(Modifier.height(4.dp))
-                Text("※ 缓存读取已计入「输入 Token」", style = MaterialTheme.typography.bodySmall, color = inkMuted())
+                Text(stringResource(R.string.usage_cache_read_note), style = MaterialTheme.typography.bodySmall, color = inkMuted())
             }
         }
     }
@@ -243,7 +245,7 @@ fun UsageOverviewScreen(
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(stat.model, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                Text("${stat.count} 次调用", style = MaterialTheme.typography.bodySmall, color = inkMuted())
+                Text(stringResource(R.string.usage_calls, stat.count), style = MaterialTheme.typography.bodySmall, color = inkMuted())
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(formatTokenCount(stat.totalTokens), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = StrawberryPink)
@@ -254,13 +256,14 @@ fun UsageOverviewScreen(
 }
 
 @Composable private fun DailyDetailRow(day: com.rainy.token.data.local.DailyStats) {
-    val utcFmt = remember { SimpleDateFormat("MM月dd日 EEEE", Locale.CHINA).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") } }
+    val datePattern = stringResource(R.string.date_format_md)
+    val utcFmt = remember(datePattern) { SimpleDateFormat(datePattern, Locale.CHINA).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") } }
     Card(Modifier.fillMaxWidth(), RoundedCornerShape(12.dp), CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(utcFmt.format(Date(day.dayTs)), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
             Column(horizontalAlignment = Alignment.End) {
                 Text(formatTokenCount(day.totalTokens), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = StrawberryPink)
-                Text("${day.count} 次 · $${String.format(Locale.US, "%.4f", day.totalCost / 100_000_000.0)}", style = MaterialTheme.typography.bodySmall, color = inkMuted())
+                Text(stringResource(R.string.daily_count_cost, day.count, String.format(Locale.US, "%.4f", day.totalCost / 100_000_000.0)), style = MaterialTheme.typography.bodySmall, color = inkMuted())
             }
         }
     }

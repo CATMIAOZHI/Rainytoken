@@ -1,7 +1,9 @@
 package com.rainy.token.ui.dashboard
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rainy.token.R
 import com.rainy.token.data.local.OverviewStats
 import com.rainy.token.data.local.ModelStats
 import com.rainy.token.data.local.DailyStats
@@ -26,17 +28,17 @@ import javax.inject.Provider
 
 internal const val DAILY_PAGE_SIZE = 5
 
-/** 时间筛选条件 */
-sealed class TimeFilter(val label: String) {
-    data object All : TimeFilter("全部")
-    data object Last5h : TimeFilter("最近5小时")
-    data object Last24h : TimeFilter("最近24小时")
-    data object Today : TimeFilter("今天")
-    data object Yesterday : TimeFilter("昨天")
-    data object Last7Days : TimeFilter("最近7天")
-    data object Last30Days : TimeFilter("最近30天")
-    data object ThisMonth : TimeFilter("当月")
-    data class Custom(val from: Long, val to: Long) : TimeFilter("自定义")
+/** 时间筛选条件（label 用字符串资源 ID，UI 层按当前语言解析） */
+sealed class TimeFilter(@StringRes val labelRes: Int) {
+    data object All : TimeFilter(R.string.time_all)
+    data object Last5h : TimeFilter(R.string.time_last_5h)
+    data object Last24h : TimeFilter(R.string.time_last_24h)
+    data object Today : TimeFilter(R.string.time_today)
+    data object Yesterday : TimeFilter(R.string.time_yesterday)
+    data object Last7Days : TimeFilter(R.string.time_last_7d)
+    data object Last30Days : TimeFilter(R.string.time_last_30d)
+    data object ThisMonth : TimeFilter(R.string.time_this_month)
+    data class Custom(val from: Long, val to: Long) : TimeFilter(R.string.time_custom)
 
     /** 计算筛选的起止 epoch 毫秒（from 含，to 含）。
      *  返回 Pair(null, null) 表示不限制。 */

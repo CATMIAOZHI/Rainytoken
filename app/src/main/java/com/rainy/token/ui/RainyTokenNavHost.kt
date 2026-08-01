@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -33,6 +34,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.rainy.token.R
 import com.rainy.token.data.repository.CommandCodeUsageRepository
 import com.rainy.token.domain.service.ServiceType
 import com.rainy.token.ui.components.rememberWindowSizeClass
@@ -368,8 +370,8 @@ private fun ExpandedDetailPane(
         is DetailPane.Empty -> {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("👈 选择服务查看详情", style = MaterialTheme.typography.titleMedium, color = inkMuted())
-                    Text("点击左侧卡片即可", style = MaterialTheme.typography.bodySmall, color = inkMuted())
+                    Text(stringResource(R.string.nav_empty_title), style = MaterialTheme.typography.titleMedium, color = inkMuted())
+                    Text(stringResource(R.string.nav_empty_subtitle), style = MaterialTheme.typography.bodySmall, color = inkMuted())
                 }
             }
         }

@@ -19,11 +19,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import androidx.annotation.StringRes
+import com.rainy.token.R
 import com.rainy.token.domain.model.CredentialStatus
 import com.rainy.token.domain.model.ServiceBalance
 import com.rainy.token.domain.service.ServiceType
 import com.rainy.token.ui.components.StatusStyle
 import com.rainy.token.ui.components.StatusLevel
+import com.rainy.token.ui.components.DurationText
+import com.rainy.token.ui.components.UiText
 import com.rainy.token.ui.components.formatAmount
 import com.rainy.token.ui.components.formatResetInSec
 import com.rainy.token.ui.components.normalizeWindowLabel
@@ -47,7 +52,7 @@ internal fun BalanceMainArea(card: DashboardCardUi) {
                 color = inkMuted()
             )
             Text(
-                text = "点击配置凭据",
+                text = stringResource(R.string.service_click_to_configure),
                 style = MaterialTheme.typography.bodySmall,
                 color = inkMuted()
             )
@@ -59,7 +64,7 @@ internal fun BalanceMainArea(card: DashboardCardUi) {
                 color = inkMuted()
             )
             Text(
-                text = "下拉刷新",
+                text = stringResource(R.string.service_pull_to_refresh),
                 style = MaterialTheme.typography.bodySmall,
                 color = inkMuted()
             )
@@ -102,14 +107,14 @@ internal fun BalanceMainArea(card: DashboardCardUi) {
             }
             if (!balance.isAvailable) {
                 Text(
-                    text = "服务当前不可用",
+                    text = stringResource(R.string.service_unavailable),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error
                 )
             }
             balance.monthlySpent?.let { spent ->
                 Text(
-                    text = "本月已用 ${formatAmount(spent)}${balance.unit}",
+                    text = stringResource(R.string.service_monthly_used, formatAmount(spent), balance.unit),
                     style = MaterialTheme.typography.bodySmall,
                     color = inkMuted()
                 )
@@ -136,7 +141,7 @@ internal fun OpenCodeGoMainBalance(balance: ServiceBalance) {
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "5h 用量",
+            text = stringResource(R.string.window_5h_usage),
             style = MaterialTheme.typography.titleMedium,
             color = inkMuted(),
             modifier = Modifier.padding(bottom = 6.dp)
@@ -147,9 +152,9 @@ internal fun OpenCodeGoMainBalance(balance: ServiceBalance) {
 @Composable
 internal fun OpenCodeGoUsageWindows(balance: ServiceBalance) {
     val windows = listOf(
-        Triple("5 小时", balance.extras["rolling.pct"]?.toIntOrNull(), balance.extras["rolling.resetInSec"]?.toLongOrNull()),
-        Triple("本周",   balance.extras["weekly.pct"]?.toIntOrNull(),   balance.extras["weekly.resetInSec"]?.toLongOrNull()),
-        Triple("本月",   balance.extras["monthly.pct"]?.toIntOrNull(),  balance.extras["monthly.resetInSec"]?.toLongOrNull())
+        Triple(stringResource(R.string.window_5h), balance.extras["rolling.pct"]?.toIntOrNull(), balance.extras["rolling.resetInSec"]?.toLongOrNull()),
+        Triple(stringResource(R.string.window_weekly),   balance.extras["weekly.pct"]?.toIntOrNull(),   balance.extras["weekly.resetInSec"]?.toLongOrNull()),
+        Triple(stringResource(R.string.window_monthly),   balance.extras["monthly.pct"]?.toIntOrNull(),  balance.extras["monthly.resetInSec"]?.toLongOrNull())
     )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         windows.forEach { (label, pct, resetSec) ->
@@ -181,7 +186,7 @@ internal fun CommandCodeGoMainBalance(balance: ServiceBalance) {
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "剩余",
+            text = stringResource(R.string.service_remaining),
             style = MaterialTheme.typography.titleMedium,
             color = inkMuted(),
             modifier = Modifier.padding(bottom = 6.dp)
@@ -189,7 +194,7 @@ internal fun CommandCodeGoMainBalance(balance: ServiceBalance) {
         if (total != null && total > 0) {
             val used = total - balance.amount
             Text(
-                text = " · 已用 ${formatAmount(used)} / 共 ${formatAmount(total)}",
+                text = stringResource(R.string.service_used_total, formatAmount(used), formatAmount(total)),
                 style = MaterialTheme.typography.bodySmall,
                 color = inkMuted(),
                 modifier = Modifier.padding(bottom = 6.dp)
@@ -206,9 +211,9 @@ internal fun CommandCodeGoUsageWindows(balance: ServiceBalance) {
         return ((used / cap) * 100).toInt().coerceIn(0, 100)
     }
     val windows = listOf(
-        Triple("5 小时", calcPct(extras["fiveHour.used"]?.toDoubleOrNull(), extras["fiveHour.cap"]?.toDoubleOrNull()), extras["fiveHour.resetInSec"]?.toLongOrNull()),
-        Triple("本周",   calcPct(extras["weekly.used"]?.toDoubleOrNull(), extras["weekly.cap"]?.toDoubleOrNull()),   extras["weekly.resetInSec"]?.toLongOrNull()),
-        Triple("本月",   calcPct(balance.monthlySpent, balance.totalQuota), extras["monthly.resetInSec"]?.toLongOrNull())
+        Triple(stringResource(R.string.window_5h), calcPct(extras["fiveHour.used"]?.toDoubleOrNull(), extras["fiveHour.cap"]?.toDoubleOrNull()), extras["fiveHour.resetInSec"]?.toLongOrNull()),
+        Triple(stringResource(R.string.window_weekly),   calcPct(extras["weekly.used"]?.toDoubleOrNull(), extras["weekly.cap"]?.toDoubleOrNull()),   extras["weekly.resetInSec"]?.toLongOrNull()),
+        Triple(stringResource(R.string.window_monthly),   calcPct(balance.monthlySpent, balance.totalQuota), extras["monthly.resetInSec"]?.toLongOrNull())
     )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         windows.forEach { (label, pct, resetSec) ->
@@ -226,7 +231,12 @@ internal fun CodexMainBalance(balance: ServiceBalance) {
     val plan = balance.extras["plan"]?.let {
         when (it) { "plus" -> "Plus"; "pro" -> "Pro"; "free" -> "Free"; else -> it.replaceFirstChar { c -> c.uppercaseChar() } }
     } ?: "—"
-    val primaryLabel = formatCodexPrimaryLabel(balance.extras["primary.label"])
+    val primaryLabel = formatCodexPrimaryLabel(
+        balance.extras["primary.label"],
+        weeklyLabel = stringResource(R.string.window_every_week),
+        monthlyLabel = stringResource(R.string.window_every_month),
+        usageLabel = stringResource(R.string.window_usage)
+    )
     Row(verticalAlignment = Alignment.Bottom) {
         Text(
             text = formatAmount(balance.amount),
@@ -243,14 +253,14 @@ internal fun CodexMainBalance(balance: ServiceBalance) {
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "$primaryLabel 已用",
+            text = stringResource(R.string.service_used_label, primaryLabel),
             style = MaterialTheme.typography.titleMedium,
             color = inkMuted(),
             modifier = Modifier.padding(bottom = 6.dp)
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "· $plan",
+            text = stringResource(R.string.service_plan_suffix, plan),
             style = MaterialTheme.typography.bodySmall,
             color = inkMuted(),
             modifier = Modifier.padding(bottom = 6.dp)
@@ -258,12 +268,20 @@ internal fun CodexMainBalance(balance: ServiceBalance) {
     }
 }
 
-/** 把 Codex API 返回的 primary label 转成中文短标签 */
-internal fun formatCodexPrimaryLabel(raw: String?): String = when (raw?.lowercase()) {
+/**
+ * 把 Codex API 返回的 primary label 转成本地化短标签。
+ * 默认中文标签保持测试兼容；UI 调用方传入 stringResource 结果。
+ */
+internal fun formatCodexPrimaryLabel(
+    raw: String?,
+    weeklyLabel: String = "每周",
+    monthlyLabel: String = "每月",
+    usageLabel: String = "用量"
+): String = when (raw?.lowercase()) {
     "5h" -> "5h"
-    "7d", "每周" -> "每周"
-    "30d", "每月" -> "每月"
-    "usage" -> "用量"
+    "7d", weeklyLabel -> weeklyLabel
+    "30d", monthlyLabel -> monthlyLabel
+    "usage" -> usageLabel
     null -> "5h"
     else -> raw
 }
@@ -276,14 +294,16 @@ internal fun CodexUsageWindows(balance: ServiceBalance) {
         .distinct()
         .maxOrNull()?.plus(1) ?: 0
 
+    val weeklyLabel = stringResource(R.string.window_every_week)
     val windows = (0 until windowCount).map { i ->
-        val label = normalizeWindowLabel(extras["window_$i.label"] ?: "Usage")
+        val label = normalizeWindowLabel(extras["window_$i.label"] ?: "Usage", weeklyLabel = weeklyLabel)
         val remainingPct = extras["window_$i.remainingPct"]?.toIntOrNull()
         val resetAt = extras["window_$i.resetAt"]?.toLongOrNull()?.takeIf { it > 0 }
         Triple(label, remainingPct, resetAt)
     }
 
     // 判断是否有 5h 窗口（用于保留空槽位）
+    val fiveHourLabel = stringResource(R.string.window_5h)
     val has5h = windows.any { it.first.contains("5") && it.first.contains("小时") }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -292,7 +312,7 @@ internal fun CodexUsageWindows(balance: ServiceBalance) {
         } else {
             // 如果没有 5h 窗口，在顶部插入一个空的 5h 槽位（保留位置，等恢复后自动填充）
             if (!has5h) {
-                CompactUsageRowEmpty(label = "5 小时", resetInSec = null)
+                CompactUsageRowEmpty(label = fiveHourLabel, resetInSec = null)
             }
             windows.forEach { (label, remainingPct, resetAt) ->
                 if (remainingPct != null) {
@@ -327,14 +347,14 @@ internal fun OllamaMainBalance(balance: ServiceBalance) {
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "5h 已用",
+            text = stringResource(R.string.service_5h_used),
             style = MaterialTheme.typography.titleMedium,
             color = inkMuted(),
             modifier = Modifier.padding(bottom = 6.dp)
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "· $plan",
+            text = stringResource(R.string.service_plan_suffix, plan),
             style = MaterialTheme.typography.bodySmall,
             color = inkMuted(),
             modifier = Modifier.padding(bottom = 6.dp)
@@ -349,25 +369,26 @@ internal fun OllamaUsageWindows(balance: ServiceBalance) {
     val weeklyPct = extras["weekly.pct"]?.toFloatOrNull()
     val sessionResetAt = extras["session.resetAt"]?.toLongOrNull()
     val weeklyResetAt = extras["weekly.resetAt"]?.toLongOrNull()
+    val weeklyLabel = stringResource(R.string.window_every_week)
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (sessionPct != null) {
             CompactUsageRow(
-                label = "5h",
+                label = stringResource(R.string.window_5h_short),
                 pct = sessionPct.toInt().coerceIn(0, 100),
                 resetInSec = sessionResetAt?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 }
             )
         } else {
-            CompactUsageRowEmpty(label = "5h", resetInSec = null)
+            CompactUsageRowEmpty(label = stringResource(R.string.window_5h_short), resetInSec = null)
         }
         if (weeklyPct != null) {
             CompactUsageRow(
-                label = "每周",
+                label = weeklyLabel,
                 pct = weeklyPct.toInt().coerceIn(0, 100),
                 resetInSec = weeklyResetAt?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 }
             )
         } else {
-            CompactUsageRowEmpty(label = "每周", resetInSec = null)
+            CompactUsageRowEmpty(label = weeklyLabel, resetInSec = null)
         }
     }
 }
@@ -376,6 +397,7 @@ internal fun OllamaUsageWindows(balance: ServiceBalance) {
 
 @Composable
 internal fun CompactUsageRowEmpty(label: String, resetInSec: Long?) {
+    val durationText = rememberDurationText()
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -407,7 +429,7 @@ internal fun CompactUsageRowEmpty(label: String, resetInSec: Long?) {
         if (resetInSec != null && resetInSec > 0) {
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "${formatResetInSec(resetInSec)}后重置",
+                text = stringResource(R.string.service_reset_in, formatResetInSec(resetInSec, durationText)),
                 style = MaterialTheme.typography.bodySmall,
                 color = inkMuted()
             )
@@ -417,6 +439,7 @@ internal fun CompactUsageRowEmpty(label: String, resetInSec: Long?) {
 
 @Composable
 internal fun CompactUsageRow(label: String, pct: Int, resetInSec: Long?) {
+    val durationText = rememberDurationText()
     val pctValue = pct.coerceIn(0, 100).toFloat()
     Column {
         Row(
@@ -458,7 +481,7 @@ internal fun CompactUsageRow(label: String, pct: Int, resetInSec: Long?) {
         if (resetInSec != null && resetInSec > 0) {
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "${formatResetInSec(resetInSec)}后重置",
+                text = stringResource(R.string.service_reset_in, formatResetInSec(resetInSec, durationText)),
                 style = MaterialTheme.typography.bodySmall,
                 color = inkMuted()
             )
@@ -466,45 +489,60 @@ internal fun CompactUsageRow(label: String, pct: Int, resetInSec: Long?) {
     }
 }
 
+/** 当前语言环境的时长标签（"天 / 小时 / 分"）。 */
+@Composable
+private fun rememberDurationText(): DurationText = DurationText(
+    day = stringResource(R.string.format_day),
+    hour = stringResource(R.string.format_hour),
+    minute = stringResource(R.string.format_minute)
+)
+
 // ── Dashboard utility functions ──
 
 internal fun DashboardCardUi.statusBadgeStyle(): StatusStyle = when {
     credentialState == CredentialStatus.State.NOT_CONFIGURED ->
-        StatusStyle("未配置", StatusLevel.WARNING)
+        StatusStyle(R.string.status_not_configured, StatusLevel.WARNING)
     lastFetchError != null ->
-        StatusStyle("刷新失败", StatusLevel.ERROR)
+        StatusStyle(R.string.status_refresh_failed, StatusLevel.ERROR)
     credentialState == CredentialStatus.State.EXPIRED ->
-        StatusStyle("已过期", StatusLevel.ERROR)
+        StatusStyle(R.string.status_expired, StatusLevel.ERROR)
     credentialState == CredentialStatus.State.WARNING ->
-        StatusStyle("需重登", StatusLevel.WARNING)
+        StatusStyle(R.string.status_relogin, StatusLevel.WARNING)
     cachedBalance == null ->
-        StatusStyle("待获取", StatusLevel.INFO)
+        StatusStyle(R.string.status_waiting, StatusLevel.INFO)
     else ->
-        StatusStyle("正常", StatusLevel.OK)
+        StatusStyle(R.string.status_normal, StatusLevel.OK)
 }
 
-internal fun secondaryLine(card: DashboardCardUi): String = when (card.service) {
-    ServiceType.DEEPSEEK -> "REST API · ¥"
-    ServiceType.OPENCODE_GO -> "WebView 抓取 · 5h 配额"
-    ServiceType.COMMANDCODE_GO -> "JSON API · $"
-    ServiceType.CODEX -> "ChatGPT Plus · Codex 额度"
-    ServiceType.OLLAMA -> "Cookie 抓取 · Cloud 配额"
+/** 服务副标题（资源 ID，由 UI 层解析）。 */
+@StringRes
+internal fun secondaryLineRes(card: DashboardCardUi): Int = when (card.service) {
+    ServiceType.DEEPSEEK -> R.string.service_desc_deepseek
+    ServiceType.OPENCODE_GO -> R.string.service_desc_opencode_go
+    ServiceType.COMMANDCODE_GO -> R.string.service_desc_commandcode_go
+    ServiceType.CODEX -> R.string.service_desc_codex
+    ServiceType.OLLAMA -> R.string.service_desc_ollama
 }
 
-internal fun footerText(card: DashboardCardUi): String {
+/**
+ * 底部更新时间/错误文案（UiText 形式，UI 层按当前语言解析）。
+ * 错误分支直接透传 Repository 中文 message（Dynamic，不参与翻译）。
+ */
+internal fun footerText(card: DashboardCardUi): UiText {
     if (card.lastFetchError != null) {
         val msg = card.lastFetchError.take(60)
-        return "⚠ $msg${if (card.lastFetchError.length > 60) "…" else ""}"
+        return UiText.Dynamic("⚠ $msg${if (card.lastFetchError.length > 60) "…" else ""}")
     }
-    val fetchedAt = card.cachedBalance?.fetchedAt ?: return "从未获取"
+    val fetchedAt = card.cachedBalance?.fetchedAt
+        ?: return UiText.Resource(R.string.footer_never_fetched)
     val sdf = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
     val now = System.currentTimeMillis()
     val diffMin = (now - fetchedAt) / 60_000
     val timeStr = sdf.format(Date(fetchedAt))
     return when {
-        diffMin < 1 -> "刚刚更新"
-        diffMin < 60 -> "$diffMin 分钟前更新"
-        diffMin < 1440 -> "${diffMin / 60} 小时前更新"
-        else -> "$timeStr 更新"
+        diffMin < 1 -> UiText.Resource(R.string.footer_just_updated)
+        diffMin < 60 -> UiText.Resource(R.string.footer_minutes_ago, listOf(diffMin))
+        diffMin < 1440 -> UiText.Resource(R.string.footer_hours_ago, listOf(diffMin / 60))
+        else -> UiText.Resource(R.string.footer_updated_at, listOf(timeStr))
     }
 }

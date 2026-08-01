@@ -93,7 +93,10 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                     val cache = BalanceCache(dataStore)
                     val selectedService = currentDisplayService(context)
                     views.setTextViewText(R.id.widget_switch, shortName(selectedService))
-                    views.setTextViewText(R.id.widget_service_title, "${selectedService.displayName} · 额度")
+                    views.setTextViewText(
+                        R.id.widget_service_title,
+                        context.getString(R.string.widget_service_quota, selectedService.displayName)
+                    )
                     views.setImageViewResource(R.id.widget_logo, widgetLogo(selectedService))
                     // Ollama logo 是正方形，XML 默认 22x12 是给宽扁 logo 的
                     if (selectedService == ServiceType.OLLAMA) {
@@ -106,15 +109,21 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                     val cached = cache.get(selectedService)
                     if (cached != null) {
                         selectedHasCachedData = true
-                        populateServiceRows(views, selectedService, cached.balance)
+                        populateServiceRows(views, context, selectedService, cached.balance)
 
                         val sdf = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
-                        val timeText = "更新 " + sdf.format(Date(cached.fetchedAt))
-                        views.setTextViewText(R.id.widget_updated, timeText)
+                        val timeText = sdf.format(Date(cached.fetchedAt))
+                        views.setTextViewText(
+                            R.id.widget_updated,
+                            context.getString(R.string.widget_updated_at, timeText)
+                        )
                     } else {
-                        setEmptyState(views)
+                        setEmptyState(views, context)
                         views.setTextViewText(R.id.widget_switch, shortName(selectedService))
-                        views.setTextViewText(R.id.widget_service_title, "${selectedService.displayName} · 额度")
+                        views.setTextViewText(
+                            R.id.widget_service_title,
+                            context.getString(R.string.widget_service_quota, selectedService.displayName)
+                        )
                     }
 
                     // DeepSeek 余额
@@ -127,7 +136,7 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                         views.setTextViewText(R.id.widget_ds_amount, "—")
                     }
                 } catch (_: Exception) {
-                    setEmptyState(views)
+                    setEmptyState(views, context)
                 }
             }
 
@@ -143,13 +152,14 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
 
     private fun populateServiceRows(
         views: RemoteViews,
+        context: Context,
         service: ServiceType,
         balance: com.rainy.token.domain.model.ServiceBalance
     ) {
         val extras = balance.extras
         when (service) {
             ServiceType.OPENCODE_GO -> {
-                setRowLabel(views, "5h", "本周", "本月")
+                setRowLabel(views, context.getString(R.string.window_5h_short), context.getString(R.string.window_weekly), context.getString(R.string.window_monthly))
                 populateRow(views, R.id.row1_pct, R.id.row1_bar, R.id.row1_reset,
                     pct = extras["rolling.pct"]?.toIntOrNull(),
                     resetSec = extras["rolling.resetInSec"]?.toLongOrNull())
@@ -165,7 +175,7 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                     if (used == null || cap == null || cap <= 0) return null
                     return ((used / cap) * 100).toInt().coerceIn(0, 100)
                 }
-                setRowLabel(views, "5h", "本周", "本月")
+                setRowLabel(views, context.getString(R.string.window_5h_short), context.getString(R.string.window_weekly), context.getString(R.string.window_monthly))
                 populateRow(views, R.id.row1_pct, R.id.row1_bar, R.id.row1_reset,
                     pct = calcPct(extras["fiveHour.used"]?.toDoubleOrNull(), extras["fiveHour.cap"]?.toDoubleOrNull()),
                     resetSec = extras["fiveHour.resetInSec"]?.toLongOrNull())
@@ -180,8 +190,10 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                 val windowCount = extras.keys
                     .mapNotNull { key -> key.removePrefix("window_").substringBefore('.').toIntOrNull() }
                     .distinct().maxOrNull()?.plus(1) ?: 0
+                val weeklyLabel = context.getString(R.string.window_every_week)
+                val monthlyLabel = context.getString(R.string.window_every_month)
                 val windows = (0 until windowCount).map { index ->
-                    val label = normalizeWindowLabel(extras["window_$index.label"] ?: "Usage")
+                    val label = normalizeWindowLabel(extras["window_$index.label"] ?: "Usage", weeklyLabel = weeklyLabel)
                     val remaining = extras["window_$index.remainingPct"]?.toIntOrNull()
                     val resetAt = extras["window_$index.resetAt"]?.toLongOrNull()?.takeIf { it > 0 }
                     Triple(label, remaining?.let { (100 - it).coerceIn(0, 100) }, resetAt?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 })
@@ -195,8 +207,8 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                     windows.firstOrNull { it.first.contains("5") } ?: windows.getOrNull(0) ?: Triple("5h", null, null)
                 }
                 val otherWindows = windows.filter { it != row1 }
-                val row2 = otherWindows.getOrNull(0) ?: Triple("每周", null, null)
-                val row3 = otherWindows.getOrNull(1) ?: Triple("每月", null, null)
+                val row2 = otherWindows.getOrNull(0) ?: Triple(weeklyLabel, null, null)
+                val row3 = otherWindows.getOrNull(1) ?: Triple(monthlyLabel, null, null)
                 setRowLabel(views, row1.first, row2.first, row3.first)
                 listOf(
                     Triple(R.id.row1_pct, R.id.row1_bar, R.id.row1_reset),
@@ -207,9 +219,9 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                     populateRow(views, ids.first, ids.second, ids.third, pct = window.second, resetSec = window.third)
                 }
             }
-            ServiceType.DEEPSEEK -> setEmptyState(views)
+            ServiceType.DEEPSEEK -> setEmptyState(views, context)
             ServiceType.OLLAMA -> {
-                setRowLabel(views, "5h", "每周", "")
+                setRowLabel(views, context.getString(R.string.window_5h_short), context.getString(R.string.window_every_week), "")
                 populateRow(views, R.id.row1_pct, R.id.row1_bar, R.id.row1_reset,
                     pct = extras["session.pct"]?.toFloatOrNull()?.toInt(),
                     resetSec = extras["session.resetAt"]?.toLongOrNull()?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 })
@@ -223,8 +235,11 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                 views.setTextViewText(R.id.row3_reset, "")
                 // Plan 信息合并到标题行
                 val plan = extras["plan"] ?: ""
-                val titleText = if (plan.isNotEmpty()) "${service.displayName} · $plan"
-                    else "${service.displayName} · 额度"
+                val titleText = if (plan.isNotEmpty()) {
+                    context.getString(R.string.widget_quota_with_plan, service.displayName, plan)
+                } else {
+                    context.getString(R.string.widget_service_quota, service.displayName)
+                }
                 views.setTextViewText(R.id.widget_service_title, titleText)
             }
         }
@@ -269,8 +284,8 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
         views.setColorStateList(barViewId, "setProgressTintList", ColorStateList.valueOf(color))
     }
 
-    private fun setEmptyState(views: RemoteViews) {
-        views.setTextViewText(R.id.widget_updated, "暂无数据")
+    private fun setEmptyState(views: RemoteViews, context: Context) {
+        views.setTextViewText(R.id.widget_updated, context.getString(R.string.widget_no_data))
         for (pctId in listOf(R.id.row1_pct, R.id.row2_pct, R.id.row3_pct)) {
             views.setTextViewText(pctId, "—")
         }
@@ -357,7 +372,7 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
             val ids = appWidgetManager.getAppWidgetIds(component)
             ids.forEach { id ->
                 val views = RemoteViews(context.packageName, R.layout.widget_opencode_go)
-                views.setTextViewText(R.id.widget_updated, "刷新中…")
+                views.setTextViewText(R.id.widget_updated, context.getString(R.string.widget_refreshing))
                 appWidgetManager.partiallyUpdateAppWidget(id, views)
             }
         }

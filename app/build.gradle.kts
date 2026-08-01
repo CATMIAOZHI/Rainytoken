@@ -76,6 +76,10 @@ android {
     buildFeatures {
         compose = true
     }
+    androidResources {
+        // Android 13+ 应用级语言设置：根据 values-* 目录自动生成 locales_config
+        generateLocaleConfig = true
+    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"

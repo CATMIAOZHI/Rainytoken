@@ -50,11 +50,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rainy.token.R
 import com.rainy.token.data.local.ChartGranularity
 import com.rainy.token.ui.theme.InkMuted
 import com.rainy.token.ui.theme.StrawberryPink
@@ -80,6 +83,7 @@ fun UsageDetailScreen(
     clearViewModel: UsageViewModel? = null  // non-null = CCGO, 显示清除按钮
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     // OCGO 首次加载（CCGO 由 NavHost 的 setWorkspace 触发，不重复 load）
     LaunchedEffect(Unit) {
@@ -106,16 +110,16 @@ fun UsageDetailScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("用量详情") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, "返回") } },
+                title = { Text(stringResource(R.string.title_usage_detail)) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, stringResource(R.string.action_back)) } },
                 actions = {
                     if (clearViewModel != null) {
                         TextButton(onClick = { showClearDialog = true }) {
-                            Text("清除", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text(stringResource(R.string.action_clear), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                         }
                     }
                     TextButton(onClick = onOpenData) {
-                        Text("详细数据", color = StrawberryPink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text(stringResource(R.string.action_view_raw_data), color = StrawberryPink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -124,7 +128,7 @@ fun UsageDetailScreen(
     ) { innerPadding ->
         if (state.loading) {
             Box(Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
-                Text("加载中…", color = InkMuted)
+                Text(stringResource(R.string.common_loading), color = InkMuted)
             }
         } else {
             BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
@@ -139,12 +143,12 @@ fun UsageDetailScreen(
                         Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp), Alignment.CenterVertically) {
                             Box {
                                 TextButton(onClick = { granularityExpanded = true }) {
-                                    Text(state.granularity.label, color = StrawberryPink)
+                                    Text(stringResource(state.granularity.labelRes), color = StrawberryPink)
                                     Icon(Icons.Filled.ArrowDropDown, null, tint = StrawberryPink)
                                 }
                                 DropdownMenu(granularityExpanded, { granularityExpanded = false }) {
                                     ChartGranularity.entries.forEach { g ->
-                                        DropdownMenuItem(text = { Text(g.label) }, onClick = {
+                                        DropdownMenuItem(text = { Text(stringResource(g.labelRes)) }, onClick = {
                                             granularityExpanded = false
                                             when (g) {
                                                 ChartGranularity.CUSTOM_DAY_HOURLY -> showCustomDayPicker = true
@@ -160,7 +164,7 @@ fun UsageDetailScreen(
                                 viewModel.toggleUtc8()
                                 scope.launch {
                                     snackbarHostState.showSnackbar(
-                                        if (state.useUtc8) "已切换到 UTC+8，图表按北京时间显示" else "已切换到 UTC+0，图表按世界协调时显示",
+                                        if (state.useUtc8) context.getString(R.string.msg_utc8_on) else context.getString(R.string.msg_utc0_on),
                                         duration = SnackbarDuration.Short
                                     )
                                 }
@@ -172,7 +176,7 @@ fun UsageDetailScreen(
                                     fontWeight = if (state.useUtc8) FontWeight.SemiBold else FontWeight.Normal
                                 )
                                 Text(
-                                    " 点击切换",
+                                    stringResource(R.string.usage_click_to_switch),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = InkMuted.copy(alpha = 0.5f),
                                     fontWeight = FontWeight.Normal
@@ -180,14 +184,14 @@ fun UsageDetailScreen(
                             }
                             Spacer(Modifier.weight(1f))
                             Box {
-                                val label = if (state.selectedModels.isEmpty()) "全部模型" else "${state.selectedModels.size} 个模型"
+                                val label = if (state.selectedModels.isEmpty()) stringResource(R.string.common_all_models) else stringResource(R.string.model_count, state.selectedModels.size)
                                 TextButton(onClick = { modelExpanded = true }) {
                                     Text(label, color = StrawberryPink, style = MaterialTheme.typography.bodySmall)
                                     Icon(Icons.Filled.ArrowDropDown, null, tint = StrawberryPink)
                                 }
                                 DropdownMenu(modelExpanded, { modelExpanded = false }) {
                                     DropdownMenuItem(
-                                        text = { Text("全部模型", fontWeight = FontWeight.Bold) },
+                                        text = { Text(stringResource(R.string.common_all_models), fontWeight = FontWeight.Bold) },
                                         onClick = { modelExpanded = false; viewModel.selectAllModels() })
                                     state.allModels.forEach { model ->
                                         DropdownMenuItem(text = {
@@ -213,7 +217,7 @@ fun UsageDetailScreen(
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Box(modifier = Modifier.weight(1f)) {
-                                    ChartCard("消耗金额 (USD)", "$${String.format(Locale.US, "%.4f", costTotal)}", { showCostDetail = true }) {
+                                    ChartCard(stringResource(R.string.chart_cost), "$${String.format(Locale.US, "%.4f", costTotal)}", { showCostDetail = true }) {
                                         StackedBarChart(state.buckets,
                                             { it.totalCost.toDouble() / 100_000_000.0 },
                                             { bucket -> models.mapIndexedNotNull { idx, m -> val v = bucket.byModel[m]?.cost ?: return@mapIndexedNotNull null; v.toDouble() / 100_000_000.0 to modelColors[idx % modelColors.size] } },
@@ -228,33 +232,33 @@ fun UsageDetailScreen(
                                     }
                                 }
                                 Box(modifier = Modifier.weight(1f)) {
-                                    ChartCard("API 请求次数", "${reqTotal}次", { showReqDetail = true }) {
-                                        LineChart(state.buckets, { it.totalRequests.toFloat() }, StrawberryPink, { "${it.toInt()}次" }, state.granularity, useUtc8 = state.useUtc8)
+                                    ChartCard(stringResource(R.string.chart_requests), stringResource(R.string.count_times, reqTotal), { showReqDetail = true }) {
+                                        LineChart(state.buckets, { it.totalRequests.toFloat() }, StrawberryPink, { context.getString(R.string.count_times, it.toInt()) }, state.granularity, useUtc8 = state.useUtc8)
                                     }
                                 }
                             }
                         }
                         item {
                             val tokTotal = state.buckets.sumOf { it.cacheHitTokens + it.inputTokens + it.outputTokens }
-                            ChartCard("Token 消耗", formatTokenComma(tokTotal), { showTokenDetail = true }) {
+                            ChartCard(stringResource(R.string.chart_tokens), formatTokenComma(tokTotal), { showTokenDetail = true }) {
                                 StackedBarChart(state.buckets,
                                     { (it.cacheHitTokens + it.inputTokens + it.outputTokens).toDouble() },
                                     { bucket -> listOfNotNull(bucket.outputTokens.toDouble() to tokenColors[2], bucket.inputTokens.toDouble() to tokenColors[1], bucket.cacheHitTokens.toDouble() to tokenColors[0]) },
-                                    { listOf("输出", "输入(未命中)", "命中缓存") },
+                                    { listOf(context.getString(R.string.chart_stack_output), context.getString(R.string.chart_stack_input), context.getString(R.string.chart_stack_cache)) },
                                     formatValue = { formatTokenComma(it.toLong()) },
                                     granularity = state.granularity,
                                     tooltipReversed = true,
                                     useUtc8 = state.useUtc8
                                 )
                             }
-                            ChartLegend(listOf("输入(未命中)" to tokenColors[1], "命中缓存" to tokenColors[0], "输出" to tokenColors[2]))
+                            ChartLegend(listOf(stringResource(R.string.chart_stack_input) to tokenColors[1], stringResource(R.string.chart_stack_cache) to tokenColors[0], stringResource(R.string.chart_stack_output) to tokenColors[2]))
                         }
                     } else {
                         // 窄面板：三张图表纵向堆叠
                         item {
                             val models = state.selectedModels.ifEmpty { state.allModels.toSet() }
                             val costTotal = state.buckets.sumOf { it.totalCost.toDouble() / 100_000_000.0 }
-                            ChartCard("消耗金额 (USD)", "$${String.format(Locale.US, "%.4f", costTotal)}", { showCostDetail = true }) {
+                            ChartCard(stringResource(R.string.chart_cost), "$${String.format(Locale.US, "%.4f", costTotal)}", { showCostDetail = true }) {
                                 StackedBarChart(state.buckets,
                                     { it.totalCost.toDouble() / 100_000_000.0 },
                                     { bucket -> models.mapIndexedNotNull { idx, m -> val v = bucket.byModel[m]?.cost ?: return@mapIndexedNotNull null; v.toDouble() / 100_000_000.0 to modelColors[idx % modelColors.size] } },
@@ -270,29 +274,29 @@ fun UsageDetailScreen(
                         }
                         item {
                             val reqTotal = state.buckets.sumOf { it.totalRequests }
-                            ChartCard("API 请求次数", "${reqTotal}次", { showReqDetail = true }) {
-                                LineChart(state.buckets, { it.totalRequests.toFloat() }, StrawberryPink, { "${it.toInt()}次" }, state.granularity, useUtc8 = state.useUtc8)
+                            ChartCard(stringResource(R.string.chart_requests), stringResource(R.string.count_times, reqTotal), { showReqDetail = true }) {
+                                LineChart(state.buckets, { it.totalRequests.toFloat() }, StrawberryPink, { context.getString(R.string.count_times, it.toInt()) }, state.granularity, useUtc8 = state.useUtc8)
                             }
                         }
                         item {
                             val tokTotal = state.buckets.sumOf { it.cacheHitTokens + it.inputTokens + it.outputTokens }
-                            ChartCard("Token 消耗", formatTokenComma(tokTotal), { showTokenDetail = true }) {
+                            ChartCard(stringResource(R.string.chart_tokens), formatTokenComma(tokTotal), { showTokenDetail = true }) {
                                 StackedBarChart(state.buckets,
                                     { (it.cacheHitTokens + it.inputTokens + it.outputTokens).toDouble() },
                                     { bucket -> listOfNotNull(bucket.outputTokens.toDouble() to tokenColors[2], bucket.inputTokens.toDouble() to tokenColors[1], bucket.cacheHitTokens.toDouble() to tokenColors[0]) },
-                                    { listOf("输出", "输入(未命中)", "命中缓存") },
+                                    { listOf(context.getString(R.string.chart_stack_output), context.getString(R.string.chart_stack_input), context.getString(R.string.chart_stack_cache)) },
                                     formatValue = { formatTokenComma(it.toLong()) },
                                     granularity = state.granularity,
                                     tooltipReversed = true,
                                     useUtc8 = state.useUtc8
                                 )
                             }
-                            ChartLegend(listOf("输入(未命中)" to tokenColors[1], "命中缓存" to tokenColors[0], "输出" to tokenColors[2]))
+                            ChartLegend(listOf(stringResource(R.string.chart_stack_input) to tokenColors[1], stringResource(R.string.chart_stack_cache) to tokenColors[0], stringResource(R.string.chart_stack_output) to tokenColors[2]))
                         }
                     }
                     item {
                         TextButton(onClick = onOpenOverview, modifier = Modifier.fillMaxWidth()) {
-                            Text("📋 总统计", color = StrawberryPink, fontWeight = FontWeight.Bold)
+                            Text("📋 " + stringResource(R.string.title_overview), color = StrawberryPink, fontWeight = FontWeight.Bold)
                         }
                     }
                     item { Spacer(Modifier.height(32.dp)) }
@@ -300,15 +304,15 @@ fun UsageDetailScreen(
             }
         }
         // 自定义日期选择器
-        if (showCustomDayPicker) DateOnlyPickerDialog("选择日期", { date ->
+        if (showCustomDayPicker) DateOnlyPickerDialog(stringResource(R.string.date_select_day), { date ->
             viewModel.setCustomDay(date)
             showCustomDayPicker = false
         }, { showCustomDayPicker = false })
-        if (showCustomMonthPicker) DateOnlyPickerDialog("选择月份（任意一天）", { date ->
+        if (showCustomMonthPicker) DateOnlyPickerDialog(stringResource(R.string.date_select_month), { date ->
             viewModel.setCustomMonth(date)
             showCustomMonthPicker = false
         }, { showCustomMonthPicker = false })
-        if (showCustomRangeStart) DateOnlyPickerDialog("开始日期", { date ->
+        if (showCustomRangeStart) DateOnlyPickerDialog(stringResource(R.string.date_pick_start), { date ->
             customRangeStartDate = date
             showCustomRangeStart = false
             showCustomRangeEnd = true
@@ -316,7 +320,7 @@ fun UsageDetailScreen(
         if (showCustomRangeEnd) {
             val startDate = customRangeStartDate
             DateOnlyPickerDialog(
-                title = "结束日期",
+                title = stringResource(R.string.date_pick_end),
                 onConfirm = { endDate ->
                     if (startDate != null && !endDate.isBefore(startDate)) {
                         viewModel.setCustomRange(startDate, endDate)
@@ -328,27 +332,27 @@ fun UsageDetailScreen(
             )
         }
         val models = state.selectedModels.ifEmpty { state.allModels.toSet() }
-        if (showCostDetail) ChartDetailDialog("消费明细", { showCostDetail = false }) {
+        if (showCostDetail) ChartDetailDialog(stringResource(R.string.chart_detail_cost), { showCostDetail = false }) {
             models.forEach { model -> val t = state.buckets.sumOf { it.byModel[model]?.cost ?:0L }; if (t>0) DetailRow(model, "$${String.format(Locale.US, "%.4f", t/100_000_000.0)}") }
         }
-        if (showReqDetail) ChartDetailDialog("调用次数明细", { showReqDetail = false }) {
-            models.forEach { model -> val t = state.buckets.sumOf { it.byModel[model]?.requests ?:0 }; if (t>0) DetailRow(model, "${t}次") }
+        if (showReqDetail) ChartDetailDialog(stringResource(R.string.chart_detail_requests), { showReqDetail = false }) {
+            models.forEach { model -> val t = state.buckets.sumOf { it.byModel[model]?.requests ?: 0 }; if (t>0) DetailRow(model, stringResource(R.string.count_times, t)) }
         }
-        if (showTokenDetail) ChartDetailDialog("Token 明细", { showTokenDetail = false }) {
-            DetailRow("命中缓存", formatTokenComma(state.buckets.sumOf { it.cacheHitTokens }))
-            DetailRow("输入(未命中)", formatTokenComma(state.buckets.sumOf { it.inputTokens }))
-            DetailRow("输出", formatTokenComma(state.buckets.sumOf { it.outputTokens }))
+        if (showTokenDetail) ChartDetailDialog(stringResource(R.string.chart_detail_tokens), { showTokenDetail = false }) {
+            DetailRow(stringResource(R.string.chart_stack_cache), formatTokenComma(state.buckets.sumOf { it.cacheHitTokens }))
+            DetailRow(stringResource(R.string.chart_stack_input), formatTokenComma(state.buckets.sumOf { it.inputTokens }))
+            DetailRow(stringResource(R.string.chart_stack_output), formatTokenComma(state.buckets.sumOf { it.outputTokens }))
         }
         if (showClearDialog && clearViewModel != null) {
             val cd = clearCountdown
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { showClearDialog = false; clearCountdown = 0 },
-                title = { Text("⚠️ 清除数据", fontWeight = FontWeight.Bold) },
+                title = { Text("⚠️ " + stringResource(R.string.dialog_clear_title), fontWeight = FontWeight.Bold) },
                 text = {
                     Column {
-                        Text("此操作将清除所有 CommandCode 用量本地缓存并重新同步，需要几秒钟完成。")
+                        Text(stringResource(R.string.dialog_clear_body))
                         Spacer(Modifier.height(12.dp))
-                        Text("是否继续？", fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.dialog_clear_confirm_question), fontWeight = FontWeight.SemiBold)
                     }
                 },
                 confirmButton = {
@@ -362,14 +366,14 @@ fun UsageDetailScreen(
                         enabled = cd == 0
                     ) {
                         Text(
-                            if (cd > 0) "确认（${cd}s）" else "确认清除",
+                            if (cd > 0) stringResource(R.string.action_confirm_countdown, cd) else stringResource(R.string.action_confirm_clear),
                             color = if (cd == 0) MaterialTheme.colorScheme.error else InkMuted
                         )
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showClearDialog = false; clearCountdown = 0 }) {
-                        Text("取消")
+                        Text(stringResource(R.string.action_cancel))
                     }
                 }
             )
@@ -391,7 +395,7 @@ private fun ChartDetailDialog(title: String, onDismiss: () -> Unit, content: @Co
         onDismissRequest = onDismiss,
         title = { Text(title, fontWeight = FontWeight.Bold) },
         text = { androidx.compose.foundation.layout.Column { content() } },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } })
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) } })
 }
 @Composable private fun DetailRow(label: String, value: String) {
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), Arrangement.SpaceBetween) {
@@ -421,14 +425,14 @@ internal fun CustomTimeRangeRow(
         ) {
             TextButton(onClick = onPickStart, modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (startMs > 0) "从 ${fmt.format(Date(startMs))}" else "开始时间",
+                    text = if (startMs > 0) stringResource(R.string.range_from, fmt.format(Date(startMs))) else stringResource(R.string.date_start),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (startMs > 0) StrawberryPink else InkMuted
                 )
             }
             TextButton(onClick = onPickEnd, modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (endMs > 0) "至 ${fmt.format(Date(endMs))}" else "结束时间",
+                    text = if (endMs > 0) stringResource(R.string.range_to, fmt.format(Date(endMs))) else stringResource(R.string.date_end),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (endMs > 0) StrawberryPink else InkMuted
                 )
@@ -436,7 +440,7 @@ internal fun CustomTimeRangeRow(
         }
         if (startMs > 0 && endMs > 0) {
             TextButton(onClick = onApply) {
-                Text("应用自定义范围", color = StrawberryPink, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.action_apply_custom_range), color = StrawberryPink, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -471,10 +475,10 @@ private fun DateOnlyPickerDialog(
                 },
                 enabled = dateState.selectedDateMillis != null
             ) {
-                Text("确定")
+                Text(stringResource(R.string.action_confirm))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     ) {
         Column {
             Text(
@@ -485,7 +489,7 @@ private fun DateOnlyPickerDialog(
             )
             if (minDate != null) {
                 Text(
-                    text = "结束日期不能早于开始日期 ${minDate.formatDateLabel()}",
+                    text = stringResource(R.string.date_end_before_start, minDate.formatDateLabel()),
                     modifier = Modifier.padding(start = 24.dp, top = 8.dp, end = 24.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = InkMuted
@@ -525,20 +529,20 @@ internal fun DateTimePickerDialog(
                     onConfirm(epochMs)
                 }
             }) {
-                Text("确定")
+                Text(stringResource(R.string.action_confirm))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     ) {
         Column {
             DatePicker(state = dateState)
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "时间 ${
-                    String.format("%02d", timeState.hour)
-                }:${
+                text = stringResource(
+                    R.string.time_hm,
+                    String.format("%02d", timeState.hour),
                     String.format("%02d", timeState.minute)
-                }",
+                ),
                 modifier = Modifier.padding(horizontal = 24.dp),
                 style = MaterialTheme.typography.titleMedium
             )

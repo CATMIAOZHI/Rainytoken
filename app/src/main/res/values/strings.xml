@@ -1,5 +1,470 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">雨晴Token</string>
-    <string name="widget_name">AI用量面板</string>
-<string name="widget_description">OpenCode Go 用量 + DeepSeek 余额，自动刷新</string>
+    <!-- ══════════ 应用品牌（translatable=false，不参与翻译） ══════════ -->
+    <string name="app_name" translatable="false">雨晴Token</string>
+    <string name="widget_name" translatable="false">AI用量面板</string>
+    <string name="widget_description" translatable="false">OpenCode Go 用量 + DeepSeek 余额，自动刷新</string>
+    <string name="widget_brand" translatable="false">雨晴喵</string>
+    <string name="brand_token" translatable="false">RainyToken</string>
+
+    <!-- ══════════ 通用动作 ══════════ -->
+    <string name="action_back">返回</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_confirm_add">确认添加</string>
+    <string name="action_got_it">我知道了</string>
+    <string name="action_refresh">刷新</string>
+    <string name="action_settings">设置</string>
+    <string name="action_delete">删除</string>
+    <string name="action_clear">清除</string>
+    <string name="action_save">保存</string>
+    <string name="action_jump">跳转</string>
+    <string name="action_prev_page">◀ 上一页</string>
+    <string name="action_next_page">下一页 ▶</string>
+    <string name="action_add_widget">添加小组件到桌面</string>
+    <string name="action_view_detail">查看详情</string>
+    <string name="action_view_usage_detail">查看用量详情</string>
+    <string name="action_view_raw_data">详细数据</string>
+    <string name="action_sync_usage">同步用量数据</string>
+    <string name="action_login_save">我已登录，保存</string>
+    <string name="action_keep_waiting">继续等待</string>
+
+    <!-- ══════════ 通用文案 ══════════ -->
+    <string name="common_loading">加载中…</string>
+    <string name="common_unknown">未知错误</string>
+    <string name="common_all_models">全部模型</string>
+
+    <!-- ══════════ 页面标题 ══════════ -->
+    <string name="nav_empty_title">👈 选择服务查看详情</string>
+    <string name="nav_empty_subtitle">点击左侧卡片即可</string>
+    <string name="title_settings">设置</string>
+    <string name="title_credentials">凭据管理</string>
+    <string name="title_about">关于 RainyToken</string>
+    <string name="title_tips">使用小技巧</string>
+    <string name="title_debug_log">调试日志</string>
+    <string name="title_usage_detail">用量详情</string>
+    <string name="title_overview">总统计</string>
+    <string name="title_raw_data">详细数据</string>
+    <string name="title_chart">统计图表</string>
+
+    <!-- ══════════ 状态徽章 ══════════ -->
+    <string name="status_not_configured">未配置</string>
+    <string name="status_configured">已配置</string>
+    <string name="status_expired">已过期</string>
+    <string name="status_relogin">需重登</string>
+    <string name="status_refresh_failed">刷新失败</string>
+    <string name="status_not_fetched">未获取</string>
+    <string name="status_waiting">待获取</string>
+    <string name="status_normal">正常</string>
+    <string name="status_not_configured_add">未配置 · 点击添加</string>
+    <string name="status_ok_valid">已配置 · 凭据有效</string>
+    <string name="status_expired_reconfigure">已过期 · 点击重新配置</string>
+    <string name="status_need_reverify">需要重新验证</string>
+    <string name="status_manual_mode">手动输入模式</string>
+    <string name="status_credential_configured">凭据已配置</string>
+    <string name="status_not_configured_cred">未配置凭据</string>
+    <string name="status_loading">加载中</string>
+    <string name="status_fresh">最新</string>
+    <string name="status_stale">缓存</string>
+    <string name="status_failed">失败</string>
+    <string name="status_pending_input">待输入</string>
+
+    <!-- ══════════ 仪表盘 ══════════ -->
+    <string name="dashboard_subtitle">AI 余额一览</string>
+    <string name="footer_never_fetched">从未获取</string>
+    <string name="footer_just_updated">刚刚更新</string>
+    <string name="footer_minutes_ago">%1$d 分钟前更新</string>
+    <string name="footer_hours_ago">%1$d 小时前更新</string>
+    <string name="footer_updated_at">%1$s 更新</string>
+    <string name="dashboard_drag_hint">💡 长按卡片可拖拽排序</string>
+    <string name="dashboard_footer_version" translatable="false">RainyToken · v1.0</string>
+    <string name="dashboard_footer_privacy">本地加密存储，不上传任何数据</string>
+    <string name="dialog_add_widget_title">添加桌面小组件？</string>
+    <string name="dialog_add_widget_body">确认后会请求桌面启动器添加雨晴Token小组件。部分系统仍会弹出系统确认窗口。</string>
+    <string name="toast_shortcut_permission_denied">桌面快捷方式权限已被拒绝，请在系统设置中允许后重试</string>
+    <string name="toast_add_rejected">桌面未接受添加请求，请检查启动器权限</string>
+    <string name="toast_picker_unsupported">当前桌面不支持应用内添加，请在桌面长按 → 小组件 → 查找雨晴Token</string>
+
+    <!-- ══════════ 服务卡片 ══════════ -->
+    <string name="service_click_to_configure">点击配置凭据</string>
+    <string name="service_pull_to_refresh">下拉刷新</string>
+    <string name="service_unavailable">服务当前不可用</string>
+    <string name="service_monthly_used">本月已用 %1$s%2$s</string>
+    <string name="service_remaining">剩余</string>
+    <string name="service_used_total"> · 已用 %1$s / 共 %2$s</string>
+    <string name="service_used_label">%1$s 已用</string>
+    <string name="service_5h_used">5h 已用</string>
+    <string name="service_plan_suffix">· %1$s</string>
+    <string name="service_reset_in">%1$s 后重置</string>
+    <string name="service_desc_deepseek">REST API · ¥</string>
+    <string name="service_desc_opencode_go">WebView 抓取 · 5h 配额</string>
+    <string name="service_desc_commandcode_go">JSON API · $</string>
+    <string name="service_desc_codex">ChatGPT Plus · Codex 额度</string>
+    <string name="service_desc_ollama">Cookie 抓取 · Cloud 配额</string>
+
+    <!-- ══════════ 时长标签（DurationText 注入用） ══════════ -->
+    <string name="format_day">天</string>
+    <string name="format_hour">小时</string>
+    <string name="format_minute">分</string>
+
+    <!-- ══════════ 用量窗口 ══════════ -->
+    <string name="window_5h">5 小时</string>
+    <string name="window_5h_short">5h</string>
+    <string name="window_5h_usage">5h 用量</string>
+    <string name="window_5h_rolling">5 小时滚动</string>
+    <string name="window_weekly">本周</string>
+    <string name="window_monthly">本月</string>
+    <string name="window_every_month">每月</string>
+    <string name="window_usage">用量</string>
+    <string name="usage_window_title">用量窗口%1$s</string>
+    <string name="usage_window_title_plain">用量窗口</string>
+
+    <!-- ══════════ 用量统计 ══════════ -->
+    <string name="usage_title_opencode">OpenCode 用量</string>
+    <string name="usage_title_commandcode">CommandCode 用量</string>
+    <string name="usage_record_count">%1$d 条记录</string>
+    <string name="usage_click_to_sync">点击同步</string>
+    <string name="usage_input_tokens">输入 Token</string>
+    <string name="usage_output_tokens">输出 Token</string>
+    <string name="usage_reasoning_tokens">推理 Token</string>
+    <string name="usage_total_cost">总花费</string>
+    <string name="usage_cache_read">缓存读取 %1$s</string>
+    <string name="usage_cache_write">缓存写入 %1$s</string>
+    <string name="usage_no_data_sync">暂无数据，点击 🔄 同步</string>
+    <string name="usage_new_records">✓ 新增 %1$d 条</string>
+    <string name="usage_click_to_switch"> 点击切换</string>
+    <string name="usage_utc0_note">所有时间按 UTC+0 计算</string>
+    <string name="msg_utc8_on">已切换到 UTC+8，图表按北京时间显示</string>
+    <string name="msg_utc0_on">已切换到 UTC+0，图表按世界协调时显示</string>
+    <string name="usage_spent_total">已用 $%1$s / 共 $%2$s</string>
+    <string name="usage_remaining">剩余 $%1$s</string>
+    <string name="usage_extra_credits">额外充值</string>
+    <string name="section_by_model">按模型统计</string>
+    <string name="section_by_day">按天统计（UTC+0）</string>
+    <string name="model_count">%1$d 个模型</string>
+    <string name="model_count_short">%1$d 个</string>
+    <string name="date_start">开始时间</string>
+    <string name="date_end">结束时间</string>
+
+    <!-- ══════════ 图表 ══════════ -->
+    <string name="chart_cost">消耗金额 (USD)</string>
+    <string name="chart_requests">API 请求次数</string>
+    <string name="chart_tokens">Token 消耗</string>
+    <string name="chart_stack_output">输出</string>
+    <string name="chart_stack_input">输入(未命中)</string>
+    <string name="chart_stack_cache">命中缓存</string>
+
+    <!-- ══════════ 原始数据 ══════════ -->
+    <string name="header_time">时间</string>
+    <string name="header_model">模型</string>
+    <string name="header_input_cache">输入(缓存)</string>
+    <string name="header_output">输出</string>
+    <string name="header_cost">成本</string>
+
+    <!-- ══════════ 时间筛选 ══════════ -->
+    <string name="time_all">全部</string>
+    <string name="time_last_5h">最近5小时</string>
+    <string name="time_last_12h">最近12小时</string>
+    <string name="time_last_24h">最近24小时</string>
+    <string name="time_today">今天</string>
+    <string name="time_yesterday">昨天</string>
+    <string name="time_last_7d">最近7天</string>
+    <string name="time_last_30d">最近30天</string>
+    <string name="time_this_month">当月</string>
+    <string name="time_custom">自定义</string>
+    <string name="time_custom_day">自定义天</string>
+    <string name="time_custom_month">自定义月</string>
+    <string name="time_custom_range">自定义时间</string>
+
+    <!-- ══════════ 设置页 ══════════ -->
+    <string name="about_description">统一查询 AI 余额的小工具。\n本地加密存储凭据，不上传任何数据。</string>
+    <string name="tips_view_all">查看全部 %1$d 条隐藏操作</string>
+    <string name="debug_log_desc">查看 token 刷新、网络请求等调试记录</string>
+
+    <!-- ══════════ 凭据编辑 ══════════ -->
+    <string name="credential_configured_cookies">✓ 已配置登录态（%1$d 个 Cookie）</string>
+    <string name="help_cookie_title">如何获取 Cookie？</string>
+    <string name="help_cookie_1">1. 在桌面 Chrome 打开下方登录入口</string>
+    <string name="help_cookie_2">2. 用 GitHub / Google 登录（不会被拦截）</string>
+    <string name="help_cookie_3">3. 登录后按 F12 → Application → Cookies</string>
+    <string name="help_cookie_4">4. 复制该站点下的所有 Cookie 粘贴到上面输入框</string>
+    <string name="help_cookie_5">格式：name1=value1; name2=value2</string>
+    <string name="help_ocgo_title">如何获取 OpenCode Go 凭据？</string>
+    <string name="help_ocgo_1">1. 桌面 Chrome 打开 opencode.ai/auth</string>
+    <string name="help_ocgo_2">2. 用 GitHub / Google 登录（Google 不会拦截 Chrome）</string>
+    <string name="help_ocgo_3">3. 登录后跳转到 dashboard，URL 形如：</string>
+    <string name="help_ocgo_4">   https://opencode.ai/workspace/{id}/go</string>
+    <string name="help_ocgo_5">4. 复制 URL 中的 {id} 段 → workspaceId</string>
+    <string name="help_ocgo_6">5. F12 → Application → Cookies</string>
+    <string name="help_ocgo_7">6. 找到域名 opencode.ai 下名为 auth 的 Cookie</string>
+    <string name="help_ocgo_8">7. 复制它的 Value 字段 → auth cookie</string>
+    <string name="help_ocgo_note">注意：只填 auth 一个 Cookie 即可，不要整个 Cookie 字符串</string>
+    <string name="help_ccgo_title">如何获取 CommandCode Go 凭据？</string>
+    <string name="help_ccgo_1">1. 打开 https://commandcode.ai 并登录 GitHub</string>
+    <string name="help_ccgo_2">▸ 获取 API Key（必填）：</string>
+    <string name="help_ccgo_3">   右上角头像 → Settings → API Keys → 创建一个 Key</string>
+    <string name="help_ccgo_4">▸ 获取全部 Cookie（用于用量记录）：</string>
+    <string name="help_ccgo_5">   F12 → Application → Cookies → commandcode.ai</string>
+    <string name="help_ccgo_6">   选中所有 Cookie，复制整个 Cookie 字符串</string>
+    <string name="help_ccgo_7">   粘贴到下方输入框即可，无需逐个挑选</string>
+    <string name="help_ccgo_note">提示：不填 Cookie 也能正常查看余额，只是用量记录为空。</string>
+    <string name="help_codex_title">如何获取 Codex auth.json？</string>
+    <string name="help_codex_1">1. 在终端运行 codex-oauth-proxy 或</string>
+    <string name="help_codex_2">   codex-proxy，完成 ChatGPT 登录</string>
+    <string name="help_codex_3">2. 凭证文件保存在：</string>
+
+    <!-- ══════════ 提示/错误消息 ══════════ -->
+    <string name="msg_saved">已保存</string>
+    <string name="msg_credentials_saved">已保存凭据</string>
+    <string name="msg_connect_success_balance">连接成功！余额: %1$s %2$s</string>
+    <string name="msg_connect_success_saved">连接成功，凭据已保存</string>
+    <string name="error_api_key_empty">API Key 不能为空</string>
+    <string name="error_credential_rejected">服务拒绝该凭据 (401/403)</string>
+    <string name="error_credential_changed_test">测试期间凭据已变更</string>
+    <string name="error_rate_limited">请求过于频繁 (429)</string>
+    <string name="error_server">服务端错误 (%1$d)</string>
+    <string name="error_network">网络错误：%1$s</string>
+    <string name="error_rollback_done">，已恢复原凭据</string>
+    <string name="error_rollback_skipped">，检测到凭据已变化，未执行回滚</string>
+    <string name="error_test_failed">测试失败。%1$s%2$s</string>
+    <string name="error_test_not_supported">暂不支持测试此服务</string>
+    <string name="error_auth_cookie_workspace">auth cookie 和 workspaceId 都需要填写</string>
+    <string name="error_cookie_empty">Cookie 不能为空</string>
+    <string name="error_credential_not_configured">凭据未配置</string>
+    <string name="error_credential_not_configured_expired">凭据未配置或已过期</string>
+    <string name="error_credential_invalid_reconfigure">凭据无效，请在设置中重新配置</string>
+    <string name="error_credential_invalid_relogin">凭据无效，请重新登录</string>
+    <string name="error_credential_changed_reload">凭据已变更，正在重新加载</string>
+    <string name="error_credential_changed_retry">凭据已变更，请重新操作</string>
+    <string name="error_network_check">网络异常，请检查网络</string>
+    <string name="error_network_generic">网络异常</string>
+    <string name="error_server_http">服务端异常 (HTTP %1$d)</string>
+    <string name="error_rate_limited_retry">请求过于频繁%1$s</string>
+    <string name="error_rate_limited_retry_suffix">，请 %1$d 秒后重试</string>
+    <string name="error_trigger_not_supported">不支持激活用量</string>
+    <string name="error_select_model_first">请先选择模型</string>
+    <string name="error_cookie_not_found">未抓到 Cookie，请确认已登录</string>
+    <string name="error_login_url_missing">未配置登录 URL</string>
+    <string name="error_oauth_url_prefix">URL 应以 %1$s 开头</string>
+    <string name="error_oauth_auth_failed">授权失败: %1$s</string>
+    <string name="error_oauth_state_mismatch">State 不匹配，请重试</string>
+    <string name="error_oauth_missing_code">回调缺少授权码</string>
+    <string name="error_oauth_token_exchange">Token 交换失败，请查看调试日志</string>
+
+    <!-- ══════════ 触发用量 ══════════ -->
+    <string name="trigger_success_title">✓ 用量已激活</string>
+    <string name="trigger_result_title">请求结果</string>
+    <string name="trigger_error_prefix">错误: %1$s</string>
+    <string name="trigger_response_body">响应内容:\n%1$s</string>
+
+    <!-- ══════════ WebView 登录 ══════════ -->
+    <string name="title_webview_login">登录 %1$s</string>
+    <string name="dialog_login_done_title">完成登录了吗？</string>
+    <string name="dialog_login_done_body">如果你已经在页面上完成登录但页面没有跳转，可点击下方按钮让我抓取 Cookie 并保存登录态。</string>
+
+    <!-- ══════════ 调试日志 ══════════ -->
+    <string name="debug_log_empty">暂无日志记录\n刷新 Codex 用量后这里会出现调试信息</string>
+
+    <!-- ══════════ 小组件 ══════════ -->
+    <string name="widget_title_opencode">OpenCode Go · 用量</string>
+    <string name="widget_deepseek_balance">DeepSeek 余额</string>
+    <string name="widget_auto_refresh">自动刷新</string>
+    <string name="widget_service_quota">%1$s · 额度</string>
+    <string name="widget_quota_with_plan">%1$s · %2$s</string>
+    <string name="widget_updated_at">更新 %1$s</string>
+    <string name="widget_no_data">暂无数据</string>
+    <string name="widget_refreshing">刷新中…</string>
+
+    <!-- ══════════ 小技巧（AppTips） ══════════ -->
+    <string name="tip_1_title">长按卡片拖拽排序</string>
+    <string name="tip_1_hint">长按首页卡片可以拖拽排序</string>
+    <string name="tip_1_detail">在首页长按任意服务卡片即可拖拽到想要的位置，排序会自动保存。</string>
+    <string name="tip_2_title">小组件点左上角进 APP</string>
+    <string name="tip_2_hint">小组件左上角标识可打开 APP</string>
+    <string name="tip_2_detail">桌面小组件左上角 RainyToken › 标识可以点击打开应用，其它区域点击切换服务。</string>
+    <string name="tip_3_title">图表点击查看详情</string>
+    <string name="tip_3_hint">点击图表柱子可查看时段详情</string>
+    <string name="tip_3_detail">在用量图表上点击或滑动手指，可查看对应时段的详细数值。</string>
+    <string name="tip_4_title">图表标题可点击</string>
+    <string name="tip_4_hint">点击图表标题弹出按模型明细</string>
+    <string name="tip_4_detail">图表卡片标题（如「消耗金额」）点击后会弹出按模型拆分的明细。</string>
+    <string name="tip_5_title">切换图表时区</string>
+    <string name="tip_5_hint">用量详情页可切换 UTC+0 / UTC+8</string>
+    <string name="tip_5_detail">用量详情页顶部可切换 UTC+0 / UTC+8，图表标签会跟随切换。</string>
+    <string name="tip_6_title">CCGO 清除并重新同步</string>
+    <string name="tip_6_hint">CCGO 详情页可清除缓存重新同步</string>
+    <string name="tip_6_detail">CCGO 用量详情页右上角「清除」可删除本地缓存并重新拉取全部数据。</string>
+    <string name="tip_7_title">查看用量详情</string>
+    <string name="tip_7_hint">服务卡片底部可进入用量图表</string>
+    <string name="tip_7_detail">有凭据的服务卡片底部会出现「查看用量详情」入口，点击进入图表统计。</string>
+    <string name="tip_8_title">原始数据浏览</string>
+    <string name="tip_8_hint">用量详情页右上角可查看原始记录</string>
+    <string name="tip_8_detail">用量详情页右上角「详细数据」可查看每条原始调用记录，支持分页跳转。</string>
+    <string name="tip_9_title">下拉刷新联动用量</string>
+    <string name="tip_9_hint">下拉刷新会同步余额和用量</string>
+    <string name="tip_9_detail">首页下拉刷新不仅刷新余额，还会自动同步 OCGO / CCGO 用量记录。</string>
+    <string name="tip_10_title">凭据获取教程</string>
+    <string name="tip_10_hint">凭据页底部有获取教程</string>
+    <string name="tip_10_detail">凭据编辑页底部的「如何获取」按钮有针对每个服务的详细操作步骤。</string>
+    <string name="tip_11_title">剪贴板自动导入</string>
+    <string name="tip_11_hint">Codex 支持从剪贴板一键导入</string>
+    <string name="tip_11_detail">Codex 凭据页支持「从剪贴板自动导入」，粘贴 auth.json 后一键填入。</string>
+    <string name="tip_12_title">详细数据页码跳转</string>
+    <string name="tip_12_hint">原始数据页可输入页码直跳</string>
+    <string name="tip_12_detail">原始数据页底部可输入页码直接跳转，数据量大时不必逐页翻。</string>
+    <string name="tip_13_title">小组件自动刷新</string>
+    <string name="tip_13_hint">划到小组件会自动刷新余额</string>
+    <string name="tip_13_detail">桌面小组件划到负一屏时会自动刷新余额，也可手动点 ↻ 按钮刷新。</string>
+
+    <!-- ══════════ 图表/明细（B 组迁移） ══════════ -->
+    <string name="count_times">%1$d次</string>
+    <string name="date_select_day">选择日期</string>
+    <string name="date_select_month">选择月份（任意一天）</string>
+    <string name="date_pick_start">开始日期</string>
+    <string name="date_pick_end">结束日期</string>
+    <string name="chart_detail_cost">消费明细</string>
+    <string name="chart_detail_requests">调用次数明细</string>
+    <string name="chart_detail_tokens">Token 明细</string>
+    <string name="dialog_clear_title">清除数据</string>
+    <string name="dialog_clear_body">此操作将清除所有 CommandCode 用量本地缓存并重新同步，需要几秒钟完成。</string>
+    <string name="dialog_clear_confirm_question">是否继续？</string>
+    <string name="action_confirm_countdown">确认（%1$ds）</string>
+    <string name="action_confirm_clear">确认清除</string>
+    <string name="action_close">关闭</string>
+    <string name="range_from">从 %1$s</string>
+    <string name="range_to">至 %1$s</string>
+    <string name="action_apply_custom_range">应用自定义范围</string>
+    <string name="action_confirm">确定</string>
+    <string name="date_end_before_start">结束日期不能早于开始日期 %1$s</string>
+    <string name="time_hm">时间 %1$s:%2$s</string>
+    <string name="common_no_data">暂无数据</string>
+    <string name="chart_total_label">合计: %1$s</string>
+    <string name="usage_total">总计</string>
+    <string name="usage_records">记录数</string>
+    <string name="stat_cache_read">缓存读取</string>
+    <string name="stat_cache_write">缓存写入</string>
+    <string name="usage_cache_breakdown">缓存 Token 细分</string>
+    <string name="usage_cache_read_note">※ 缓存读取已计入「输入 Token」</string>
+    <string name="usage_calls">%1$d 次调用</string>
+    <string name="date_format_md">MM月dd日 EEEE</string>
+    <string name="daily_count_cost">%1$d 次 · $%2$s</string>
+    <string name="raw_record_title">原始数据</string>
+    <string name="stat_cache_write_5m">缓存写入(5m)</string>
+    <string name="stat_cache_write_1h">缓存写入(1h)</string>
+    <string name="raw_cost_usd">成本(USD)</string>
+    <string name="raw_cost_raw">成本(Raw)</string>
+
+    <!-- ══════════ 凭据编辑（C 组迁移） ══════════ -->
+    <string name="help_codex_4"> ~/.config/codex-oauth-proxy/auth.json</string>
+    <string name="help_codex_5">3. 用文本编辑器打开该文件，</string>
+    <string name="help_codex_6">   复制全部内容粘贴到上方输入框</string>
+    <string name="help_codex_7">   JSON 格式示例：</string>
+    <string name="help_codex_8">   {"tokens": {</string>
+    <string name="help_codex_9">     "access_token": "...",</string>
+    <string name="help_codex_10">     "refresh_token": "...",</string>
+    <string name="help_codex_11">     "expiresAt": 1783727108252</string>
+    <string name="help_codex_12">   }}</string>
+    <string name="help_codex_note">提示：导入后 APP 会自动刷新 token，</string>
+    <string name="help_codex_note2">不需要手动更新。</string>
+    <string name="credential_title_ollama">Ollama Pro 凭据</string>
+    <string name="credential_hint_ollama">需要从浏览器复制完整 Cookie。登录 ollama.com/settings 后，在 DevTools → Network → 请求头里找到 Cookie 行复制。</string>
+    <string name="credential_update">更新凭据</string>
+    <string name="credential_save">保存凭据</string>
+    <string name="action_test_and_save">测试并保存</string>
+    <string name="action_open_ollama_settings">在浏览器中打开 Ollama Settings</string>
+    <string name="action_copy_login_url">复制登录 URL 到剪贴板</string>
+    <string name="activate_api_key_optional">一键激活用量 API Key（可选）</string>
+    <string name="hint_ollama_trigger_key">填入 Ollama Cloud API Key 后，可在详情页一键发送请求激活用量统计。从 ollama.com/settings → API Keys 获取。</string>
+    <string name="placeholder_ollama_api_key">ollama-xxx 或 sk-xxx</string>
+    <string name="action_save_api_key">保存 API Key</string>
+    <string name="credential_title_opencode_go">OpenCode Go 凭据</string>
+    <string name="credential_hint_opencode_go">需要 auth cookie + workspaceId 两个值。APP 会用 OkHttp 抓 dashboard 并自动解析 5h/周/月 三档用量。</string>
+    <string name="action_import_from_clipboard">从剪贴板自动导入</string>
+    <string name="placeholder_workspace_id">dashboard URL 中的 {id} 段</string>
+    <string name="field_auth_cookie_value">auth Cookie 值</string>
+    <string name="placeholder_auth_cookie">F12 → Cookies → opencode.ai → auth 的 Value</string>
+    <string name="action_how_get_two_values">如何获取这两个值？</string>
+    <string name="action_open_login_entry">在浏览器中打开登录入口</string>
+    <string name="hint_opencode_trigger_key">填入 OpenCode Zen API Key 后，可在详情页一键发送请求激活用量统计。从 opencode.ai/settings → API Keys 获取。</string>
+    <string name="credential_title_ccgo">CommandCode Go 凭据</string>
+    <string name="credential_hint_ccgo">需要 API Key（拉余额）。Session Cookie（可选）在浏览器 DevTools 复制，用于拉用量记录。不填也可正常查看余额。</string>
+    <string name="placeholder_api_key_from_settings">从 Settings → API Keys 生成</string>
+    <string name="field_session_cookie_optional">Session Cookie（可选）</string>
+    <string name="placeholder_session_cookie">F12 → Cookies → commandcode.ai → 全选复制粘贴即可</string>
+    <string name="action_how_get_api_key_cookie">如何获取 API Key 和 Cookie？</string>
+    <string name="api_key_form_title">请输入 API Key</string>
+    <string name="api_key_form_hint">凭据会使用 Android Keystore (AES-256 GCM) 加密后存储到本机 DataStore。</string>
+    <string name="action_update">更新</string>
+    <string name="credential_title_codex">Codex / ChatGPT Plus 凭据</string>
+    <string name="credential_hint_codex">推荐使用 OAuth 登录自动获取凭据。也可手动粘贴 auth.json 内容。</string>
+    <string name="action_oauth_login">🔐 OAuth 登录（推荐）</string>
+    <string name="or_manual_import">── 或手动导入 ──</string>
+    <string name="field_auth_json">auth.json 完整内容</string>
+    <string name="placeholder_auth_json">粘贴 {"tokens": {...}} 完整 JSON</string>
+    <string name="credential_import_save">导入并保存</string>
+    <string name="action_how_get_auth_json">如何获取 auth.json？</string>
+    <string name="manual_cookie_title">粘贴登录态</string>
+    <string name="manual_cookie_hint">Google OAuth 会拒绝 APP 内置 WebView，所以请用浏览器登录后把 Cookie 粘到这里。</string>
+    <string name="field_cookie_string">Cookie 字符串</string>
+    <string name="action_save_cookie">保存 Cookie</string>
+
+    <!-- ══════════ 服务详情/凭据校验（D 组迁移） ══════════ -->
+    <string name="error_parse_failed">数据解析失败: %1$s</string>
+    <string name="window_every_week">每周</string>
+    <string name="msg_model_call_count">模型调用次数</string>
+    <string name="msg_stale_cache">缓存数据 · %1$s</string>
+    <string name="msg_showing_last_balance">显示的是上次成功获取的余额</string>
+    <string name="msg_monthly_spent">本月消费 %1$s%2$s</string>
+    <string name="msg_balance_breakdown">余额构成</string>
+    <string name="msg_granted_balance">赠送余额</string>
+    <string name="msg_topped_up_balance">自费充值</string>
+    <string name="msg_loading_models">加载模型列表...</string>
+    <string name="msg_select_model">选择模型</string>
+    <string name="action_refresh_models">刷新模型列表</string>
+    <string name="msg_triggering">激活中...</string>
+    <string name="action_retry_trigger">重试激活用量</string>
+    <string name="action_trigger_usage">⚡ 一键激活用量</string>
+    <string name="action_refresh_balance">刷新余额</string>
+    <string name="action_relogin">重新登录</string>
+    <string name="action_configure_credential">配置凭据</string>
+    <string name="main_card_current_balance">当前余额</string>
+    <string name="main_card_5h_usage">5h 实时用量</string>
+    <string name="main_card_monthly_balance">月度余额</string>
+    <string name="main_card_session_usage">Session 用量</string>
+    <string name="msg_please_select_model">请选择模型</string>
+    <string name="trigger_error_detail">错误详情：</string>
+    <string name="trigger_api_response">API 响应内容：</string>
+    <string name="action_copy">复制</string>
+    <string name="msg_key_length">*** (长度 %1$d) ***</string>
+    <string name="msg_key_masked">%1$s***%2$s (长度 %3$d)</string>
+    <string name="error_cookie_format">Cookie 格式错误，应为 name1=value1; name2=value2</string>
+    <string name="msg_cookies_saved">已保存 %1$d 个 Cookie</string>
+    <string name="error_auth_json_empty">请粘贴 auth.json 内容</string>
+    <string name="error_auth_json_missing_tokens">auth.json 缺少 access_token 或 refresh_token</string>
+    <string name="msg_codex_saved">已保存 Codex 凭据，token 到期后会自动刷新</string>
+    <string name="error_auth_json_parse">解析失败：%1$s</string>
+    <string name="msg_connect_success_dollar">连接成功！余额: $%1$s</string>
+    <string name="msg_api_key_saved">API Key 已保存</string>
+    <string name="msg_connect_success_session">连接成功！Session: %1$s%% · %2$s</string>
+    <string name="msg_credential_deleted">凭据已删除</string>
+    <string name="error_clipboard_empty">剪贴板为空</string>
+    <string name="msg_clipboard_ws_auth">已识别 workspaceId 和 auth cookie</string>
+    <string name="msg_clipboard_ws_only">已识别 workspaceId，请再粘贴 auth cookie</string>
+    <string name="msg_clipboard_auth_only">已识别 auth cookie，请再粘贴 workspaceId</string>
+    <string name="error_clipboard_none">未识别到有效凭据</string>
+
+    <!-- ══════════ Codex OAuth 登录页 ══════════ -->
+    <string name="oauth_screen_title">Codex OAuth 登录</string>
+    <string name="oauth_exchanging">正在交换 Token...</string>
+    <string name="action_retry">重试</string>
+    <string name="oauth_headless_title">无头模式登录</string>
+    <string name="oauth_steps">1. 点击「在浏览器中打开」或复制下方链接到浏览器\n2. 在 OpenAI 页面完成登录和授权\n3. 浏览器会跳转到一个 localhost 地址（页面打不开是正常的）\n4. 复制浏览器地址栏的完整 URL 粘贴到下方输入框\n5. 点击「提交回调 URL」</string>
+    <string name="oauth_auth_url_label">授权链接</string>
+    <string name="action_open_in_browser">在浏览器中打开</string>
+    <string name="action_copy_link">复制链接</string>
+    <string name="oauth_paste_callback_hint">── 登录后粘贴回调 URL ──</string>
+    <string name="oauth_callback_url_label">回调 URL</string>
+    <string name="oauth_callback_url_placeholder">http://localhost:1455/auth/callback?code=...</string>
+    <string name="action_submit_callback">提交回调 URL</string>
+    <string name="action_regenerate_link">重新生成授权链接</string>
+    <string name="oauth_preparing">正在准备授权...</string>
 </resources>

@@ -185,12 +185,4 @@ data class DashboardCardUi(
 ) {
     /** 余额展示主数字。优先取缓存，错误时也展示（不隐藏，让用户看到旧值 + 红点提示）。 */
     val displayBalance: ServiceBalance? get() = cachedBalance?.balance
-
-    /** 卡片顶部状态徽章。 */
-    val statusBadge: String get() = when {
-        credentialState == CredentialStatus.State.NOT_CONFIGURED -> "未配置"
-        lastFetchError != null -> "刷新失败"
-        cachedBalance == null -> "未获取"
-        else -> "正常"
-    }
 }

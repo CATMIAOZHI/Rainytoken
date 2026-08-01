@@ -27,11 +27,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rainy.token.R
 import com.rainy.token.domain.service.ServiceType
+import com.rainy.token.ui.components.asString
 
 /**
  * 通用 WebView 登录容器。计划 4.1：
@@ -65,10 +68,10 @@ fun WebViewLoginScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("登录 ${service.displayName}") },
+                title = { Text(stringResource(R.string.title_webview_login, service.displayName)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 }
             )
@@ -113,7 +116,7 @@ fun WebViewLoginScreen(
                     .fillMaxSize()
                     .padding(16.dp)) {
                     Text(
-                        text = "未配置登录 URL",
+                        text = stringResource(R.string.error_login_url_missing),
                         style = MaterialTheme.typography.bodyLarge
                     )
                 }
@@ -125,21 +128,20 @@ fun WebViewLoginScreen(
     if (uiState.pendingManualConfirm && !uiState.loginSucceeded) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissManualPrompt() },
-            title = { Text("完成登录了吗？") },
+            title = { Text(stringResource(R.string.dialog_login_done_title)) },
             text = {
                 Text(
-                    uiState.error ?: "如果你已经在页面上完成登录但页面没有跳转，" +
-                            "可点击下方按钮让我抓取 Cookie 并保存登录态。"
+                    uiState.error?.asString() ?: stringResource(R.string.dialog_login_done_body)
                 )
             },
             confirmButton = {
                 Button(onClick = { viewModel.confirmLoginManually() }) {
-                    Text("我已登录，保存")
+                    Text(stringResource(R.string.action_login_save))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { viewModel.dismissManualPrompt() }) {
-                    Text("继续等待")
+                    Text(stringResource(R.string.action_keep_waiting))
                 }
             }
         )
