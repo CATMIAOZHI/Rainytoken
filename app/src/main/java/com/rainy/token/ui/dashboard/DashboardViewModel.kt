@@ -10,6 +10,8 @@ import com.rainy.token.domain.model.CredentialStatus
 import com.rainy.token.domain.model.ServiceBalance
 import com.rainy.token.domain.service.ServiceType
 import com.rainy.token.domain.usecase.RefreshBalanceUseCase
+import com.rainy.token.R
+import com.rainy.token.ui.components.UiText
 import com.rainy.token.ui.widget.OpenCodeGoWidgetProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -127,10 +129,10 @@ class DashboardViewModel @Inject constructor(
                 val cards = ServiceType.entries.map { type ->
                     val result = results[type]
                     val error = result?.exceptionOrNull()
-                    val errMsg = error
+                    val errorUi = error
                         ?.takeUnless { it is RepositoryError.CredentialChanged }
-                        ?.message
-                    buildCard(localStates.getValue(type), lastFetchError = errMsg)
+                        ?.let { errorToUiText(it) }
+                    buildCard(localStates.getValue(type), lastFetchError = errorUi)
                 }
                 _uiState.update { it.copy(refreshing = false, cards = cards) }
                 // 刷新成功后更新桌面小组件
@@ -145,7 +147,7 @@ class DashboardViewModel @Inject constructor(
 
     private fun buildCard(
         local: CredentialRepository.LocalState,
-        lastFetchError: String?
+        lastFetchError: UiText?
     ): DashboardCardUi = DashboardCardUi(
         service = local.status.service,
         credentialState = local.status.state,
@@ -181,8 +183,29 @@ data class DashboardCardUi(
     val credentialState: CredentialStatus.State,
     val credentialFingerprint: String?,
     val cachedBalance: CachedBalance?,
-    val lastFetchError: String?
+    val lastFetchError: UiText?
 ) {
     /** 余额展示主数字。优先取缓存，错误时也展示（不隐藏，让用户看到旧值 + 红点提示）。 */
     val displayBalance: ServiceBalance? get() = cachedBalance?.balance
+}
+
+/** 把 Repository 错误映射为本地化文案（错误详情 detail 为技术信息，随资源参数展示）。 */
+private fun errorToUiText(error: Throwable): UiText = when (error) {
+    is RepositoryError.InvalidCredential ->
+        UiText.Resource(R.string.error_credential_invalid_reconfigure)
+    is RepositoryError.RateLimited -> UiText.Resource(
+        R.string.error_rate_limited_retry,
+        listOf(
+            error.retryAfterSeconds?.let {
+                UiText.Resource(R.string.error_rate_limited_retry_suffix, listOf(it))
+            } ?: ""
+        )
+    )
+    is RepositoryError.Network -> UiText.Resource(R.string.error_network_check)
+    is RepositoryError.ServerError ->
+        UiText.Resource(R.string.error_server_http, listOf(error.code))
+    is RepositoryError.ParseError ->
+        UiText.Resource(R.string.error_parse_failed, listOf(error.detail))
+    else -> error.message?.let { UiText.Dynamic(it) }
+        ?: UiText.Resource(R.string.common_unknown)
 }

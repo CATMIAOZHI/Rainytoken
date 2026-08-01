@@ -193,7 +193,11 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                 val weeklyLabel = context.getString(R.string.window_every_week)
                 val monthlyLabel = context.getString(R.string.window_every_month)
                 val windows = (0 until windowCount).map { index ->
-                    val label = normalizeWindowLabel(extras["window_$index.label"] ?: "Usage", weeklyLabel = weeklyLabel)
+                    val label = normalizeWindowLabel(
+                        extras["window_$index.label"] ?: "Usage",
+                        weeklyLabel = weeklyLabel,
+                        monthlyLabel = monthlyLabel
+                    )
                     val remaining = extras["window_$index.remainingPct"]?.toIntOrNull()
                     val resetAt = extras["window_$index.resetAt"]?.toLongOrNull()?.takeIf { it > 0 }
                     Triple(label, remaining?.let { (100 - it).coerceIn(0, 100) }, resetAt?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 })

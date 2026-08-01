@@ -61,6 +61,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rainy.token.R
 import com.rainy.token.domain.model.ServiceBalance
+import com.rainy.token.domain.model.TriggerSummary
 import com.rainy.token.domain.service.FetchMethod
 import com.rainy.token.domain.service.ServiceConfigProvider
 import com.rainy.token.domain.service.ServiceType
@@ -218,7 +219,7 @@ fun ServiceDetailScreen(
     when (triggerState) {
         is TriggerState.Success -> ResponseDialog(
             title = stringResource(R.string.trigger_success_title),
-            responseBody = (triggerState as TriggerState.Success).responseBody,
+            responseBody = buildTriggerSummaryText((triggerState as TriggerState.Success).summary),
             isError = false,
             onDismiss = { viewModel.dismissTrigger() }
         )
@@ -1121,6 +1122,43 @@ private fun ModelDropdown(
 }
 
 // ── Codex 一键激活用量：响应弹窗 ──
+
+/** 把结构化的激活摘要组装为本地化文本（Repository 不再拼接展示文案）。 */
+@Composable
+private fun buildTriggerSummaryText(summary: TriggerSummary): String = buildString {
+    appendLine(stringResource(R.string.trigger_success_header))
+    appendLine(stringResource(R.string.trigger_success_model, summary.model))
+    summary.responseId?.let { appendLine(stringResource(R.string.trigger_success_response_id, it)) }
+    appendLine()
+    appendLine(stringResource(R.string.trigger_reply_header))
+    if (summary.parseFailed) {
+        appendLine(stringResource(R.string.trigger_parse_failed))
+    } else {
+        appendLine(
+            summary.reply?.ifEmpty { stringResource(R.string.trigger_reply_empty) }
+                ?: stringResource(R.string.trigger_reply_missing)
+        )
+    }
+    if (summary.inputTokens != null || summary.outputTokens != null) {
+        appendLine()
+        appendLine(
+            if (summary.totalTokens != null) {
+                stringResource(
+                    R.string.trigger_usage_prompt_completion_total,
+                    summary.inputTokens ?: "—",
+                    summary.outputTokens ?: "—",
+                    summary.totalTokens ?: "—"
+                )
+            } else {
+                stringResource(
+                    R.string.trigger_usage_input_output,
+                    summary.inputTokens ?: "—",
+                    summary.outputTokens ?: "—"
+                )
+            }
+        )
+    }
+}.trim()
 
 @Composable
 private fun ResponseDialog(

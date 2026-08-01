@@ -11,6 +11,7 @@ import com.rainy.token.data.repository.TriggerError
 import com.rainy.token.domain.model.Credential
 import com.rainy.token.domain.model.CredentialStatus
 import com.rainy.token.domain.model.ServiceBalance
+import com.rainy.token.domain.model.TriggerSummary
 import com.rainy.token.R
 import com.rainy.token.domain.service.ServiceType
 import com.rainy.token.domain.usecase.RefreshBalanceUseCase
@@ -324,8 +325,8 @@ class ServiceDetailViewModel @Inject constructor(
             if (serviceGen != serviceGeneration || _serviceType.value != service) return@launch
 
             result
-                .onSuccess { responseBody ->
-                    _triggerState.value = TriggerState.Success(responseBody)
+                .onSuccess { summary ->
+                    _triggerState.value = TriggerState.Success(summary)
                     kotlinx.coroutines.delay(2000)
                     if (serviceGen == serviceGeneration && _serviceType.value == service) {
                         refresh()
@@ -336,7 +337,15 @@ class ServiceDetailViewModel @Inject constructor(
                     val responseBody: String?
                     when (error) {
                         is TriggerError -> {
-                            message = UiText.Dynamic(error.summary)
+                            val prefix = "token 刷新失败: "
+                            message = if (error.summary.startsWith(prefix)) {
+                                UiText.Resource(
+                                    R.string.error_token_refresh_failed,
+                                    listOf(error.summary.removePrefix(prefix))
+                                )
+                            } else {
+                                UiText.Dynamic(error.summary)
+                            }
                             responseBody = error.responseBody.ifBlank { null }
                         }
 
@@ -359,8 +368,7 @@ class ServiceDetailViewModel @Inject constructor(
                             message = if ((error as? RepositoryError.Unknown)?.cause is IllegalArgumentException) {
                                 UiText.Resource(R.string.error_trigger_not_supported)
                             } else {
-                                error.message?.let { UiText.Dynamic(it) }
-                                    ?: UiText.Resource(R.string.common_unknown)
+                                errorMessage(error)
                             }
                             responseBody = null
                         }
@@ -529,7 +537,7 @@ class ServiceDetailViewModel @Inject constructor(
         is RepositoryError.ServerError ->
             UiText.Resource(R.string.error_server_http, listOf(error.code))
         is RepositoryError.ParseError ->
-            UiText.Resource(R.string.error_parse_failed, listOf(error.message ?: ""))
+            UiText.Resource(R.string.error_parse_failed, listOf(error.detail))
         else -> error.message?.let { UiText.Dynamic(it) }
             ?: UiText.Resource(R.string.common_unknown)
     }
@@ -579,6 +587,6 @@ data class ServiceDetailUiState(
 sealed class TriggerState {
     data object Idle : TriggerState()
     data object Loading : TriggerState()
-    data class Success(val responseBody: String) : TriggerState()
+    data class Success(val summary: TriggerSummary) : TriggerState()
     data class Error(val message: UiText, val responseBody: String?) : TriggerState()
 }

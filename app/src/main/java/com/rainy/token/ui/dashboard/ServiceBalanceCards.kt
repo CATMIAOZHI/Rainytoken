@@ -279,11 +279,11 @@ internal fun formatCodexPrimaryLabel(
     usageLabel: String = "用量"
 ): String = when (raw?.lowercase()) {
     "5h" -> "5h"
-    "7d", weeklyLabel -> weeklyLabel
-    "30d", monthlyLabel -> monthlyLabel
+    "7d", "每周", weeklyLabel -> weeklyLabel
+    "30d", "每月", monthlyLabel -> monthlyLabel
     "usage" -> usageLabel
     null -> "5h"
-    else -> raw
+    else -> raw ?: "5h"
 }
 
 @Composable
@@ -295,8 +295,13 @@ internal fun CodexUsageWindows(balance: ServiceBalance) {
         .maxOrNull()?.plus(1) ?: 0
 
     val weeklyLabel = stringResource(R.string.window_every_week)
+    val monthlyLabel = stringResource(R.string.window_every_month)
     val windows = (0 until windowCount).map { i ->
-        val label = normalizeWindowLabel(extras["window_$i.label"] ?: "Usage", weeklyLabel = weeklyLabel)
+        val label = normalizeWindowLabel(
+            extras["window_$i.label"] ?: "Usage",
+            weeklyLabel = weeklyLabel,
+            monthlyLabel = monthlyLabel
+        )
         val remainingPct = extras["window_$i.remainingPct"]?.toIntOrNull()
         val resetAt = extras["window_$i.resetAt"]?.toLongOrNull()?.takeIf { it > 0 }
         Triple(label, remainingPct, resetAt)
@@ -526,12 +531,20 @@ internal fun secondaryLineRes(card: DashboardCardUi): Int = when (card.service) 
 
 /**
  * 底部更新时间/错误文案（UiText 形式，UI 层按当前语言解析）。
- * 错误分支直接透传 Repository 中文 message（Dynamic，不参与翻译）。
+ * 错误信息由 ViewModel 按 RepositoryError 类型映射为本地化资源。
  */
+
+/** 截断 UiText 到最长 60 字符（仅对 Dynamic 原始文本生效；Resource 长度由资源控制）。 */
+private fun truncateUiText(text: UiText): UiText = when (text) {
+    is UiText.Dynamic -> UiText.Dynamic(text.value.take(60) + if (text.value.length > 60) "…" else "")
+    else -> text
+}
+
 internal fun footerText(card: DashboardCardUi): UiText {
-    if (card.lastFetchError != null) {
-        val msg = card.lastFetchError.take(60)
-        return UiText.Dynamic("⚠ $msg${if (card.lastFetchError.length > 60) "…" else ""}")
+    val error = card.lastFetchError
+    if (error != null) {
+        // 截断保护：错误信息最长展示 60 字符（以 UiText 形式保留，UI 层按当前语言解析）
+        return UiText.Resource(R.string.dashboard_error_prefix, listOf(truncateUiText(error)))
     }
     val fetchedAt = card.cachedBalance?.fetchedAt
         ?: return UiText.Resource(R.string.footer_never_fetched)

@@ -4,6 +4,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonNull
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -236,11 +238,12 @@ class CodexRepositoryTest {
         """.trimIndent()
 
         val result = parseSseResponse(sse, "gpt-5.6")
-        assertTrue(result.contains("Hello, world!"))
-        assertTrue(result.contains("input=100"))
-        assertTrue(result.contains("output=50"))
-        assertTrue(result.contains("resp_123"))
-        assertTrue(result.contains("gpt-5.6"))
+        assertEquals("Hello, world!", result.reply)
+        assertEquals("100", result.inputTokens)
+        assertEquals("50", result.outputTokens)
+        assertEquals("resp_123", result.responseId)
+        assertEquals("gpt-5.6", result.model)
+        assertFalse(result.parseFailed)
     }
 
     @Test
@@ -251,9 +254,10 @@ class CodexRepositoryTest {
         """.trimIndent()
 
         val result = parseSseResponse(sse, "o4-mini")
-        assertTrue(result.contains("(空)"))
-        assertTrue(result.contains("input=10"))
-        assertTrue(result.contains("output=5"))
+        assertEquals("", result.reply)
+        assertEquals("10", result.inputTokens)
+        assertEquals("5", result.outputTokens)
+        assertNull(result.totalTokens)
     }
 
     @Test
@@ -265,16 +269,18 @@ class CodexRepositoryTest {
         """.trimIndent()
 
         val result = parseSseResponse(sse, "gpt-5.6")
-        assertTrue(result.contains("Hi there"))
-        // Should not contain usage line when no usage data
-        assertTrue(!result.contains("用量:"))
+        assertEquals("Hi there", result.reply)
+        // Should be null when no usage data present
+        assertNull(result.inputTokens)
+        assertNull(result.outputTokens)
     }
 
     @Test
     fun `parseSseResponse handles empty input`() {
         val result = parseSseResponse("", "gpt-5.6")
-        assertTrue(result.contains("(空)"))
-        assertTrue(result.contains("gpt-5.6"))
+        assertEquals("", result.reply)
+        assertEquals("gpt-5.6", result.model)
+        assertNull(result.responseId)
     }
 
     @Test
@@ -288,9 +294,9 @@ class CodexRepositoryTest {
         """.trimIndent()
 
         val result = parseSseResponse(sse, "o4-mini")
-        assertTrue(result.contains("Test reply"))
-        assertTrue(result.contains("input=200"))
-        assertTrue(result.contains("output=100"))
+        assertEquals("Test reply", result.reply)
+        assertEquals("200", result.inputTokens)
+        assertEquals("100", result.outputTokens)
     }
 
     @Test
@@ -304,18 +310,22 @@ class CodexRepositoryTest {
 
         val result = parseSseResponse(sse, "gpt-5.6")
         // Malformed line should be skipped, valid ones parsed
-        assertTrue(result.contains("Good"))
-        assertTrue(result.contains("input=1"))
+        assertEquals("Good", result.reply)
+        assertEquals("1", result.inputTokens)
     }
 
     @Test
-    fun `parseSseResponse contains activation success header`() {
+    fun `parseSseResponse returns structured metadata`() {
         val sse = """
             data: {"type":"response.completed","response":{"id":"r1","usage":{"input_tokens":"0","output_tokens":"0"}}}
             data: [DONE]
         """.trimIndent()
 
         val result = parseSseResponse(sse, "gpt-5.6")
-        assertTrue(result.contains("✓ 激活成功"))
+        assertEquals("r1", result.responseId)
+        assertEquals("0", result.inputTokens)
+        assertEquals("0", result.outputTokens)
+        assertEquals("", result.reply)
+        assertFalse(result.parseFailed)
     }
 }

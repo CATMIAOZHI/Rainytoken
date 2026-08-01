@@ -76,6 +76,7 @@
     <string name="footer_hours_ago">%1$d 小时前更新</string>
     <string name="footer_updated_at">%1$s 更新</string>
     <string name="dashboard_drag_hint">💡 长按卡片可拖拽排序</string>
+    <string name="dashboard_error_prefix">⚠ %1$s</string>
     <string name="dashboard_footer_version" translatable="false">RainyToken · v1.0</string>
     <string name="dashboard_footer_privacy">本地加密存储，不上传任何数据</string>
     <string name="dialog_add_widget_title">添加桌面小组件？</string>
@@ -218,6 +219,7 @@
     <string name="msg_connect_success_balance">连接成功！余额: %1$s %2$s</string>
     <string name="msg_connect_success_saved">连接成功，凭据已保存</string>
     <string name="error_api_key_empty">API Key 不能为空</string>
+    <string name="error_json_format">JSON 格式错误</string>
     <string name="error_credential_rejected">服务拒绝该凭据 (401/403)</string>
     <string name="error_credential_changed_test">测试期间凭据已变更</string>
     <string name="error_rate_limited">请求过于频繁 (429)</string>
@@ -252,9 +254,19 @@
 
     <!-- ══════════ 触发用量 ══════════ -->
     <string name="trigger_success_title">✓ 用量已激活</string>
+    <string name="trigger_success_header">✓ 激活成功</string>
     <string name="trigger_result_title">请求结果</string>
     <string name="trigger_error_prefix">错误: %1$s</string>
     <string name="trigger_response_body">响应内容:\n%1$s</string>
+    <string name="trigger_success_model">模型: %1$s</string>
+    <string name="trigger_success_response_id">响应 ID: %1$s</string>
+    <string name="trigger_reply_header">回复:</string>
+    <string name="trigger_reply_empty">(空)</string>
+    <string name="trigger_reply_missing">(无回复内容)</string>
+    <string name="trigger_parse_failed">(响应解析失败，但请求已发出)</string>
+    <string name="trigger_usage_prompt_completion_total">用量: prompt=%1$s completion=%2$s total=%3$s tokens</string>
+    <string name="trigger_usage_input_output">用量: input=%1$s output=%2$s tokens</string>
+    <string name="error_token_refresh_failed">token 刷新失败：%1$s</string>
 
     <!-- ══════════ WebView 登录 ══════════ -->
     <string name="title_webview_login">登录 %1$s</string>

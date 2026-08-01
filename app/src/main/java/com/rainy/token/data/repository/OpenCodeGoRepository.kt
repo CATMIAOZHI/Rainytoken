@@ -4,6 +4,7 @@ import com.rainy.token.data.cache.BalanceCache
 import com.rainy.token.data.debug.DebugLog
 import com.rainy.token.domain.model.Credential
 import com.rainy.token.domain.model.ServiceBalance
+import com.rainy.token.domain.model.TriggerSummary
 import com.rainy.token.domain.service.ServiceConfigProvider
 import com.rainy.token.domain.service.ServiceType
 import kotlinx.coroutines.Dispatchers
@@ -178,7 +179,7 @@ class OpenCodeGoRepository(
      * @param model 用户选择的模型 slug
      * @return Result.success(响应摘要文本) — 供 UI 展示
      */
-    suspend fun triggerUsage(model: String): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun triggerUsage(model: String): Result<TriggerSummary> = withContext(Dispatchers.IO) {
         val credential = credentialRepository.get(ServiceType.OPENCODE_GO)
             ?: return@withContext Result.failure(RepositoryError.InvalidCredential("未找到 OpenCode Go 凭据"))
         if (credential !is Credential.SessionCredential)
@@ -206,8 +207,8 @@ class OpenCodeGoRepository(
                 val bodyStr = resp.body?.string() ?: ""
                 DebugLog.i(TAG, "triggerUsage: HTTP ${resp.code}, body=${bodyStr.take(500)}")
                 if (!resp.isSuccessful) {
-                    return@withContext Result.failure<String>(
-                        TriggerError("HTTP ${resp.code}", bodyStr.ifBlank { "无响应体" })
+                    return@withContext Result.failure<TriggerSummary>(
+                        TriggerError("HTTP ${resp.code}", bodyStr.ifBlank { "" })
                     )
                 }
                 DebugLog.i(TAG, "triggerUsage: 请求成功，模型=$model")
@@ -318,7 +319,7 @@ class OpenCodeGoRepository(
 /**
  * 解析 OpenAI 兼容的 chat completions 响应，提取回复文本和用量统计。
  */
-internal fun parseChatResponse(responseBody: String, model: String): String {
+internal fun parseChatResponse(responseBody: String, model: String): TriggerSummary {
     val json = Json { ignoreUnknownKeys = true }
     return try {
         val root = json.parseToJsonElement(responseBody) as? JsonObject
@@ -331,18 +332,14 @@ internal fun parseChatResponse(responseBody: String, model: String): String {
         val completionTokens = (usage?.get("completion_tokens") as? JsonPrimitive)?.contentOrNull
         val totalTokens = (usage?.get("total_tokens") as? JsonPrimitive)?.contentOrNull
 
-        val sb = StringBuilder()
-        sb.appendLine("✓ 激活成功")
-        sb.appendLine("模型: $model")
-        sb.appendLine()
-        sb.appendLine("回复:")
-        sb.appendLine(content?.ifEmpty { "(空)" } ?: "(无回复内容)")
-        if (promptTokens != null || completionTokens != null) {
-            sb.appendLine()
-            sb.appendLine("用量: prompt=$promptTokens completion=$completionTokens total=$totalTokens tokens")
-        }
-        sb.toString().trim()
+        TriggerSummary(
+            model = model,
+            reply = content,
+            inputTokens = promptTokens,
+            outputTokens = completionTokens,
+            totalTokens = totalTokens
+        )
     } catch (_: Exception) {
-        "✓ 激活成功\n模型: $model\n\n(响应解析失败，但请求已发出)"
+        TriggerSummary(model = model, reply = null, parseFailed = true)
     }
 }

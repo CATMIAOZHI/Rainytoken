@@ -73,6 +73,7 @@
     <string name="footer_hours_ago">Updated %1$d h ago</string>
     <string name="footer_updated_at">Updated %1$s</string>
     <string name="dashboard_drag_hint">💡 Long-press a card to reorder</string>
+    <string name="dashboard_error_prefix">⚠ %1$s</string>
     <string name="dashboard_footer_privacy">Stored locally &amp; encrypted, nothing is uploaded</string>
     <string name="dialog_add_widget_title">Add home screen widget?</string>
     <string name="dialog_add_widget_body">This will ask the launcher to add the RainyToken widget. Some systems may still show their own confirmation dialog.</string>
@@ -214,6 +215,7 @@
     <string name="msg_connect_success_balance">Connected! Balance: %1$s %2$s</string>
     <string name="msg_connect_success_saved">Connected, credentials saved</string>
     <string name="error_api_key_empty">API Key cannot be empty</string>
+    <string name="error_json_format">Invalid JSON format</string>
     <string name="error_credential_rejected">Service rejected this credential (401/403)</string>
     <string name="error_credential_changed_test">Credentials changed during test</string>
     <string name="error_rate_limited">Too many requests (429)</string>
@@ -248,9 +250,19 @@
 
     <!-- ══════════ 触发用量 ══════════ -->
     <string name="trigger_success_title">✓ Usage activated</string>
+    <string name="trigger_success_header">✓ Activation successful</string>
     <string name="trigger_result_title">Request result</string>
     <string name="trigger_error_prefix">Error: %1$s</string>
     <string name="trigger_response_body">Response body:\n%1$s</string>
+    <string name="trigger_success_model">Model: %1$s</string>
+    <string name="trigger_success_response_id">Response ID: %1$s</string>
+    <string name="trigger_reply_header">Reply:</string>
+    <string name="trigger_reply_empty">(empty)</string>
+    <string name="trigger_reply_missing">(no reply content)</string>
+    <string name="trigger_parse_failed">(response parsing failed, but the request was sent)</string>
+    <string name="trigger_usage_prompt_completion_total">Usage: prompt=%1$s completion=%2$s total=%3$s tokens</string>
+    <string name="trigger_usage_input_output">Usage: input=%1$s output=%2$s tokens</string>
+    <string name="error_token_refresh_failed">Token refresh failed: %1$s</string>
 
     <!-- ══════════ WebView 登录 ══════════ -->
     <string name="title_webview_login">Sign in to %1$s</string>

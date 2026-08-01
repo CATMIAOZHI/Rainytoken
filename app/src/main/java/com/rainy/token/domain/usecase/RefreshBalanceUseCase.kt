@@ -10,6 +10,7 @@ import com.rainy.token.data.repository.RefreshWriteSession
 import com.rainy.token.data.repository.RepositoryError
 import com.rainy.token.data.repository.retryOnTransientError
 import com.rainy.token.domain.model.ServiceBalance
+import com.rainy.token.domain.model.TriggerSummary
 import com.rainy.token.domain.service.ServiceType
 import javax.inject.Inject
 import javax.inject.Provider
@@ -55,7 +56,7 @@ class RefreshBalanceUseCase @Inject constructor(
     suspend fun fetchCodexModels(): Result<List<String>> =
         codexRepositoryProvider.get().fetchModels()
 
-    suspend fun triggerCodexUsage(model: String): Result<String> =
+    suspend fun triggerCodexUsage(model: String): Result<TriggerSummary> =
         withCredentialSession(ServiceType.CODEX) {
             codexRepositoryProvider.get().triggerUsage(model)
         }
@@ -63,7 +64,7 @@ class RefreshBalanceUseCase @Inject constructor(
     suspend fun fetchOpenCodeGoModels(): Result<List<String>> =
         openCodeGoRepositoryProvider.get().fetchModels()
 
-    suspend fun triggerOpenCodeGoUsage(model: String): Result<String> =
+    suspend fun triggerOpenCodeGoUsage(model: String): Result<TriggerSummary> =
         withCredentialSession(ServiceType.OPENCODE_GO) {
             openCodeGoRepositoryProvider.get().triggerUsage(model)
         }
@@ -71,7 +72,7 @@ class RefreshBalanceUseCase @Inject constructor(
     suspend fun fetchOllamaModels(): Result<List<String>> =
         ollamaRepositoryProvider.get().fetchModels()
 
-    suspend fun triggerOllamaUsage(model: String): Result<String> =
+    suspend fun triggerOllamaUsage(model: String): Result<TriggerSummary> =
         withCredentialSession(ServiceType.OLLAMA) {
             ollamaRepositoryProvider.get().triggerUsage(model)
         }

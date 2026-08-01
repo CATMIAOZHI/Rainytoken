@@ -3,6 +3,7 @@ package com.rainy.token.data.repository
 import com.rainy.token.data.cache.BalanceCache
 import com.rainy.token.domain.model.Credential
 import com.rainy.token.domain.model.ServiceBalance
+import com.rainy.token.domain.model.TriggerSummary
 import com.rainy.token.domain.service.ServiceConfigProvider
 import com.rainy.token.domain.service.ServiceType
 import kotlinx.coroutines.Dispatchers
@@ -203,7 +204,7 @@ class CodexRepository(
      * @param model 用户选择的模型 slug
      * @return Result.success(响应体原文) — 供 UI 展示
      */
-    suspend fun triggerUsage(model: String): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun triggerUsage(model: String): Result<TriggerSummary> = withContext(Dispatchers.IO) {
         val credential = credentialRepository.get(ServiceType.CODEX)
             ?: return@withContext Result.failure(RepositoryError.InvalidCredential("未找到 Codex 凭据"))
         if (credential !is Credential.CodexCredential)
@@ -239,10 +240,10 @@ class CodexRepository(
                                     DebugLog.i(TAG, "triggerUsage retry: HTTP ${resp2.code}, body=${body2.take(500)}")
                                     if (!resp2.isSuccessful) {
                                         DebugLog.e(TAG, "triggerUsage retry failed: HTTP ${resp2.code}")
-                                        return@use Result.failure<String>(
+                                        return@use Result.failure<TriggerSummary>(
                                             TriggerError(
                                                 "HTTP ${resp2.code}",
-                                                body2.ifBlank { "无响应体" }
+                                                body2.ifBlank { "" }
                                             )
                                         )
                                     }
@@ -255,8 +256,8 @@ class CodexRepository(
                             }
                         }
                     } else {
-                        return@use Result.failure<String>(
-                            TriggerError("HTTP ${resp.code}", bodyStr.ifBlank { "无响应体" })
+                        return@use Result.failure<TriggerSummary>(
+                            TriggerError("HTTP ${resp.code}", bodyStr.ifBlank { "" })
                         )
                     }
                 } else {
@@ -400,7 +401,7 @@ class TriggerError(val summary: String, val responseBody: String) : Exception(su
  * 将 SSE 流响应解析为简洁的文本摘要。
  * 提取：模型回复文本、用量统计（input/output tokens）。
  */
-internal fun parseSseResponse(sseText: String, model: String): String {
+internal fun parseSseResponse(sseText: String, model: String): TriggerSummary {
     val sseJson = Json { ignoreUnknownKeys = true }
     val outputText = StringBuilder()
     var inputTokens: String? = null
@@ -429,16 +430,11 @@ internal fun parseSseResponse(sseText: String, model: String): String {
         } catch (_: Exception) { }
     }
 
-    val sb = StringBuilder()
-    sb.appendLine("✓ 激活成功")
-    sb.appendLine("模型: $model")
-    if (responseId != null) sb.appendLine("Response ID: $responseId")
-    sb.appendLine()
-    sb.appendLine("回复:")
-    sb.appendLine(outputText.ifEmpty { "(空)" })
-    if (inputTokens != null || outputTokens != null) {
-        sb.appendLine()
-        sb.appendLine("用量: input=$inputTokens output=$outputTokens tokens")
-    }
-    return sb.toString().trim()
+    return TriggerSummary(
+        model = model,
+        reply = outputText.toString(),
+        inputTokens = inputTokens,
+        outputTokens = outputTokens,
+        responseId = responseId
+    )
 }

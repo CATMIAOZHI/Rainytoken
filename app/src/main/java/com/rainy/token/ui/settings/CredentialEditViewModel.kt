@@ -170,7 +170,15 @@ class CredentialEditViewModel @Inject constructor(
                 is RepositoryError.ServerError ->
                     UiText.Resource(R.string.error_server, listOf(err.code))
                 is RepositoryError.Network ->
-                    UiText.Resource(R.string.error_network, listOf(err.cause?.message ?: "未知"))
+                    UiText.Resource(
+                        R.string.error_network,
+                        listOf(
+                            err.cause?.message?.let { UiText.Dynamic(it) }
+                                ?: UiText.Resource(R.string.common_unknown)
+                        )
+                    )
+                is RepositoryError.ParseError ->
+                    UiText.Resource(R.string.error_parse_failed, listOf(err.detail))
                 else -> err?.message?.let { UiText.Dynamic(it) }
                     ?: UiText.Resource(R.string.common_unknown)
             }
@@ -371,7 +379,10 @@ class CredentialEditViewModel @Inject constructor(
                     it.copy(
                         message = UiText.Resource(
                             R.string.error_auth_json_parse,
-                            listOf(e.message ?: "JSON 格式错误")
+                            listOf(
+                                e.message?.let { UiText.Dynamic(it) }
+                                    ?: UiText.Resource(R.string.error_json_format)
+                            )
                         )
                     )
                 }

@@ -23,9 +23,9 @@ sealed class RepositoryError(message: String, cause: Throwable? = null) : Except
     class ServerError(val code: Int, cause: Throwable? = null) :
         RepositoryError("服务端异常 (HTTP $code)", cause)
 
-    /** 解析失败（HTML 解析结果为空 / JSON 反序列化失败） */
-    class ParseError(message: String, cause: Throwable? = null) :
-        RepositoryError("解析失败: $message", cause)
+    /** 解析失败（HTML 解析结果为空 / JSON 反序列化失败），detail 为具体原因 */
+    class ParseError(val detail: String, cause: Throwable? = null) :
+        RepositoryError("解析失败: $detail", cause)
 
     /** 未知错误 */
     class Unknown(cause: Throwable? = null) : RepositoryError(

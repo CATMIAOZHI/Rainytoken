@@ -56,8 +56,13 @@ fun formatResetForWidget(sec: Long, text: DurationText = ChineseDurationText): S
     }
 }
 
-/** 标准化窗口标签：weekly → 每周，其他原样返回 */
-fun normalizeWindowLabel(label: String, weeklyLabel: String = "每周"): String = when (label.lowercase()) {
-    "weekly" -> weeklyLabel
+/** 标准化窗口标签：weekly/每周 → 每周标签，monthly/每月 → 每月标签，其他原样返回 */
+fun normalizeWindowLabel(
+    label: String,
+    weeklyLabel: String = "每周",
+    monthlyLabel: String = "每月"
+): String = when (label.lowercase()) {
+    "weekly", "每周" -> weeklyLabel
+    "monthly", "每月" -> monthlyLabel
     else -> label
 }
