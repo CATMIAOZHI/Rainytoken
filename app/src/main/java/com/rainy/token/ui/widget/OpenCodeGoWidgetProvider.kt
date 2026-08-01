@@ -60,6 +60,10 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
         for (widgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_opencode_go)
 
+            // 署名动态设置：与行标签同源（跟随应用内语言），
+            // 避免 XML 静态文本由宿主进程按系统语言渲染造成中英混搭
+            views.setTextViewText(R.id.widget_brand, context.getString(R.string.widget_brand))
+
             // 点击左上角品牌 → 打开 APP；点击其它内容区域 → 切换服务；刷新按钮单独刷新。
             val openAppIntent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP

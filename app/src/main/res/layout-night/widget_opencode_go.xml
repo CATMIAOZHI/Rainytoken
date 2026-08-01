@@ -137,7 +137,7 @@
         android:gravity="center_vertical"
         android:layout_marginBottom="3dp">
         <TextView android:id="@+id/row2_label"
-            android:layout_width="60dp" android:layout_height="wrap_content"
+            android:layout_width="44dp" android:layout_height="wrap_content"
             android:maxLines="1" android:ellipsize="end"
             android:text="@string/window_weekly" android:textColor="#C4A0AB" android:textSize="11sp" />
         <TextView android:id="@+id/row2_pct"
@@ -163,7 +163,7 @@
         android:gravity="center_vertical"
         android:layout_marginBottom="3dp">
         <TextView android:id="@+id/row3_label"
-            android:layout_width="60dp" android:layout_height="wrap_content"
+            android:layout_width="44dp" android:layout_height="wrap_content"
             android:maxLines="1" android:ellipsize="end"
             android:text="@string/window_monthly" android:textColor="#C4A0AB" android:textSize="11sp" />
         <TextView android:id="@+id/row3_pct"
@@ -227,6 +227,7 @@
             android:progressBackgroundTint="#00000000"
             android:indeterminate="false" />
         <TextView
+            android:id="@+id/widget_brand"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/widget_brand"
