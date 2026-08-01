@@ -1,14 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 <!-- ══════════ 品牌资源（translatable=false，所有语言共用，不参与翻译） ══════════ -->
-<string name="app_name" translatable="false">雨晴Token</string>
-<string name="widget_brand" translatable="false">雨晴喵</string>
-<string name="brand_token" translatable="false">RainyToken</string>
-<string name="dashboard_footer_version" translatable="false">RainyToken · v1.0</string>
+    <string name="brand_token" translatable="false">RainyToken</string>
+    <string name="dashboard_footer_version" translatable="false">RainyToken · v1.0</string>
 
-<!-- ══════════ 小组件名称/描述 ══════════ -->
+    <!-- ══════════ 应用名称（跟随语言：中文系统显示中文名，其他显示英文名） ══════════ -->
+    <string name="app_name">RainyToken</string>
+
+    <!-- ══════════ 小组件名称/描述/署名 ══════════ -->
     <string name="widget_name">AI Usage Panel</string>
     <string name="widget_description">OpenCode Go usage + DeepSeek balance, auto-refresh</string>
+    <string name="widget_brand">Rainy</string>
 
     <!-- ══════════ 通用动作 ══════════ -->
     <string name="action_back">Back</string>
@@ -24,6 +26,12 @@
     <string name="action_prev_page">◀ Prev</string>
     <string name="action_next_page">Next ▶</string>
     <string name="action_add_widget">Add widget to home screen</string>
+    <string name="title_language">Language</string>
+    <string name="dialog_language_title">Select language</string>
+    <string name="app_locale_follow_system">Follow system</string>
+    <string name="app_locale_zh">简体中文</string>
+    <string name="app_locale_zh_hant">繁體中文</string>
+    <string name="app_locale_en">English</string>
     <string name="action_view_detail">View details</string>
     <string name="action_view_usage_detail">View usage details</string>
     <string name="action_view_raw_data">Raw data</string>
@@ -114,8 +122,8 @@
     <string name="window_5h_short">5h</string>
     <string name="window_5h_usage">5h usage</string>
     <string name="window_5h_rolling">5-hour rolling</string>
-    <string name="window_weekly">This week</string>
-    <string name="window_monthly">This month</string>
+    <string name="window_weekly">Week</string>
+    <string name="window_monthly">Month</string>
     <string name="window_every_month">Monthly</string>
     <string name="window_usage">Usage</string>
     <string name="usage_window_title">Usage window%1$s</string>
