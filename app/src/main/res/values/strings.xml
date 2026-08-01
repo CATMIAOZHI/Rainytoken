@@ -2,8 +2,8 @@
 <resources>
     <!-- ══════════ 应用品牌（translatable=false，不参与翻译） ══════════ -->
     <string name="app_name" translatable="false">雨晴Token</string>
-    <string name="widget_name" translatable="false">AI用量面板</string>
-    <string name="widget_description" translatable="false">OpenCode Go 用量 + DeepSeek 余额，自动刷新</string>
+    <string name="widget_name">AI用量面板</string>
+    <string name="widget_description">OpenCode Go 用量 + DeepSeek 余额，自动刷新</string>
     <string name="widget_brand" translatable="false">雨晴喵</string>
     <string name="brand_token" translatable="false">RainyToken</string>
 

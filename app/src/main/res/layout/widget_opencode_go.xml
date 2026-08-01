@@ -66,6 +66,8 @@
             android:id="@+id/widget_updated"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:ellipsize="end"
             android:text="--"
             android:textColor="#C4A0AB"
             android:textSize="10sp" />
@@ -116,7 +118,8 @@
         android:layout_marginBottom="3dp">
 
         <TextView android:id="@+id/row1_label"
-            android:layout_width="36dp" android:layout_height="wrap_content"
+            android:layout_width="44dp" android:layout_height="wrap_content"
+            android:maxLines="1" android:ellipsize="end"
             android:text="5h" android:textColor="#8A7A82" android:textSize="11sp" />
 
         <TextView android:id="@+id/row1_pct"
@@ -145,7 +148,8 @@
         android:layout_marginBottom="3dp">
 
         <TextView android:id="@+id/row2_label"
-            android:layout_width="36dp" android:layout_height="wrap_content"
+            android:layout_width="60dp" android:layout_height="wrap_content"
+            android:maxLines="1" android:ellipsize="end"
             android:text="@string/window_weekly" android:textColor="#8A7A82" android:textSize="11sp" />
 
         <TextView android:id="@+id/row2_pct"
@@ -174,7 +178,8 @@
         android:layout_marginBottom="3dp">
 
         <TextView android:id="@+id/row3_label"
-            android:layout_width="36dp" android:layout_height="wrap_content"
+            android:layout_width="60dp" android:layout_height="wrap_content"
+            android:maxLines="1" android:ellipsize="end"
             android:text="@string/window_monthly" android:textColor="#8A7A82" android:textSize="11sp" />
 
         <TextView android:id="@+id/row3_pct"
