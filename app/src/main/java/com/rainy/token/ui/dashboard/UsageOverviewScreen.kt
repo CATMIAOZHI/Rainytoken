@@ -40,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -257,8 +258,11 @@ fun UsageOverviewScreen(
 
 @Composable private fun DailyDetailRow(day: com.rainy.token.data.local.DailyStats) {
     val datePattern = stringResource(R.string.date_format_md)
-    // 跟随系统语言（Locale.getDefault()），保证英文环境下日期符号与资源同语言
-    val utcFmt = remember(datePattern, Locale.getDefault()) { SimpleDateFormat(datePattern, Locale.getDefault()).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") } }
+    // 从当前资源 configuration 取 locale（跟随应用内语言切换），
+    // 不能依赖 Locale.getDefault()：LocaleManager 只覆写 activity Configuration，不改变 JVM 默认 locale
+    val configuration = LocalConfiguration.current
+    val activeLocale = remember(configuration) { configuration.locales[0] }
+    val utcFmt = remember(datePattern, activeLocale) { SimpleDateFormat(datePattern, activeLocale).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") } }
     Card(Modifier.fillMaxWidth(), RoundedCornerShape(12.dp), CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(utcFmt.format(Date(day.dayTs)), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))

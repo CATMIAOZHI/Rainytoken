@@ -64,6 +64,9 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
             // 避免 XML 静态文本由宿主进程按系统语言渲染造成中英混搭
             views.setTextViewText(R.id.widget_brand, context.getString(R.string.widget_brand))
 
+            // DeepSeek 余额标签同样动态设置（静态 XML 文本由 Launcher 按系统语言解析）
+            views.setTextViewText(R.id.widget_ds_label, context.getString(R.string.widget_deepseek_balance))
+
             // 点击左上角品牌 → 打开 APP；点击其它内容区域 → 切换服务；刷新按钮单独刷新。
             val openAppIntent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
