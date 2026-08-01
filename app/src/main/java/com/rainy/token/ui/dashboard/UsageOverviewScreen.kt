@@ -257,7 +257,8 @@ fun UsageOverviewScreen(
 
 @Composable private fun DailyDetailRow(day: com.rainy.token.data.local.DailyStats) {
     val datePattern = stringResource(R.string.date_format_md)
-    val utcFmt = remember(datePattern) { SimpleDateFormat(datePattern, Locale.CHINA).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") } }
+    // 跟随系统语言（Locale.getDefault()），保证英文环境下日期符号与资源同语言
+    val utcFmt = remember(datePattern, Locale.getDefault()) { SimpleDateFormat(datePattern, Locale.getDefault()).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") } }
     Card(Modifier.fillMaxWidth(), RoundedCornerShape(12.dp), CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(utcFmt.format(Date(day.dayTs)), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
