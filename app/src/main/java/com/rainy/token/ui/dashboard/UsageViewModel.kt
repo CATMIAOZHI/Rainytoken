@@ -1,16 +1,21 @@
 package com.rainy.token.ui.dashboard
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rainy.token.R
 import com.rainy.token.data.local.OverviewStats
 import com.rainy.token.data.local.ModelStats
 import com.rainy.token.data.local.DailyStats
 import com.rainy.token.data.local.UsageCache
 import com.rainy.token.data.repository.CredentialRepository
+import com.rainy.token.data.repository.RepositoryError
 import com.rainy.token.domain.model.Credential
 import com.rainy.token.domain.service.ServiceType
 import com.rainy.token.domain.usecase.SyncCommandCodeUsageUseCase
+import com.rainy.token.domain.usecase.SyncError
 import com.rainy.token.domain.usecase.SyncUsageUseCase
+import com.rainy.token.ui.components.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,17 +31,17 @@ import javax.inject.Provider
 
 internal const val DAILY_PAGE_SIZE = 5
 
-/** 时间筛选条件 */
-sealed class TimeFilter(val label: String) {
-    data object All : TimeFilter("全部")
-    data object Last5h : TimeFilter("最近5小时")
-    data object Last24h : TimeFilter("最近24小时")
-    data object Today : TimeFilter("今天")
-    data object Yesterday : TimeFilter("昨天")
-    data object Last7Days : TimeFilter("最近7天")
-    data object Last30Days : TimeFilter("最近30天")
-    data object ThisMonth : TimeFilter("当月")
-    data class Custom(val from: Long, val to: Long) : TimeFilter("自定义")
+/** 时间筛选条件（label 用字符串资源 ID，UI 层按当前语言解析） */
+sealed class TimeFilter(@StringRes val labelRes: Int) {
+    data object All : TimeFilter(R.string.time_all)
+    data object Last5h : TimeFilter(R.string.time_last_5h)
+    data object Last24h : TimeFilter(R.string.time_last_24h)
+    data object Today : TimeFilter(R.string.time_today)
+    data object Yesterday : TimeFilter(R.string.time_yesterday)
+    data object Last7Days : TimeFilter(R.string.time_last_7d)
+    data object Last30Days : TimeFilter(R.string.time_last_30d)
+    data object ThisMonth : TimeFilter(R.string.time_this_month)
+    data class Custom(val from: Long, val to: Long) : TimeFilter(R.string.time_custom)
 
     /** 计算筛选的起止 epoch 毫秒（from 含，to 含）。
      *  返回 Pair(null, null) 表示不限制。 */
@@ -201,7 +206,7 @@ class UsageViewModel @Inject constructor(
                 it.copy(
                     syncing = false,
                     lastSyncResult = result.getOrNull()?.inserted ?: 0,
-                    lastSyncError = result.exceptionOrNull()?.message
+                    lastSyncError = result.exceptionOrNull()?.let { syncErrorToUiText(it) }
                 )
             }
         }
@@ -222,7 +227,7 @@ class UsageViewModel @Inject constructor(
                 it.copy(
                     syncing = false,
                     lastSyncResult = result.getOrNull()?.inserted ?: 0,
-                    lastSyncError = result.exceptionOrNull()?.message
+                    lastSyncError = result.exceptionOrNull()?.let { syncErrorToUiText(it) }
                 )
             }
         }
@@ -241,7 +246,7 @@ data class UsageUiState(
     val dailyStats: List<DailyStats> = emptyList(),
     val recordCount: Int = 0,
     val lastSyncResult: Int = 0,
-    val lastSyncError: String? = null,
+    val lastSyncError: UiText? = null,
     val timeFilter: TimeFilter = TimeFilter.All,
     val dailyPage: Int = 1,
     val modelFilter: String? = null  // null = 全部模型
@@ -254,3 +259,34 @@ private data class LoadResult(
     val dailyStats: List<DailyStats>,
     val totalCount: Int
 )
+
+/** 把同步错误映射为本地化文案：SyncError / RepositoryError 全部走资源，不透传中文 message。 */
+private fun syncErrorToUiText(error: Throwable): UiText = when (error) {
+    is SyncError.PartialSync ->
+        UiText.Resource(R.string.sync_partial, listOf(error.inserted, error.errors.size))
+    is RepositoryError.InvalidCredential ->
+        UiText.Resource(R.string.error_credential_invalid_reconfigure)
+    is RepositoryError.CredentialChanged ->
+        UiText.Resource(R.string.error_credential_changed_reload)
+    is RepositoryError.RateLimited -> UiText.Resource(
+        R.string.error_rate_limited_retry,
+        listOf(
+            error.retryAfterSeconds?.let {
+                UiText.Resource(R.string.error_rate_limited_retry_suffix, listOf(it))
+            } ?: ""
+        )
+    )
+    is RepositoryError.Network -> UiText.Resource(R.string.error_network_check)
+    is RepositoryError.ServerError ->
+        UiText.Resource(R.string.error_server_http, listOf(error.code))
+    is RepositoryError.ParseError -> when (error.reason) {
+        RepositoryError.ParseErrorReason.EMPTY_BODY -> UiText.Resource(R.string.error_parse_empty_body)
+        RepositoryError.ParseErrorReason.NOT_JSON_OBJECT -> UiText.Resource(R.string.error_parse_not_json)
+        RepositoryError.ParseErrorReason.NO_WINDOWS -> UiText.Resource(R.string.error_parse_no_windows)
+        RepositoryError.ParseErrorReason.NO_MODELS -> UiText.Resource(R.string.error_parse_no_models)
+        RepositoryError.ParseErrorReason.MODELS_EMPTY -> UiText.Resource(R.string.error_parse_models_empty)
+        RepositoryError.ParseErrorReason.MALFORMED_RESPONSE -> UiText.Resource(R.string.error_parse_malformed)
+    }
+    is RepositoryError.Unknown -> UiText.Resource(R.string.common_unknown)
+    else -> UiText.Resource(R.string.common_unknown)
+}

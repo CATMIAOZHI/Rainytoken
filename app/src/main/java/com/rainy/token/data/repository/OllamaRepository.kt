@@ -4,6 +4,7 @@ import com.rainy.token.data.cache.BalanceCache
 import com.rainy.token.data.debug.DebugLog
 import com.rainy.token.domain.model.Credential
 import com.rainy.token.domain.model.ServiceBalance
+import com.rainy.token.domain.model.TriggerSummary
 import com.rainy.token.domain.service.ServiceType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -177,13 +178,14 @@ class OllamaRepository(
             }
 
             val html = resp.body?.string() ?: return@withContext Result.failure(
-                RepositoryError.ParseError("响应体为空")
+                RepositoryError.ParseError(RepositoryError.ParseErrorReason.EMPTY_BODY, "响应体为空")
             )
 
             val parsed = parseUsage(html)
             if (parsed == null) {
                 return@withContext Result.failure(
                     RepositoryError.ParseError(
+                        RepositoryError.ParseErrorReason.NO_WINDOWS,
                         "解析失败：未找到 Ollama Cloud 用量数据。HTML=${html.length} 字节。Cookie 可能已过期。"
                     )
                 )
@@ -240,15 +242,15 @@ class OllamaRepository(
                     DebugLog.e(TAG, "fetchModels: HTTP ${resp.code}")
                     return@withContext Result.failure(RepositoryError.ServerError(resp.code))
                 }
-                val root = json.parseToJsonElement(resp.body?.string() ?: throw RepositoryError.ParseError("响应体为空")) as? JsonObject
-                    ?: throw RepositoryError.ParseError("响应根节点不是 JSON 对象")
+                val root = json.parseToJsonElement(resp.body?.string() ?: throw RepositoryError.ParseError(RepositoryError.ParseErrorReason.EMPTY_BODY, "响应体为空")) as? JsonObject
+                    ?: throw RepositoryError.ParseError(RepositoryError.ParseErrorReason.NOT_JSON_OBJECT, "响应根节点不是 JSON 对象")
                 val provider = root["ollama-cloud"] as? JsonObject
                 val modelsObj = provider?.get("models") as? JsonObject
                 modelsObj?.keys?.toList()?.sorted()
-                    ?: throw RepositoryError.ParseError("未找到 Ollama Cloud 模型列表")
+                    ?: throw RepositoryError.ParseError(RepositoryError.ParseErrorReason.NO_MODELS, "未找到 Ollama Cloud 模型列表")
             }
             if (models.isEmpty()) {
-                return@withContext Result.failure(RepositoryError.ParseError("模型列表为空"))
+                return@withContext Result.failure(RepositoryError.ParseError(RepositoryError.ParseErrorReason.MODELS_EMPTY, "模型列表为空"))
             }
             DebugLog.i(TAG, "fetchModels: 获取到 ${models.size} 个模型")
             Result.success(models)
@@ -268,7 +270,7 @@ class OllamaRepository(
      * @param model 用户选择的模型 slug
      * @return Result.success(响应摘要文本) — 供 UI 展示
      */
-    suspend fun triggerUsage(model: String): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun triggerUsage(model: String): Result<TriggerSummary> = withContext(Dispatchers.IO) {
         val credential = credentialRepository.get(ServiceType.OLLAMA)
             ?: return@withContext Result.failure(RepositoryError.InvalidCredential("未找到 Ollama 凭据"))
         if (credential !is Credential.SessionCredential)
@@ -296,8 +298,8 @@ class OllamaRepository(
                 val bodyStr = resp.body?.string() ?: ""
                 DebugLog.i(TAG, "triggerUsage: HTTP ${resp.code}, body=${bodyStr.take(500)}")
                 if (!resp.isSuccessful) {
-                    return@withContext Result.failure<String>(
-                        TriggerError("HTTP ${resp.code}", bodyStr.ifBlank { "无响应体" })
+                    return@withContext Result.failure<TriggerSummary>(
+                        TriggerError("HTTP ${resp.code}", bodyStr.ifBlank { "" })
                     )
                 }
                 DebugLog.i(TAG, "triggerUsage: 请求成功，模型=$model")
@@ -317,7 +319,7 @@ class OllamaRepository(
 /**
  * 解析 Ollama Cloud chat completions 响应，提取回复文本和用量统计。
  */
-internal fun parseOllamaChatResponse(responseBody: String, model: String): String {
+internal fun parseOllamaChatResponse(responseBody: String, model: String): TriggerSummary {
     val json = Json { ignoreUnknownKeys = true }
     return try {
         val root = json.parseToJsonElement(responseBody) as? JsonObject
@@ -330,18 +332,14 @@ internal fun parseOllamaChatResponse(responseBody: String, model: String): Strin
         val completionTokens = (usage?.get("completion_tokens") as? JsonPrimitive)?.contentOrNull
         val totalTokens = (usage?.get("total_tokens") as? JsonPrimitive)?.contentOrNull
 
-        val sb = StringBuilder()
-        sb.appendLine("✓ 激活成功")
-        sb.appendLine("模型: $model")
-        sb.appendLine()
-        sb.appendLine("回复:")
-        sb.appendLine(content?.ifEmpty { "(空)" } ?: "(无回复内容)")
-        if (promptTokens != null || completionTokens != null) {
-            sb.appendLine()
-            sb.appendLine("用量: prompt=$promptTokens completion=$completionTokens total=$totalTokens tokens")
-        }
-        sb.toString().trim()
+        TriggerSummary(
+            model = model,
+            reply = content,
+            inputTokens = promptTokens,
+            outputTokens = completionTokens,
+            totalTokens = totalTokens
+        )
     } catch (_: Exception) {
-        "✓ 激活成功\n模型: $model\n\n(响应解析失败，但请求已发出)"
+        TriggerSummary(model = model, reply = null, parseFailed = true)
     }
 }

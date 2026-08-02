@@ -31,10 +31,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rainy.token.R
 import com.rainy.token.data.debug.DebugLog
 import com.rainy.token.ui.theme.InkMuted
 import com.rainy.token.ui.theme.StrawberryPink
@@ -50,7 +52,7 @@ fun DebugLogScreen(onBack: () -> Unit) {
             TopAppBar(
                 title = {
                     Text(
-                        "调试日志",
+                        stringResource(R.string.title_debug_log),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -59,14 +61,14 @@ fun DebugLogScreen(onBack: () -> Unit) {
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.Filled.ArrowBack,
-                            contentDescription = "返回",
+                            contentDescription = stringResource(R.string.action_back),
                             tint = StrawberryPink
                         )
                     }
                 },
                 actions = {
                     TextButton(onClick = { DebugLog.clear() }) {
-                        Text("清空", color = StrawberryPink)
+                        Text(stringResource(R.string.action_clear), color = StrawberryPink)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -83,7 +85,7 @@ fun DebugLogScreen(onBack: () -> Unit) {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "暂无日志记录\n刷新 Codex 用量后这里会出现调试信息",
+                    stringResource(R.string.debug_log_empty),
                     style = MaterialTheme.typography.bodyMedium,
                     color = InkMuted,
                     modifier = Modifier.padding(32.dp)

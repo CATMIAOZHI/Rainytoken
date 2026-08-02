@@ -66,6 +66,8 @@
             android:id="@+id/widget_updated"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:ellipsize="end"
             android:text="--"
             android:textColor="#C4A0AB"
             android:textSize="10sp" />
@@ -102,7 +104,7 @@
             android:id="@+id/widget_service_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="OpenCode Go · 用量"
+            android:text="@string/widget_title_opencode"
             android:textColor="#8A7A82"
             android:textSize="11sp" />
     </LinearLayout>
@@ -116,7 +118,8 @@
         android:layout_marginBottom="3dp">
 
         <TextView android:id="@+id/row1_label"
-            android:layout_width="36dp" android:layout_height="wrap_content"
+            android:layout_width="44dp" android:layout_height="wrap_content"
+            android:maxLines="1" android:ellipsize="end"
             android:text="5h" android:textColor="#8A7A82" android:textSize="11sp" />
 
         <TextView android:id="@+id/row1_pct"
@@ -145,8 +148,9 @@
         android:layout_marginBottom="3dp">
 
         <TextView android:id="@+id/row2_label"
-            android:layout_width="36dp" android:layout_height="wrap_content"
-            android:text="本周" android:textColor="#8A7A82" android:textSize="11sp" />
+            android:layout_width="44dp" android:layout_height="wrap_content"
+            android:maxLines="1" android:ellipsize="end"
+            android:text="@string/window_weekly" android:textColor="#8A7A82" android:textSize="11sp" />
 
         <TextView android:id="@+id/row2_pct"
             android:layout_width="38dp" android:layout_height="wrap_content"
@@ -174,8 +178,9 @@
         android:layout_marginBottom="3dp">
 
         <TextView android:id="@+id/row3_label"
-            android:layout_width="36dp" android:layout_height="wrap_content"
-            android:text="本月" android:textColor="#8A7A82" android:textSize="11sp" />
+            android:layout_width="44dp" android:layout_height="wrap_content"
+            android:maxLines="1" android:ellipsize="end"
+            android:text="@string/window_monthly" android:textColor="#8A7A82" android:textSize="11sp" />
 
         <TextView android:id="@+id/row3_pct"
             android:layout_width="38dp" android:layout_height="wrap_content"
@@ -211,9 +216,10 @@
             android:layout_marginEnd="5dp" />
 
         <TextView
+            android:id="@+id/widget_ds_label"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="DeepSeek 余额"
+            android:text="@string/widget_deepseek_balance"
             android:textColor="#8A7A82"
             android:textSize="11sp" />
 
@@ -247,9 +253,10 @@
             android:indeterminate="false" />
 
         <TextView
+            android:id="@+id/widget_brand"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="雨晴喵"
+            android:text="@string/widget_brand"
             android:textColor="#D4C4CC"
             android:textSize="9sp" />
     </LinearLayout>

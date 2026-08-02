@@ -1,5 +1,498 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">雨晴Token</string>
-    <string name="widget_name">AI用量面板</string>
-<string name="widget_description">OpenCode Go 用量 + DeepSeek 余额，自动刷新</string>
+<!-- ══════════ 品牌资源（translatable=false，所有语言共用，不参与翻译） ══════════ -->
+    <string name="brand_token" translatable="false">RainyToken</string>
+    <string name="dashboard_footer_version" translatable="false">RainyToken · v1.0</string>
+
+    <!-- ══════════ 应用名称（跟随语言：中文系统显示中文名，其他显示英文名） ══════════ -->
+    <string name="app_name">RainyToken</string>
+
+    <!-- ══════════ 小组件名称/描述/署名 ══════════ -->
+    <string name="widget_name">AI Usage Panel</string>
+    <string name="widget_description">OpenCode Go usage + DeepSeek balance, auto-refresh</string>
+    <string name="widget_brand">Rainy</string>
+
+    <!-- ══════════ 通用动作 ══════════ -->
+    <string name="action_back">Back</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_confirm_add">Add Widget</string>
+    <string name="action_got_it">Got it</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="action_settings">Settings</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_clear">Clear</string>
+    <string name="action_save">Save</string>
+    <string name="action_jump">Go</string>
+    <string name="action_prev_page">◀ Prev</string>
+    <string name="action_next_page">Next ▶</string>
+    <string name="action_add_widget">Add widget to home screen</string>
+    <string name="title_language">Language</string>
+    <string name="dialog_language_title">Select language</string>
+    <string name="app_locale_follow_system">Follow system</string>
+    <string name="app_locale_zh">简体中文</string>
+    <string name="app_locale_zh_hant">繁體中文</string>
+    <string name="app_locale_en">English</string>
+    <string name="action_view_detail">View details</string>
+    <string name="action_view_usage_detail">View usage details</string>
+    <string name="action_view_raw_data">Raw data</string>
+    <string name="action_sync_usage">Sync usage data</string>
+    <string name="action_login_save">I\'m logged in, save</string>
+    <string name="action_keep_waiting">Keep waiting</string>
+
+    <!-- ══════════ 通用文案 ══════════ -->
+    <string name="common_loading">Loading…</string>
+    <string name="common_unknown">Unknown error</string>
+    <string name="common_all_models">All models</string>
+
+    <!-- ══════════ 页面标题 ══════════ -->
+    <string name="nav_empty_title">👈 Select a service to view details</string>
+    <string name="nav_empty_subtitle">Tap a card on the left</string>
+    <string name="title_settings">Settings</string>
+    <string name="title_credentials">Credentials</string>
+    <string name="title_about">About RainyToken</string>
+    <string name="title_tips">Tips</string>
+    <string name="title_debug_log">Debug log</string>
+    <string name="title_usage_detail">Usage details</string>
+    <string name="title_overview">Overview</string>
+    <string name="title_raw_data">Raw data</string>
+    <string name="title_chart">Charts</string>
+
+    <!-- ══════════ 状态徽章 ══════════ -->
+    <string name="status_not_configured">Not set up</string>
+    <string name="status_configured">Configured</string>
+    <string name="status_expired">Expired</string>
+    <string name="status_relogin">Re-login</string>
+    <string name="status_refresh_failed">Refresh failed</string>
+    <string name="status_not_fetched">No data</string>
+    <string name="status_waiting">Pending</string>
+    <string name="status_normal">OK</string>
+    <string name="status_not_configured_add">Not set up · Tap to add</string>
+    <string name="status_ok_valid">Configured · Valid</string>
+    <string name="status_expired_reconfigure">Expired · Tap to reconfigure</string>
+    <string name="status_need_reverify">Needs re-verification</string>
+    <string name="status_manual_mode">Manual entry mode</string>
+    <string name="status_credential_configured">Credential set</string>
+    <string name="status_not_configured_cred">No credential</string>
+    <string name="status_loading">Loading</string>
+    <string name="status_fresh">Latest</string>
+    <string name="status_stale">Cached</string>
+    <string name="status_failed">Failed</string>
+    <string name="status_pending_input">Awaiting input</string>
+
+    <!-- ══════════ 仪表盘 ══════════ -->
+    <string name="dashboard_subtitle">AI Balance Overview</string>
+    <string name="footer_never_fetched">Never fetched</string>
+    <string name="footer_just_updated">Updated just now</string>
+    <string name="footer_minutes_ago">Updated %1$d min ago</string>
+    <string name="footer_hours_ago">Updated %1$d h ago</string>
+    <string name="footer_updated_at">Updated %1$s</string>
+    <string name="dashboard_drag_hint">💡 Long-press a card to reorder</string>
+    <string name="dashboard_error_prefix">⚠ %1$s</string>
+    <string name="dashboard_footer_privacy">Stored locally &amp; encrypted, nothing is uploaded</string>
+    <string name="dialog_add_widget_title">Add home screen widget?</string>
+    <string name="dialog_add_widget_body">This will ask the launcher to add the RainyToken widget. Some systems may still show their own confirmation dialog.</string>
+    <string name="toast_shortcut_permission_denied">Shortcut permission denied. Please allow it in system settings and try again.</string>
+    <string name="toast_add_rejected">The launcher rejected the request. Please check launcher permissions.</string>
+    <string name="toast_picker_unsupported">This launcher does not support in-app adding. Long-press home → Widgets → find RainyToken.</string>
+
+    <!-- ══════════ 服务卡片 ══════════ -->
+    <string name="service_click_to_configure">Tap to configure credentials</string>
+    <string name="service_pull_to_refresh">Pull to refresh</string>
+    <string name="service_unavailable">Service currently unavailable</string>
+    <string name="service_monthly_used">%1$s%2$s used this month</string>
+    <string name="service_remaining">Remaining</string>
+    <string name="service_used_total"> · %1$s used / %2$s total</string>
+    <string name="service_used_label">%1$s used</string>
+    <string name="service_5h_used">5h used</string>
+    <string name="service_plan_suffix">· %1$s</string>
+    <string name="service_reset_in">Resets in %1$s</string>
+    <string name="service_desc_deepseek">REST API · ¥</string>
+    <string name="service_desc_opencode_go">WebView fetch · 5h quota</string>
+    <string name="service_desc_commandcode_go">JSON API · $</string>
+    <string name="service_desc_codex">ChatGPT Plus · Codex quota</string>
+    <string name="service_desc_ollama">Cookie fetch · Cloud quota</string>
+
+    <!-- ══════════ 时长标签（DurationText 注入用） ══════════ -->
+    <string name="format_day">d</string>
+    <string name="format_hour">h</string>
+    <string name="format_minute">m</string>
+
+    <!-- ══════════ 用量窗口 ══════════ -->
+    <string name="window_5h">5 hours</string>
+    <string name="window_5h_short">5h</string>
+    <string name="window_5h_usage">5h usage</string>
+    <string name="window_5h_rolling">5-hour rolling</string>
+    <string name="window_weekly">Week</string>
+    <string name="window_monthly">Month</string>
+    <string name="window_every_month">Monthly</string>
+    <string name="window_usage">Usage</string>
+    <string name="usage_window_title">Usage window%1$s</string>
+    <string name="usage_window_title_plain">Usage window</string>
+
+    <!-- ══════════ 用量统计 ══════════ -->
+    <string name="usage_title_opencode">OpenCode Usage</string>
+    <string name="usage_title_commandcode">CommandCode Usage</string>
+    <string name="usage_record_count">%1$d records</string>
+    <string name="usage_click_to_sync">Tap to sync</string>
+    <string name="usage_input_tokens">Input tokens</string>
+    <string name="usage_output_tokens">Output tokens</string>
+    <string name="usage_reasoning_tokens">Reasoning tokens</string>
+    <string name="usage_total_cost">Total cost</string>
+    <string name="usage_cache_read">Cache read %1$s</string>
+    <string name="usage_cache_write">Cache write %1$s</string>
+    <string name="usage_no_data_sync">No data yet · tap 🔄 to sync</string>
+    <string name="usage_new_records">✓ %1$d new records</string>
+    <string name="sync_partial">Partial sync: %1$d records inserted, %2$d pages failed</string>
+    <string name="usage_click_to_switch"> tap to switch</string>
+    <string name="usage_utc0_note">All times in UTC+0</string>
+    <string name="msg_utc8_on">Switched to UTC+8, charts shown in Beijing time</string>
+    <string name="msg_utc0_on">Switched to UTC+0, charts shown in UTC</string>
+    <string name="usage_spent_total">$%1$s spent / $%2$s total</string>
+    <string name="usage_remaining">$%1$s remaining</string>
+    <string name="usage_extra_credits">Extra credits</string>
+    <string name="section_by_model">By model</string>
+    <string name="section_by_day">By day (UTC+0)</string>
+    <string name="model_count">%1$d models</string>
+    <string name="model_count_short">%1$d</string>
+    <string name="date_start">Start time</string>
+    <string name="date_end">End time</string>
+
+    <!-- ══════════ 图表 ══════════ -->
+    <string name="chart_cost">Spending (USD)</string>
+    <string name="chart_requests">API requests</string>
+    <string name="chart_tokens">Token usage</string>
+    <string name="chart_stack_output">Output</string>
+    <string name="chart_stack_input">Input (miss)</string>
+    <string name="chart_stack_cache">Cache hit</string>
+
+    <!-- ══════════ 原始数据 ══════════ -->
+    <string name="header_time">Time</string>
+    <string name="header_model">Model</string>
+    <string name="header_input_cache">Input(cache)</string>
+    <string name="header_output">Output</string>
+    <string name="header_cost">Cost</string>
+
+    <!-- ══════════ 时间筛选 ══════════ -->
+    <string name="time_all">All</string>
+    <string name="time_last_5h">Last 5 hours</string>
+    <string name="time_last_12h">Last 12 hours</string>
+    <string name="time_last_24h">Last 24 hours</string>
+    <string name="time_today">Today</string>
+    <string name="time_yesterday">Yesterday</string>
+    <string name="time_last_7d">Last 7 days</string>
+    <string name="time_last_30d">Last 30 days</string>
+    <string name="time_this_month">This month</string>
+    <string name="time_custom">Custom</string>
+    <string name="time_custom_day">Custom day</string>
+    <string name="time_custom_month">Custom month</string>
+    <string name="time_custom_range">Custom range</string>
+
+    <!-- ══════════ 设置页 ══════════ -->
+    <string name="about_description">A tiny tool to check AI balances.\nCredentials are encrypted locally — nothing is uploaded.</string>
+    <string name="tips_view_all">View all %1$d hidden tips</string>
+    <string name="debug_log_desc">Inspect token refresh, network requests and other debug records</string>
+
+    <!-- ══════════ 凭据编辑 ══════════ -->
+    <string name="credential_configured_cookies">✓ Login state configured (%1$d cookies)</string>
+    <string name="help_cookie_title">How to get the Cookie?</string>
+    <string name="help_cookie_1">1. Open the login page below in desktop Chrome</string>
+    <string name="help_cookie_2">2. Sign in with GitHub / Google (won\'t be blocked)</string>
+    <string name="help_cookie_3">3. After login, press F12 → Application → Cookies</string>
+    <string name="help_cookie_4">4. Copy all cookies of the site and paste them above</string>
+    <string name="help_cookie_5">Format: name1=value1; name2=value2</string>
+    <string name="help_ocgo_title">How to get OpenCode Go credentials?</string>
+    <string name="help_ocgo_1">1. Open opencode.ai/auth in desktop Chrome</string>
+    <string name="help_ocgo_2">2. Sign in with GitHub / Google (Google won\'t block Chrome)</string>
+    <string name="help_ocgo_3">3. You\'ll land on the dashboard, URL looks like:</string>
+    <string name="help_ocgo_4">   https://opencode.ai/workspace/{id}/go</string>
+    <string name="help_ocgo_5">4. Copy the {id} segment → workspaceId</string>
+    <string name="help_ocgo_6">5. F12 → Application → Cookies</string>
+    <string name="help_ocgo_7">6. Find the cookie named auth under opencode.ai</string>
+    <string name="help_ocgo_8">7. Copy its Value field → auth cookie</string>
+    <string name="help_ocgo_note">Note: only the auth cookie is needed, not the whole cookie string</string>
+    <string name="help_ccgo_title">How to get CommandCode Go credentials?</string>
+    <string name="help_ccgo_1">1. Open https://commandcode.ai and sign in with GitHub</string>
+    <string name="help_ccgo_2">▸ Get API Key (required):</string>
+    <string name="help_ccgo_3">   Avatar (top right) → Settings → API Keys → Create a Key</string>
+    <string name="help_ccgo_4">▸ Get all cookies (for usage records):</string>
+    <string name="help_ccgo_5">   F12 → Application → Cookies → commandcode.ai</string>
+    <string name="help_ccgo_6">   Select all cookies and copy the whole string</string>
+    <string name="help_ccgo_7">   Paste it below — no need to pick them one by one</string>
+    <string name="help_ccgo_note">Tip: balance works without cookies, usage records will just be empty.</string>
+    <string name="help_codex_title">How to get Codex auth.json?</string>
+    <string name="help_codex_1">1. Run codex-oauth-proxy or</string>
+    <string name="help_codex_2">   codex-proxy in a terminal to sign in to ChatGPT</string>
+    <string name="help_codex_3">2. The credential file is saved at:</string>
+
+    <!-- ══════════ 提示/错误消息 ══════════ -->
+    <string name="msg_saved">Saved</string>
+    <string name="msg_credentials_saved">Credentials saved</string>
+    <string name="msg_connect_success_balance">Connected! Balance: %1$s %2$s</string>
+    <string name="msg_connect_success_saved">Connected, credentials saved</string>
+    <string name="error_api_key_empty">API Key cannot be empty</string>
+    <string name="error_json_format">Invalid JSON format</string>
+    <string name="error_credential_rejected">Service rejected this credential (401/403)</string>
+    <string name="error_credential_changed_test">Credentials changed during test</string>
+    <string name="error_rate_limited">Too many requests (429)</string>
+    <string name="error_server">Server error (%1$d)</string>
+    <string name="error_network">Network error: %1$s</string>
+    <string name="error_rollback_done">, previous credential restored</string>
+    <string name="error_rollback_skipped">, credential changed, rollback skipped</string>
+    <string name="error_test_failed">Test failed. %1$s%2$s</string>
+    <string name="error_test_not_supported">Testing is not supported for this service</string>
+    <string name="error_auth_cookie_workspace">Both auth cookie and workspaceId are required</string>
+    <string name="error_cookie_empty">Cookie cannot be empty</string>
+    <string name="error_credential_not_configured">Credential not configured</string>
+    <string name="error_credential_not_configured_expired">Credential missing or expired</string>
+    <string name="error_credential_invalid_reconfigure">Credential invalid, please reconfigure in Settings</string>
+    <string name="error_credential_invalid_relogin">Credential invalid, please log in again</string>
+    <string name="error_credential_changed_reload">Credentials changed, reloading</string>
+    <string name="error_credential_changed_retry">Credentials changed, please retry</string>
+    <string name="error_network_check">Network error, please check your connection</string>
+    <string name="error_network_generic">Network error</string>
+    <string name="error_server_http">Server error (HTTP %1$d)</string>
+    <string name="error_rate_limited_retry">Too many requests%1$s</string>
+    <string name="error_rate_limited_retry_suffix">, retry in %1$d seconds</string>
+    <string name="error_trigger_not_supported">Usage activation is not supported</string>
+    <string name="error_select_model_first">Please select a model first</string>
+    <string name="error_cookie_not_found">No cookie captured, please make sure you\'re logged in</string>
+    <string name="error_login_url_missing">No login URL configured</string>
+    <string name="error_oauth_url_prefix">URL should start with %1$s</string>
+    <string name="error_oauth_auth_failed">Authorization failed: %1$s</string>
+    <string name="error_oauth_state_mismatch">State mismatch, please retry</string>
+    <string name="error_oauth_missing_code">Callback missing authorization code</string>
+    <string name="error_oauth_token_exchange">Token exchange failed, check the debug log</string>
+
+    <!-- ══════════ 触发用量 ══════════ -->
+    <string name="trigger_success_title">✓ Usage activated</string>
+    <string name="trigger_success_header">✓ Activation successful</string>
+    <string name="trigger_result_title">Request result</string>
+    <string name="trigger_error_prefix">Error: %1$s</string>
+    <string name="trigger_response_body">Response body:\n%1$s</string>
+    <string name="trigger_success_model">Model: %1$s</string>
+    <string name="trigger_success_response_id">Response ID: %1$s</string>
+    <string name="trigger_reply_header">Reply:</string>
+    <string name="trigger_reply_empty">(empty)</string>
+    <string name="trigger_reply_missing">(no reply content)</string>
+    <string name="trigger_parse_failed">(response parsing failed, but the request was sent)</string>
+    <string name="trigger_usage_prompt_completion_total">Usage: prompt=%1$s completion=%2$s total=%3$s tokens</string>
+    <string name="trigger_usage_input_output">Usage: input=%1$s output=%2$s tokens</string>
+    <string name="error_token_refresh_generic">Token refresh failed. Please log in again or import auth.json.</string>
+
+    <!-- ══════════ WebView 登录 ══════════ -->
+    <string name="title_webview_login">Sign in to %1$s</string>
+    <string name="dialog_login_done_title">Done logging in?</string>
+    <string name="dialog_login_done_body">If you finished signing in but the page didn\'t redirect, tap the button below to grab the cookie and save your session.</string>
+
+    <!-- ══════════ 调试日志 ══════════ -->
+    <string name="debug_log_empty">No log entries yet\nRefresh Codex usage and debug info will show up here</string>
+
+    <!-- ══════════ 小组件 ══════════ -->
+    <string name="widget_title_opencode">OpenCode Go · Usage</string>
+    <string name="widget_deepseek_balance">DeepSeek balance</string>
+    <string name="widget_auto_refresh">Auto refresh</string>
+    <string name="widget_service_quota">%1$s · Quota</string>
+    <string name="widget_quota_with_plan">%1$s · %2$s</string>
+    <string name="widget_updated_at">Updated %1$s</string>
+    <string name="widget_no_data">No data</string>
+    <string name="widget_refreshing">Refreshing…</string>
+
+    <!-- ══════════ 小技巧（AppTips） ══════════ -->
+    <string name="tip_1_title">Reorder cards by long-press</string>
+    <string name="tip_1_hint">Long-press a card to reorder it</string>
+    <string name="tip_1_detail">Long-press any service card on the home screen and drag it wherever you like. The order is saved automatically.</string>
+    <string name="tip_2_title">Widget top-left opens the app</string>
+    <string name="tip_2_hint">Tap the widget\'s top-left mark to open the app</string>
+    <string name="tip_2_detail">The RainyToken › mark at the top-left of the widget opens the app. Tapping elsewhere switches services.</string>
+    <string name="tip_3_title">Tap charts for details</string>
+    <string name="tip_3_hint">Tap a chart bar to see that time slot</string>
+    <string name="tip_3_detail">Tap or slide on the usage charts to inspect the exact values of a time slot.</string>
+    <string name="tip_4_title">Chart titles are clickable</string>
+    <string name="tip_4_hint">Tap a chart title for a per-model breakdown</string>
+    <string name="tip_4_detail">Tapping a chart card title (e.g. "Spending") shows a per-model breakdown dialog.</string>
+    <string name="tip_5_title">Switch chart timezone</string>
+    <string name="tip_5_hint">Usage details can toggle UTC+0 / UTC+8</string>
+    <string name="tip_5_detail">The usage details page can toggle between UTC+0 and UTC+8; chart labels follow along.</string>
+    <string name="tip_6_title">CCGO clear &amp; resync</string>
+    <string name="tip_6_hint">CCGO details can clear cache and resync</string>
+    <string name="tip_6_detail">The "Clear" button on the CCGO usage details page deletes local cache and re-fetches everything.</string>
+    <string name="tip_7_title">View usage details</string>
+    <string name="tip_7_hint">Service cards link to usage charts</string>
+    <string name="tip_7_detail">Configured service cards show a "View usage details" entry at the bottom that opens the charts.</string>
+    <string name="tip_8_title">Browse raw data</string>
+    <string name="tip_8_hint">Top-right of usage details opens raw records</string>
+    <string name="tip_8_detail">"Raw data" at the top-right of usage details lists every record with pagination.</string>
+    <string name="tip_9_title">Pull-to-refresh syncs usage</string>
+    <string name="tip_9_hint">Pull to refresh syncs balances and usage</string>
+    <string name="tip_9_detail">Pull-to-refresh on the home screen refreshes balances and also syncs OCGO / CCGO usage records.</string>
+    <string name="tip_10_title">Credential guides</string>
+    <string name="tip_10_hint">Credential pages include step-by-step guides</string>
+    <string name="tip_10_detail">The "How to get" button at the bottom of credential pages walks through every service step by step.</string>
+    <string name="tip_11_title">Clipboard auto-import</string>
+    <string name="tip_11_hint">Codex supports one-tap import from clipboard</string>
+    <string name="tip_11_detail">The Codex credential page supports "Auto-import from clipboard": paste auth.json and it fills in with one tap.</string>
+    <string name="tip_12_title">Jump to a page number</string>
+    <string name="tip_12_hint">Raw data page accepts a page number</string>
+    <string name="tip_12_detail">The raw data page lets you enter a page number to jump directly — no need to flip through pages.</string>
+    <string name="tip_13_title">Widget auto-refresh</string>
+    <string name="tip_13_hint">Swipe to the widget and it auto-refreshes</string>
+    <string name="tip_13_detail">The widget refreshes balances when you swipe to it, or tap the ↻ button manually.</string>
+
+    <!-- ══════════ 图表/明细 ══════════ -->
+    <string name="count_times">%1$d calls</string>
+    <string name="date_select_day">Pick a date</string>
+    <string name="date_select_month">Pick a month (any day)</string>
+    <string name="date_pick_start">Start date</string>
+    <string name="date_pick_end">End date</string>
+    <string name="chart_detail_cost">Spending breakdown</string>
+    <string name="chart_detail_requests">Request breakdown</string>
+    <string name="chart_detail_tokens">Token breakdown</string>
+    <string name="dialog_clear_title">Clear data</string>
+    <string name="dialog_clear_body">This clears all cached CommandCode usage and re-syncs. It takes a few seconds.</string>
+    <string name="dialog_clear_confirm_question">Continue?</string>
+    <string name="action_confirm_countdown">Confirm (%1$ds)</string>
+    <string name="action_confirm_clear">Yes, clear</string>
+    <string name="action_close">Close</string>
+    <string name="range_from">From %1$s</string>
+    <string name="range_to">To %1$s</string>
+    <string name="action_apply_custom_range">Apply custom range</string>
+    <string name="action_confirm">OK</string>
+    <string name="date_end_before_start">End date cannot be earlier than start date %1$s</string>
+    <string name="time_hm">Time %1$s:%2$s</string>
+    <string name="common_no_data">No data</string>
+    <string name="chart_total_label">Total: %1$s</string>
+    <string name="usage_total">Total</string>
+    <string name="usage_records">Records</string>
+    <string name="stat_cache_read">Cache read</string>
+    <string name="stat_cache_write">Cache write</string>
+    <string name="usage_cache_breakdown">Cache token breakdown</string>
+    <string name="usage_cache_read_note">※ Cache reads are included in "Input tokens"</string>
+    <string name="usage_calls">%1$d calls</string>
+    <string name="date_format_md">MMM d, EEEE</string>
+    <string name="daily_count_cost">%1$d calls · $%2$s</string>
+    <string name="raw_record_title">Raw data</string>
+    <string name="stat_cache_write_5m">Cache write (5m)</string>
+    <string name="stat_cache_write_1h">Cache write (1h)</string>
+    <string name="raw_cost_usd">Cost (USD)</string>
+    <string name="raw_cost_raw">Cost (raw)</string>
+
+    <!-- ══════════ 凭据编辑（C 组） ══════════ -->
+    <string name="help_codex_4"> ~/.config/codex-oauth-proxy/auth.json</string>
+    <string name="help_codex_5">3. Open it with a text editor,</string>
+    <string name="help_codex_6">   copy everything and paste it above</string>
+    <string name="help_codex_7">   JSON example:</string>
+    <string name="help_codex_8">   {"tokens": {</string>
+    <string name="help_codex_9">     "access_token": "...",</string>
+    <string name="help_codex_10">     "refresh_token": "...",</string>
+    <string name="help_codex_11">     "expiresAt": 1783727108252</string>
+    <string name="help_codex_12">   }}</string>
+    <string name="help_codex_note">Tip: the app auto-refreshes the token after import,</string>
+    <string name="help_codex_note2">no manual updates needed.</string>
+    <string name="credential_title_ollama">Ollama Pro credentials</string>
+    <string name="credential_hint_ollama">Copy the full cookie from your browser. After logging into ollama.com/settings, find the Cookie header in DevTools → Network and copy it.</string>
+    <string name="credential_update">Update credentials</string>
+    <string name="credential_save">Save credentials</string>
+    <string name="action_test_and_save">Test &amp; save</string>
+    <string name="action_open_ollama_settings">Open Ollama Settings in browser</string>
+    <string name="action_copy_login_url">Copy login URL to clipboard</string>
+    <string name="activate_api_key_optional">One-tap usage API Key (optional)</string>
+    <string name="hint_ollama_trigger_key">With an Ollama Cloud API Key, the details page can send one request to activate usage stats. Get it at ollama.com/settings → API Keys.</string>
+    <string name="placeholder_ollama_api_key">ollama-xxx or sk-xxx</string>
+    <string name="action_save_api_key">Save API Key</string>
+    <string name="credential_title_opencode_go">OpenCode Go credentials</string>
+    <string name="credential_hint_opencode_go">Needs both auth cookie and workspaceId. The app fetches the dashboard via OkHttp and parses 5h/week/month usage.</string>
+    <string name="action_import_from_clipboard">Auto-import from clipboard</string>
+    <string name="placeholder_workspace_id">The {id} segment of the dashboard URL</string>
+    <string name="field_auth_cookie_value">auth Cookie value</string>
+    <string name="placeholder_auth_cookie">F12 → Cookies → opencode.ai → Value of auth</string>
+    <string name="action_how_get_two_values">How to get these two?</string>
+    <string name="action_open_login_entry">Open login page in browser</string>
+    <string name="hint_opencode_trigger_key">With an OpenCode Zen API Key, the details page can send one request to activate usage stats. Get it at opencode.ai/settings → API Keys.</string>
+    <string name="credential_title_ccgo">CommandCode Go credentials</string>
+    <string name="credential_hint_ccgo">Needs an API Key (for balance). Session Cookie (optional) for usage records, copied from browser DevTools. Balance works without it.</string>
+    <string name="placeholder_api_key_from_settings">Generate at Settings → API Keys</string>
+    <string name="field_session_cookie_optional">Session Cookie (optional)</string>
+    <string name="placeholder_session_cookie">F12 → Cookies → commandcode.ai → select all &amp; paste</string>
+    <string name="action_how_get_api_key_cookie">How to get API Key and Cookie?</string>
+    <string name="api_key_form_title">Enter API Key</string>
+    <string name="api_key_form_hint">Credentials are encrypted with Android Keystore (AES-256 GCM) and stored in local DataStore.</string>
+    <string name="action_update">Update</string>
+    <string name="credential_title_codex">Codex / ChatGPT Plus credentials</string>
+    <string name="credential_hint_codex">OAuth login fetches credentials automatically. You can also paste auth.json manually.</string>
+    <string name="action_oauth_login">🔐 OAuth login (recommended)</string>
+    <string name="or_manual_import">── or import manually ──</string>
+    <string name="field_auth_json">Full auth.json content</string>
+    <string name="placeholder_auth_json">Paste the full {"tokens": {...}} JSON</string>
+    <string name="credential_import_save">Import &amp; save</string>
+    <string name="action_how_get_auth_json">How to get auth.json?</string>
+    <string name="manual_cookie_title">Paste session</string>
+    <string name="manual_cookie_hint">Google OAuth blocks the in-app WebView, so log in with a browser and paste the cookie here.</string>
+    <string name="field_cookie_string">Cookie string</string>
+    <string name="action_save_cookie">Save cookie</string>
+
+    <!-- ══════════ 服务详情/凭据校验（D 组） ══════════ -->
+    <string name="error_parse_empty_body">Empty response body</string>
+    <string name="error_parse_not_json">Response root is not a JSON object</string>
+    <string name="error_parse_no_windows">No usage window data found</string>
+    <string name="error_parse_no_models">Model list not found</string>
+    <string name="error_parse_models_empty">Model list is empty</string>
+    <string name="error_parse_malformed">Response format is abnormal</string>
+    <string name="window_every_week">Weekly</string>
+    <string name="msg_model_call_count">Model call count</string>
+    <string name="msg_stale_cache">Cached data · %1$s</string>
+    <string name="msg_showing_last_balance">Showing the last successfully fetched balance</string>
+    <string name="msg_monthly_spent">%1$s%2$s spent this month</string>
+    <string name="msg_balance_breakdown">Balance breakdown</string>
+    <string name="msg_granted_balance">Granted balance</string>
+    <string name="msg_topped_up_balance">Top-ups</string>
+    <string name="msg_loading_models">Loading model list...</string>
+    <string name="msg_select_model">Select model</string>
+    <string name="action_refresh_models">Refresh model list</string>
+    <string name="msg_triggering">Activating...</string>
+    <string name="action_retry_trigger">Retry usage activation</string>
+    <string name="action_trigger_usage">⚡ One-tap usage activation</string>
+    <string name="action_refresh_balance">Refresh balance</string>
+    <string name="action_relogin">Log in again</string>
+    <string name="action_configure_credential">Configure credential</string>
+    <string name="main_card_current_balance">Current balance</string>
+    <string name="main_card_5h_usage">5h live usage</string>
+    <string name="main_card_monthly_balance">Monthly balance</string>
+    <string name="main_card_session_usage">Session usage</string>
+    <string name="msg_please_select_model">Please select a model</string>
+    <string name="trigger_error_detail">Error details:</string>
+    <string name="trigger_api_response">API response:</string>
+    <string name="action_copy">Copy</string>
+    <string name="msg_key_length">*** (length %1$d) ***</string>
+    <string name="msg_key_masked">%1$s***%2$s (length %3$d)</string>
+    <string name="error_cookie_format">Bad cookie format, expected name1=value1; name2=value2</string>
+    <string name="msg_cookies_saved">%1$d cookies saved</string>
+    <string name="error_auth_json_empty">Please paste the auth.json content</string>
+    <string name="error_auth_json_missing_tokens">auth.json is missing access_token or refresh_token</string>
+    <string name="msg_codex_saved">Codex credential saved; token auto-refreshes when expiring</string>
+    <string name="error_auth_json_parse">Parse failed: %1$s</string>
+    <string name="msg_connect_success_dollar">Connected! Balance: $%1$s</string>
+    <string name="msg_api_key_saved">API Key saved</string>
+    <string name="msg_connect_success_session">Connected! Session: %1$s%% · %2$s</string>
+    <string name="msg_credential_deleted">Credential deleted</string>
+    <string name="error_clipboard_empty">Clipboard is empty</string>
+    <string name="msg_clipboard_ws_auth">Recognized workspaceId and auth cookie</string>
+    <string name="msg_clipboard_ws_only">Recognized workspaceId, please paste the auth cookie too</string>
+    <string name="msg_clipboard_auth_only">Recognized auth cookie, please paste the workspaceId too</string>
+    <string name="error_clipboard_none">No valid credential recognized</string>
+
+    <!-- ══════════ Codex OAuth 登录页 ══════════ -->
+    <string name="oauth_screen_title">Codex OAuth Login</string>
+    <string name="oauth_exchanging">Exchanging token...</string>
+    <string name="action_retry">Retry</string>
+    <string name="oauth_headless_title">Headless login</string>
+    <string name="oauth_steps">1. Tap "Open in browser" or copy the link below to a browser\n2. Complete login &amp; authorization on the OpenAI page\n3. The browser redirects to a localhost address (page not loading is normal)\n4. Copy the full URL from the address bar and paste it below\n5. Tap "Submit callback URL"</string>
+    <string name="oauth_auth_url_label">Authorization link</string>
+    <string name="action_open_in_browser">Open in browser</string>
+    <string name="action_copy_link">Copy link</string>
+    <string name="oauth_paste_callback_hint">── paste the callback URL after login ──</string>
+    <string name="oauth_callback_url_label">Callback URL</string>
+    <string name="oauth_callback_url_placeholder">http://localhost:1455/auth/callback?code=...</string>
+    <string name="action_submit_callback">Submit callback URL</string>
+    <string name="action_regenerate_link">Regenerate auth link</string>
+    <string name="oauth_preparing">Preparing authorization...</string>
 </resources>

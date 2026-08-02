@@ -52,13 +52,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rainy.token.R
 import com.rainy.token.domain.model.ServiceBalance
+import com.rainy.token.domain.model.TriggerSummary
 import com.rainy.token.domain.service.FetchMethod
 import com.rainy.token.domain.service.ServiceConfigProvider
 import com.rainy.token.domain.service.ServiceType
@@ -66,6 +69,8 @@ import com.rainy.token.ui.components.ServiceIcon
 import com.rainy.token.ui.components.StatusChip
 import com.rainy.token.ui.components.StatusLevel
 import com.rainy.token.ui.components.StatusStyle
+import com.rainy.token.ui.components.asString
+import com.rainy.token.ui.components.DurationText
 import com.rainy.token.ui.components.formatAmount
 import com.rainy.token.ui.components.formatResetInSec
 import com.rainy.token.ui.theme.inkMuted
@@ -135,7 +140,7 @@ fun ServiceDetailScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.Filled.ArrowBack,
-                            contentDescription = "返回",
+                            contentDescription = stringResource(R.string.action_back),
                             tint = StrawberryPink
                         )
                     }
@@ -177,7 +182,7 @@ fun ServiceDetailScreen(
 
             // 错误信息（如有）
             (uiState.state as? State.Error)?.let { err ->
-                item { ErrorCard(message = err.message) }
+                item { ErrorCard(message = err.message.asString()) }
             }
 
             // 凭据状态条
@@ -213,15 +218,18 @@ fun ServiceDetailScreen(
     // 响应弹窗（成功和失败都弹）
     when (triggerState) {
         is TriggerState.Success -> ResponseDialog(
-            title = "✓ 用量已激活",
-            responseBody = (triggerState as TriggerState.Success).responseBody,
+            title = stringResource(R.string.trigger_success_title),
+            responseBody = buildTriggerSummaryText((triggerState as TriggerState.Success).summary),
             isError = false,
             onDismiss = { viewModel.dismissTrigger() }
         )
         is TriggerState.Error -> ResponseDialog(
-            title = "请求结果",
-            responseBody = (triggerState as TriggerState.Error).let { 
-                "错误: ${it.message}" + (it.responseBody?.let { body -> "\n\n响应内容:\n$body" } ?: "")
+            title = stringResource(R.string.trigger_result_title),
+            responseBody = (triggerState as TriggerState.Error).let {
+                stringResource(R.string.trigger_error_prefix, it.message.asString()) +
+                    (it.responseBody?.let { body ->
+                        "\n\n" + stringResource(R.string.trigger_response_body, body)
+                    } ?: "")
             },
             isError = true,
             onDismiss = { viewModel.dismissTrigger() }
@@ -259,7 +267,10 @@ private fun CommandCodeGoUsageCard(state: State) {
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                text = "用量窗口${if (planName.isNotBlank()) " · $planName" else ""}",
+                text = stringResource(
+                    R.string.usage_window_title,
+                    if (planName.isNotBlank()) " · $planName" else ""
+                ),
                 style = MaterialTheme.typography.labelLarge,
                 color = inkMuted()
             )
@@ -271,7 +282,7 @@ private fun CommandCodeGoUsageCard(state: State) {
             if (fiveHourUsed != null && fiveHourCap != null && fiveHourCap > 0) {
                 val pct = ((fiveHourUsed / fiveHourCap) * 100).toFloat().coerceIn(0f, 100f)
                 UsageWindowRow(
-                    label = "5 小时滚动",
+                    label = stringResource(R.string.window_5h_rolling),
                     pct = pct,
                     resetInSec = extras["fiveHour.resetInSec"]?.toLongOrNull()
                 )
@@ -286,7 +297,7 @@ private fun CommandCodeGoUsageCard(state: State) {
             if (weeklyUsed != null && weeklyCap != null && weeklyCap > 0) {
                 val pct = ((weeklyUsed / weeklyCap) * 100).toFloat().coerceIn(0f, 100f)
                 UsageWindowRow(
-                    label = "本周",
+                    label = stringResource(R.string.window_weekly),
                     pct = pct,
                     resetInSec = extras["weekly.resetInSec"]?.toLongOrNull()
                 )
@@ -300,19 +311,23 @@ private fun CommandCodeGoUsageCard(state: State) {
                 val used = monthlyTotal - monthlyRemaining
                 val pct = ((used / monthlyTotal) * 100).toFloat().coerceIn(0f, 100f)
                 UsageWindowRow(
-                    label = "本月",
+                    label = stringResource(R.string.window_monthly),
                     pct = pct,
                     resetInSec = extras["billingPeriodEnd"]?.let { parseIsoDuration(it) }
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "已用 \$${formatAmount(used)} / 共 \$${formatAmount(monthlyTotal)}",
+                    text = stringResource(
+                        R.string.usage_spent_total,
+                        formatAmount(used),
+                        formatAmount(monthlyTotal)
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = inkMuted()
                 )
             } else {
                 Text(
-                    text = "剩余 \$${formatAmount(monthlyRemaining)}",
+                    text = stringResource(R.string.usage_remaining, formatAmount(monthlyRemaining)),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -323,7 +338,7 @@ private fun CommandCodeGoUsageCard(state: State) {
                 Spacer(modifier = Modifier.height(8.dp))
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Spacer(modifier = Modifier.height(8.dp))
-                BreakdownRow("额外充值", purchased, "$")
+                BreakdownRow(stringResource(R.string.usage_extra_credits), purchased, "$")
             }
         }
     }
@@ -365,13 +380,13 @@ private fun OpenCodeGoWindowsCard(state: State) {
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                text = "用量窗口",
+                text = stringResource(R.string.usage_window_title_plain),
                 style = MaterialTheme.typography.labelLarge,
                 color = inkMuted()
             )
             Spacer(modifier = Modifier.height(12.dp))
             UsageWindowRow(
-                label = "5 小时滚动",
+                label = stringResource(R.string.window_5h_rolling),
                 pct = extras["rolling.pct"]?.toFloatOrNull(),
                 resetInSec = extras["rolling.resetInSec"]?.toLongOrNull()
             )
@@ -379,7 +394,7 @@ private fun OpenCodeGoWindowsCard(state: State) {
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(modifier = Modifier.height(14.dp))
             UsageWindowRow(
-                label = "本周",
+                label = stringResource(R.string.window_weekly),
                 pct = extras["weekly.pct"]?.toFloatOrNull(),
                 resetInSec = extras["weekly.resetInSec"]?.toLongOrNull()
             )
@@ -387,7 +402,7 @@ private fun OpenCodeGoWindowsCard(state: State) {
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(modifier = Modifier.height(14.dp))
             UsageWindowRow(
-                label = "本月",
+                label = stringResource(R.string.window_monthly),
                 pct = extras["monthly.pct"]?.toFloatOrNull(),
                 resetInSec = extras["monthly.resetInSec"]?.toLongOrNull()
             )
@@ -397,6 +412,11 @@ private fun OpenCodeGoWindowsCard(state: State) {
 
 @Composable
 private fun UsageWindowRow(label: String, pct: Float?, resetInSec: Long?, decimals: Int = 0) {
+    val durationText = DurationText(
+        day = stringResource(R.string.format_day),
+        hour = stringResource(R.string.format_hour),
+        minute = stringResource(R.string.format_minute)
+    )
     val pctValue = (pct ?: 0f).coerceIn(0f, 100f)
     Column {
         Row(
@@ -440,7 +460,7 @@ private fun UsageWindowRow(label: String, pct: Float?, resetInSec: Long?, decima
         if (resetInSec != null && resetInSec > 0) {
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "${formatResetInSec(resetInSec)}后重置",
+                text = stringResource(R.string.service_reset_in, formatResetInSec(resetInSec, durationText)),
                 style = MaterialTheme.typography.bodySmall,
                 color = inkMuted()
             )
@@ -468,7 +488,10 @@ private fun CodexUsageCard(state: State) {
     if (windows.isEmpty()) return
 
     // 判断是否有 5h 窗口
-    val has5h = windows.any { it.label.contains("5") && it.label.contains("小时") }
+    val has5h = windows.any {
+        it.rawLabel.equals("5h", ignoreCase = true) ||
+            (it.rawLabel.contains("5") && it.rawLabel.contains("小时"))
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -479,7 +502,7 @@ private fun CodexUsageCard(state: State) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "用量窗口",
+                    text = stringResource(R.string.usage_window_title_plain),
                     style = MaterialTheme.typography.labelLarge,
                     color = inkMuted()
                 )
@@ -498,7 +521,7 @@ private fun CodexUsageCard(state: State) {
             // 没有 5h 窗口时，在顶部插入空槽位
             if (!has5h) {
                 UsageWindowRow(
-                    label = "5 小时",
+                    label = stringResource(R.string.window_5h),
                     pct = null,
                     resetInSec = null,
                     decimals = 2
@@ -518,7 +541,7 @@ private fun CodexUsageCard(state: State) {
                     (it - System.currentTimeMillis()) / 1000
                 }?.takeIf { it > 0 }
                 UsageWindowRow(
-                    label = window.label,
+                    label = codexWindowLabel(window.rawLabel),
                     pct = window.usedPct,
                     resetInSec = resetInSec,
                     decimals = 2
@@ -529,7 +552,7 @@ private fun CodexUsageCard(state: State) {
 }
 
 private data class CodexWindow(
-    val label: String,
+    val rawLabel: String,
     val usedPct: Float,
     val resetAt: Long?
 )
@@ -542,16 +565,17 @@ private fun extractCodexWindows(extras: Map<String, String>): List<CodexWindow> 
         val remaining = extras["window_${i}.remainingPct"]?.toFloatOrNull() ?: 0f
         val resetAt = extras["window_${i}.resetAt"]?.toLongOrNull()?.takeIf { it > 0 }
         val usedPct = (100f - remaining).coerceIn(0f, 100f)
-        result.add(CodexWindow(formatCodexWindowLabel(rawLabel), usedPct, resetAt))
+        result.add(CodexWindow(rawLabel, usedPct, resetAt))
         i++
     }
     return result
 }
 
-private fun formatCodexWindowLabel(raw: String): String = when (raw.lowercase()) {
-    "5h" -> "5 小时"
-    "7d", "每周" -> "本周"
-    "30d", "每月" -> "本月"
+@Composable
+private fun codexWindowLabel(raw: String): String = when (raw.lowercase()) {
+    "5h" -> stringResource(R.string.window_5h)
+    "7d", "每周" -> stringResource(R.string.window_weekly)
+    "30d", "每月" -> stringResource(R.string.window_monthly)
     else -> raw
 }
 
@@ -581,7 +605,7 @@ private fun OllamaUsageCard(state: State) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "用量窗口",
+                    text = stringResource(R.string.usage_window_title_plain),
                     style = MaterialTheme.typography.labelLarge,
                     color = inkMuted()
                 )
@@ -595,7 +619,7 @@ private fun OllamaUsageCard(state: State) {
             }
             Spacer(modifier = Modifier.height(12.dp))
             UsageWindowRow(
-                label = "5 小时",
+                label = stringResource(R.string.window_5h),
                 pct = extras["session.pct"]?.toFloatOrNull(),
                 resetInSec = extras["session.resetAt"]?.toLongOrNull()?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 },
                 decimals = 2
@@ -608,7 +632,7 @@ private fun OllamaUsageCard(state: State) {
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(modifier = Modifier.height(14.dp))
             UsageWindowRow(
-                label = "每周",
+                label = stringResource(R.string.window_every_week),
                 pct = extras["weekly.pct"]?.toFloatOrNull(),
                 resetInSec = extras["weekly.resetAt"]?.toLongOrNull()?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 },
                 decimals = 2
@@ -645,7 +669,7 @@ private fun parseModelRequests(raw: String?): List<Pair<String, Int>> {
 private fun ModelRequestList(models: List<Pair<String, Int>>) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
-            text = "模型调用次数",
+            text = stringResource(R.string.msg_model_call_count),
             style = MaterialTheme.typography.labelSmall,
             color = inkMuted()
         )
@@ -702,7 +726,7 @@ private fun MainBalanceCard(state: State, service: ServiceType) {
                     BalanceBigNumber(state.data)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "缓存数据 · ${formatTime(state.lastFetchedAt)}",
+                        text = stringResource(R.string.msg_stale_cache, formatTime(state.lastFetchedAt)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error
                     )
@@ -711,7 +735,7 @@ private fun MainBalanceCard(state: State, service: ServiceType) {
                     BalanceBigNumber(state.cached)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "显示的是上次成功获取的余额",
+                        text = stringResource(R.string.msg_showing_last_balance),
                         style = MaterialTheme.typography.bodySmall,
                         color = inkMuted()
                     )
@@ -756,7 +780,7 @@ private fun BalanceBigNumber(balance: ServiceBalance?) {
     if (!balance.isAvailable) {
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "服务当前不可用",
+            text = stringResource(R.string.service_unavailable),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.error
         )
@@ -764,7 +788,7 @@ private fun BalanceBigNumber(balance: ServiceBalance?) {
     balance.monthlySpent?.let { spent ->
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "本月消费 ${formatAmount(spent)}${balance.unit}",
+            text = stringResource(R.string.msg_monthly_spent, formatAmount(spent), balance.unit),
             style = MaterialTheme.typography.bodyMedium,
             color = inkMuted()
         )
@@ -795,16 +819,16 @@ private fun DeepSeekBreakdownCard(state: State) {
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                text = "余额构成",
+                text = stringResource(R.string.msg_balance_breakdown),
                 style = MaterialTheme.typography.labelLarge,
                 color = inkMuted()
             )
             Spacer(modifier = Modifier.height(12.dp))
-            BreakdownRow("赠送余额", granted, balance!!.unit)
+            BreakdownRow(stringResource(R.string.msg_granted_balance), granted, balance!!.unit)
             Spacer(modifier = Modifier.height(8.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(modifier = Modifier.height(8.dp))
-            BreakdownRow("自费充值", toppedUp, balance.unit)
+            BreakdownRow(stringResource(R.string.msg_topped_up_balance), toppedUp, balance.unit)
         }
     }
 }
@@ -850,7 +874,7 @@ private fun ErrorCard(message: String) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "刷新失败",
+                text = stringResource(R.string.status_refresh_failed),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.error
@@ -868,9 +892,9 @@ private fun ErrorCard(message: String) {
 @Composable
 private fun CredentialStatusRow(hasCredential: Boolean, isManualMode: Boolean) {
     val style = when {
-        isManualMode -> StatusStyle("手动输入模式", StatusLevel.INFO)
-        hasCredential -> StatusStyle("凭据已配置", StatusLevel.OK)
-        else -> StatusStyle("未配置凭据", StatusLevel.ERROR)
+        isManualMode -> StatusStyle(R.string.status_manual_mode, StatusLevel.INFO)
+        hasCredential -> StatusStyle(R.string.status_credential_configured, StatusLevel.OK)
+        else -> StatusStyle(R.string.status_not_configured_cred, StatusLevel.ERROR)
     }
     StatusChip(style = style)
 }
@@ -908,7 +932,11 @@ private fun ActionButtons(
                         strokeWidth = 2.dp
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("加载模型列表...", style = MaterialTheme.typography.bodySmall, color = inkMuted())
+                    Text(
+                        stringResource(R.string.msg_loading_models),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = inkMuted()
+                    )
                 }
             } else if (models.isNotEmpty()) {
                 Row(
@@ -916,7 +944,7 @@ private fun ActionButtons(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "选择模型",
+                        text = stringResource(R.string.msg_select_model),
                         style = MaterialTheme.typography.labelMedium,
                         color = inkMuted()
                     )
@@ -927,7 +955,7 @@ private fun ActionButtons(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Refresh,
-                            contentDescription = "刷新模型列表",
+                            contentDescription = stringResource(R.string.action_refresh_models),
                             tint = StrawberryPink,
                             modifier = Modifier.size(18.dp)
                         )
@@ -959,7 +987,7 @@ private fun ActionButtons(
                             strokeWidth = 2.dp
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("激活中...")
+                        Text(stringResource(R.string.msg_triggering))
                     }
                 }
                 is TriggerState.Error -> {
@@ -971,10 +999,10 @@ private fun ActionButtons(
                             contentColor = MaterialTheme.colorScheme.error
                         )
                     ) {
-                        Text("重试激活用量")
+                        Text(stringResource(R.string.action_retry_trigger))
                     }
                     Text(
-                        text = triggerState.message,
+                        text = triggerState.message.asString(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.padding(horizontal = 4.dp)
@@ -986,7 +1014,7 @@ private fun ActionButtons(
                         modifier = Modifier.fillMaxWidth(),
                         enabled = state !is State.Loading && selectedModel != null
                     ) {
-                        Text("⚡ 一键激活用量")
+                        Text(stringResource(R.string.action_trigger_usage))
                     }
                 }
                 is TriggerState.Success -> {
@@ -1008,13 +1036,13 @@ private fun ActionButtons(
             ) {
                 Icon(Icons.Filled.Refresh, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("刷新余额")
+                Text(stringResource(R.string.action_refresh_balance))
             }
             OutlinedButton(
                 onClick = onConfigureCredential,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("重新登录")
+                Text(stringResource(R.string.action_relogin))
             }
         } else if (!hasCredential) {
             Button(
@@ -1025,26 +1053,27 @@ private fun ActionButtons(
                     contentColor = Color.White
                 )
             ) {
-                Text("配置凭据")
+                Text(stringResource(R.string.action_configure_credential))
             }
         }
     }
 }
 
+@Composable
 private fun mainCardLabel(service: ServiceType): String = when (service) {
-    ServiceType.DEEPSEEK -> "当前余额"
-    ServiceType.OPENCODE_GO -> "5h 实时用量"
-    ServiceType.COMMANDCODE_GO -> "月度余额"
-    ServiceType.CODEX -> "用量"
-    ServiceType.OLLAMA -> "Session 用量"
+    ServiceType.DEEPSEEK -> stringResource(R.string.main_card_current_balance)
+    ServiceType.OPENCODE_GO -> stringResource(R.string.main_card_5h_usage)
+    ServiceType.COMMANDCODE_GO -> stringResource(R.string.main_card_monthly_balance)
+    ServiceType.CODEX -> stringResource(R.string.window_usage)
+    ServiceType.OLLAMA -> stringResource(R.string.main_card_session_usage)
 }
 
 private fun stateToChip(state: State): StatusStyle = when (state) {
-    is State.Loading -> StatusStyle("加载中", StatusLevel.INFO)
-    is State.Fresh -> StatusStyle("最新", StatusLevel.OK)
-    is State.Stale -> StatusStyle("缓存", StatusLevel.WARNING)
-    is State.Error -> StatusStyle("失败", StatusLevel.ERROR)
-    is State.ManualModeHint -> StatusStyle("待输入", StatusLevel.WARNING)
+    is State.Loading -> StatusStyle(R.string.status_loading, StatusLevel.INFO)
+    is State.Fresh -> StatusStyle(R.string.status_fresh, StatusLevel.OK)
+    is State.Stale -> StatusStyle(R.string.status_stale, StatusLevel.WARNING)
+    is State.Error -> StatusStyle(R.string.status_failed, StatusLevel.ERROR)
+    is State.ManualModeHint -> StatusStyle(R.string.status_pending_input, StatusLevel.WARNING)
 }
 
 private fun formatTime(epochMillis: Long): String {
@@ -1062,7 +1091,7 @@ private fun ModelDropdown(
     onSelect: (String) -> Unit
 ) {
     var expanded by remember { androidx.compose.runtime.mutableStateOf(false) }
-    val display = selectedModel ?: "请选择模型"
+    val display = selectedModel ?: stringResource(R.string.msg_please_select_model)
 
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -1094,6 +1123,43 @@ private fun ModelDropdown(
 
 // ── Codex 一键激活用量：响应弹窗 ──
 
+/** 把结构化的激活摘要组装为本地化文本（Repository 不再拼接展示文案）。 */
+@Composable
+private fun buildTriggerSummaryText(summary: TriggerSummary): String = buildString {
+    appendLine(stringResource(R.string.trigger_success_header))
+    appendLine(stringResource(R.string.trigger_success_model, summary.model))
+    summary.responseId?.let { appendLine(stringResource(R.string.trigger_success_response_id, it)) }
+    appendLine()
+    appendLine(stringResource(R.string.trigger_reply_header))
+    if (summary.parseFailed) {
+        appendLine(stringResource(R.string.trigger_parse_failed))
+    } else {
+        appendLine(
+            summary.reply?.ifEmpty { stringResource(R.string.trigger_reply_empty) }
+                ?: stringResource(R.string.trigger_reply_missing)
+        )
+    }
+    if (summary.inputTokens != null || summary.outputTokens != null) {
+        appendLine()
+        appendLine(
+            if (summary.totalTokens != null) {
+                stringResource(
+                    R.string.trigger_usage_prompt_completion_total,
+                    summary.inputTokens ?: "—",
+                    summary.outputTokens ?: "—",
+                    summary.totalTokens ?: "—"
+                )
+            } else {
+                stringResource(
+                    R.string.trigger_usage_input_output,
+                    summary.inputTokens ?: "—",
+                    summary.outputTokens ?: "—"
+                )
+            }
+        )
+    }
+}.trim()
+
 @Composable
 private fun ResponseDialog(
     title: String,
@@ -1110,7 +1176,11 @@ private fun ResponseDialog(
         text = {
             Column {
                 Text(
-                    text = if (isError) "错误详情：" else "API 响应内容：",
+                    text = if (isError) {
+                        stringResource(R.string.trigger_error_detail)
+                    } else {
+                        stringResource(R.string.trigger_api_response)
+                    },
                     style = MaterialTheme.typography.labelMedium,
                     color = if (isError) MaterialTheme.colorScheme.error else inkMuted()
                 )
@@ -1134,7 +1204,7 @@ private fun ResponseDialog(
                     val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                     clipboard.setPrimaryClip(android.content.ClipData.newPlainText("API Response", responseBody))
                 }) {
-                    Text("复制")
+                    Text(stringResource(R.string.action_copy))
                 }
                 Button(
                     onClick = onDismiss,
@@ -1143,7 +1213,7 @@ private fun ResponseDialog(
                         contentColor = Color.White
                     )
                 ) {
-                    Text("关闭")
+                    Text(stringResource(R.string.action_close))
                 }
             }
         }

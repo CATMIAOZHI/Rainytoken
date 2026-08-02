@@ -8,11 +8,15 @@ import com.rainy.token.data.debug.DebugLog
 import com.rainy.token.data.repository.CredentialRepository
 import com.rainy.token.data.repository.RepositoryError
 import com.rainy.token.data.repository.TriggerError
+import com.rainy.token.data.repository.TriggerErrorReason
 import com.rainy.token.domain.model.Credential
 import com.rainy.token.domain.model.CredentialStatus
 import com.rainy.token.domain.model.ServiceBalance
+import com.rainy.token.domain.model.TriggerSummary
+import com.rainy.token.R
 import com.rainy.token.domain.service.ServiceType
 import com.rainy.token.domain.usecase.RefreshBalanceUseCase
+import com.rainy.token.ui.components.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -150,7 +154,7 @@ class ServiceDetailViewModel @Inject constructor(
                             cached = local.cachedBalance,
                             state = State.Error(
                                 local.cachedBalance?.balance,
-                                "凭据未配置",
+                                UiText.Resource(R.string.error_credential_not_configured),
                                 RepositoryError.InvalidCredential()
                             )
                         )
@@ -303,7 +307,10 @@ class ServiceDetailViewModel @Inject constructor(
         val service = _serviceType.value ?: return
         val serviceGen = serviceGeneration
         val model = _selectedModel.value ?: run {
-            _triggerState.value = TriggerState.Error("请先选择模型", null)
+            _triggerState.value = TriggerState.Error(
+                UiText.Resource(R.string.error_select_model_first),
+                null
+            )
             return
         }
         viewModelScope.launch {
@@ -319,39 +326,49 @@ class ServiceDetailViewModel @Inject constructor(
             if (serviceGen != serviceGeneration || _serviceType.value != service) return@launch
 
             result
-                .onSuccess { responseBody ->
-                    _triggerState.value = TriggerState.Success(responseBody)
+                .onSuccess { summary ->
+                    _triggerState.value = TriggerState.Success(summary)
                     kotlinx.coroutines.delay(2000)
                     if (serviceGen == serviceGeneration && _serviceType.value == service) {
                         refresh()
                     }
                 }
                 .onFailure { error ->
-                    val message: String
+                    val message: UiText
                     val responseBody: String?
                     when (error) {
                         is TriggerError -> {
-                            message = error.summary
+                            // reason 结构化：token 刷新失败显示本地化文案（summary 中文提示只进日志）；
+                            // 其余（HTTP 错误）summary 为 ASCII 可直接展示
+                            message = if (error.reason == TriggerErrorReason.TOKEN_REFRESH) {
+                                UiText.Resource(R.string.error_token_refresh_generic)
+                            } else {
+                                UiText.Dynamic(error.summary)
+                            }
                             responseBody = error.responseBody.ifBlank { null }
                         }
 
                         is RepositoryError.InvalidCredential -> {
-                            message = error.message ?: "凭据无效，请重新登录"
+                            message = UiText.Resource(R.string.error_credential_invalid_relogin)
                             responseBody = null
                         }
 
                         is RepositoryError.CredentialChanged -> {
-                            message = "凭据已变更，请重新操作"
+                            message = UiText.Resource(R.string.error_credential_changed_retry)
                             responseBody = null
                         }
 
                         is RepositoryError.Network -> {
-                            message = "网络异常"
+                            message = UiText.Resource(R.string.error_network_generic)
                             responseBody = null
                         }
 
                         else -> {
-                            message = error.message ?: "未知错误"
+                            message = if ((error as? RepositoryError.Unknown)?.cause is IllegalArgumentException) {
+                                UiText.Resource(R.string.error_trigger_not_supported)
+                            } else {
+                                errorMessage(error)
+                            }
                             responseBody = null
                         }
                     }
@@ -418,13 +435,17 @@ class ServiceDetailViewModel @Inject constructor(
                 isManual && cached != null -> State.Stale(cached.balance, cached.fetchedAt)
                 isManual -> State.ManualModeHint
                 status.state == CredentialStatus.State.NOT_CONFIGURED ->
-                    State.Error(null, "凭据未配置", RepositoryError.InvalidCredential())
+                    State.Error(
+                        null,
+                        UiText.Resource(R.string.error_credential_not_configured),
+                        RepositoryError.InvalidCredential()
+                    )
                 cached != null && status.state == CredentialStatus.State.OK ->
                     State.Stale(cached.balance, cached.fetchedAt)
                 cached != null ->
                     State.Error(
                         cached.balance,
-                        "凭据未配置或已过期",
+                        UiText.Resource(R.string.error_credential_not_configured_expired),
                         RepositoryError.InvalidCredential()
                     )
                 else -> State.Loading
@@ -455,7 +476,7 @@ class ServiceDetailViewModel @Inject constructor(
         val mergedState: State = when {
             !hasCredential -> State.Error(
                 mergedCache?.balance,
-                "凭据未配置",
+                UiText.Resource(R.string.error_credential_not_configured),
                 RepositoryError.InvalidCredential()
             )
             current.state is State.Loading -> current.state
@@ -498,15 +519,34 @@ class ServiceDetailViewModel @Inject constructor(
             serviceGen != serviceGeneration ||
             _serviceType.value != type
 
-    private fun errorMessage(error: Throwable): String = when (error) {
-        is RepositoryError.InvalidCredential -> "凭据无效，请在设置中重新配置"
-        is RepositoryError.CredentialChanged -> "凭据已变更，正在重新加载"
-        is RepositoryError.RateLimited ->
-            "请求过于频繁${error.retryAfterSeconds?.let { "，请 ${it} 秒后重试" } ?: ""}"
-        is RepositoryError.Network -> "网络异常，请检查网络"
-        is RepositoryError.ServerError -> "服务端异常 (HTTP ${error.code})"
-        is RepositoryError.ParseError -> "数据解析失败: ${error.message}"
-        else -> error.message ?: "未知错误"
+    private fun errorMessage(error: Throwable): UiText = when (error) {
+        is RepositoryError.InvalidCredential ->
+            UiText.Resource(R.string.error_credential_invalid_reconfigure)
+        is RepositoryError.CredentialChanged ->
+            UiText.Resource(R.string.error_credential_changed_reload)
+        is RepositoryError.RateLimited -> UiText.Resource(
+            R.string.error_rate_limited_retry,
+            listOf(
+                error.retryAfterSeconds?.let {
+                    UiText.Resource(R.string.error_rate_limited_retry_suffix, listOf(it))
+                } ?: ""
+            )
+        )
+        is RepositoryError.Network -> UiText.Resource(R.string.error_network_check)
+        is RepositoryError.ServerError ->
+            UiText.Resource(R.string.error_server_http, listOf(error.code))
+        is RepositoryError.ParseError -> when (error.reason) {
+            RepositoryError.ParseErrorReason.EMPTY_BODY -> UiText.Resource(R.string.error_parse_empty_body)
+            RepositoryError.ParseErrorReason.NOT_JSON_OBJECT -> UiText.Resource(R.string.error_parse_not_json)
+            RepositoryError.ParseErrorReason.NO_WINDOWS -> UiText.Resource(R.string.error_parse_no_windows)
+            RepositoryError.ParseErrorReason.NO_MODELS -> UiText.Resource(R.string.error_parse_no_models)
+            RepositoryError.ParseErrorReason.MODELS_EMPTY -> UiText.Resource(R.string.error_parse_models_empty)
+            RepositoryError.ParseErrorReason.MALFORMED_RESPONSE -> UiText.Resource(R.string.error_parse_malformed)
+        }
+        // Unknown 的 message 以硬编码中文"未知错误"开头，不能透传 UI，统一映射本地化文案
+        is RepositoryError.Unknown -> UiText.Resource(R.string.common_unknown)
+        else -> error.message?.let { UiText.Dynamic(it) }
+            ?: UiText.Resource(R.string.common_unknown)
     }
 
     private fun prefs(service: ServiceType): android.content.SharedPreferences =
@@ -539,7 +579,7 @@ sealed class State {
     data class Stale(val data: ServiceBalance, val lastFetchedAt: Long) : State()
     data class Error(
         val cached: ServiceBalance?,
-        val message: String,
+        val message: UiText,
         val error: Throwable
     ) : State()
     data object ManualModeHint : State()
@@ -554,6 +594,6 @@ data class ServiceDetailUiState(
 sealed class TriggerState {
     data object Idle : TriggerState()
     data object Loading : TriggerState()
-    data class Success(val responseBody: String) : TriggerState()
-    data class Error(val message: String, val responseBody: String?) : TriggerState()
+    data class Success(val summary: TriggerSummary) : TriggerState()
+    data class Error(val message: UiText, val responseBody: String?) : TriggerState()
 }

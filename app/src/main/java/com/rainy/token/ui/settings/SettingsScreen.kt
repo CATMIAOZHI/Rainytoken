@@ -1,5 +1,7 @@
 package com.rainy.token.ui.settings
 
+import android.app.Activity
+import android.os.Build
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -26,13 +29,19 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -45,9 +54,11 @@ import com.rainy.token.ui.components.ServiceIcon
 import com.rainy.token.ui.components.StatusChip
 import com.rainy.token.ui.components.StatusLevel
 import com.rainy.token.ui.components.StatusStyle
+import com.rainy.token.R
 import com.rainy.token.ui.components.AppTips
 import com.rainy.token.ui.theme.InkMuted
 import com.rainy.token.ui.theme.StrawberryPink
+import com.rainy.token.util.LocaleManager
 
 /**
  * 设置页（雨晴风格重做版）。
@@ -72,6 +83,7 @@ fun SettingsScreen(
     }
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var showLanguageDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -79,7 +91,7 @@ fun SettingsScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "设置",
+                        stringResource(R.string.title_settings),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -88,7 +100,7 @@ fun SettingsScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.Filled.ArrowBack,
-                            contentDescription = "返回",
+                            contentDescription = stringResource(R.string.action_back),
                             tint = StrawberryPink
                         )
                     }
@@ -118,7 +130,7 @@ fun SettingsScreen(
             ) {
                 item {
                     Text(
-                        text = "凭据管理",
+                        text = stringResource(R.string.title_credentials),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = InkMuted,
@@ -130,6 +142,9 @@ fun SettingsScreen(
                         status = status,
                         onClick = { onEditCredential(status.service) }
                     )
+                }
+                item {
+                    LanguageCard(onClick = { showLanguageDialog = true })
                 }
                 item {
                     TipsCard(onClick = { onOpenTips() })
@@ -144,6 +159,105 @@ fun SettingsScreen(
             }
         }
     }
+
+    if (showLanguageDialog) {
+        LanguageDialog(onDismiss = { showLanguageDialog = false })
+    }
+}
+
+@Composable
+private fun LanguageCard(onClick: () -> Unit) {
+    val context = LocalContext.current
+    val current = LocaleManager.getLocaleCode(context)
+    val labelRes = when (current) {
+        "zh" -> R.string.app_locale_zh
+        "zh-Hant" -> R.string.app_locale_zh_hant
+        "en" -> R.string.app_locale_en
+        else -> R.string.app_locale_follow_system
+    }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "🌐",
+                style = MaterialTheme.typography.titleLarge
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.title_language),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = stringResource(labelRes),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkMuted,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LanguageDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val current = LocaleManager.getLocaleCode(context)
+    val options: List<Pair<String?, Int>> = listOf(
+        null to R.string.app_locale_follow_system,
+        "zh" to R.string.app_locale_zh,
+        "zh-Hant" to R.string.app_locale_zh_hant,
+        "en" to R.string.app_locale_en
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.dialog_language_title)) },
+        text = {
+            Column {
+                options.forEach { (code, labelRes) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                LocaleManager.saveLocale(context, code)
+                                onDismiss()
+                                // Android 13+：framework 设置语言后系统自动重建 Activity；
+                                // 旧系统才需要手动 recreate 让资源按新语言重新解析
+                                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                                    (context as? Activity)?.recreate()
+                                }
+                            }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = stringResource(labelRes),
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (current == code) {
+                            Text("✓", color = StrawberryPink, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        }
+    )
 }
 
 @Composable
@@ -190,13 +304,13 @@ private fun AboutCard() {
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                text = "关于 RainyToken",
+                text = stringResource(R.string.title_about),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(modifier = Modifier.padding(top = 8.dp))
             Text(
-                text = "统一查询 AI 余额的小工具。\n本地加密存储凭据，不上传任何数据。",
+                text = stringResource(R.string.about_description),
                 style = MaterialTheme.typography.bodyMedium,
                 color = InkMuted
             )
@@ -204,18 +318,19 @@ private fun AboutCard() {
     }
 }
 
+@Composable
 private fun stateLabel(state: CredentialStatus.State): String = when (state) {
-    CredentialStatus.State.NOT_CONFIGURED -> "未配置 · 点击添加"
-    CredentialStatus.State.OK -> "已配置 · 凭据有效"
-    CredentialStatus.State.EXPIRED -> "已过期 · 点击重新配置"
-    CredentialStatus.State.WARNING -> "需要重新验证"
+    CredentialStatus.State.NOT_CONFIGURED -> stringResource(R.string.status_not_configured_add)
+    CredentialStatus.State.OK -> stringResource(R.string.status_ok_valid)
+    CredentialStatus.State.EXPIRED -> stringResource(R.string.status_expired_reconfigure)
+    CredentialStatus.State.WARNING -> stringResource(R.string.status_need_reverify)
 }
 
 private fun stateToChip(state: CredentialStatus.State): StatusStyle = when (state) {
-    CredentialStatus.State.NOT_CONFIGURED -> StatusStyle("未配置", StatusLevel.WARNING)
-    CredentialStatus.State.OK -> StatusStyle("已配置", StatusLevel.OK)
-    CredentialStatus.State.EXPIRED -> StatusStyle("已过期", StatusLevel.ERROR)
-    CredentialStatus.State.WARNING -> StatusStyle("需重登", StatusLevel.WARNING)
+    CredentialStatus.State.NOT_CONFIGURED -> StatusStyle(R.string.status_not_configured, StatusLevel.WARNING)
+    CredentialStatus.State.OK -> StatusStyle(R.string.status_configured, StatusLevel.OK)
+    CredentialStatus.State.EXPIRED -> StatusStyle(R.string.status_expired, StatusLevel.ERROR)
+    CredentialStatus.State.WARNING -> StatusStyle(R.string.status_relogin, StatusLevel.WARNING)
 }
 
 @Composable
@@ -239,13 +354,13 @@ private fun TipsCard(onClick: () -> Unit) {
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "使用小技巧",
+                    text = stringResource(R.string.title_tips),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = StrawberryPink
                 )
                 Text(
-                    text = "查看全部 ${AppTips.tips.size} 条隐藏操作",
+                    text = stringResource(R.string.tips_view_all, AppTips.tips.size),
                     style = MaterialTheme.typography.bodySmall,
                     color = InkMuted,
                     modifier = Modifier.padding(top = 2.dp)
@@ -276,13 +391,13 @@ private fun DebugLogCard(onClick: () -> Unit) {
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "调试日志",
+                    text = stringResource(R.string.title_debug_log),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = InkMuted
                 )
                 Text(
-                    text = "查看 token 刷新、网络请求等调试记录",
+                    text = stringResource(R.string.debug_log_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = InkMuted,
                     modifier = Modifier.padding(top = 2.dp)

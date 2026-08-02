@@ -10,6 +10,8 @@ import com.rainy.token.domain.model.CredentialStatus
 import com.rainy.token.domain.model.ServiceBalance
 import com.rainy.token.domain.service.ServiceType
 import com.rainy.token.domain.usecase.RefreshBalanceUseCase
+import com.rainy.token.R
+import com.rainy.token.ui.components.UiText
 import com.rainy.token.ui.widget.OpenCodeGoWidgetProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -127,10 +129,10 @@ class DashboardViewModel @Inject constructor(
                 val cards = ServiceType.entries.map { type ->
                     val result = results[type]
                     val error = result?.exceptionOrNull()
-                    val errMsg = error
+                    val errorUi = error
                         ?.takeUnless { it is RepositoryError.CredentialChanged }
-                        ?.message
-                    buildCard(localStates.getValue(type), lastFetchError = errMsg)
+                        ?.let { errorToUiText(it) }
+                    buildCard(localStates.getValue(type), lastFetchError = errorUi)
                 }
                 _uiState.update { it.copy(refreshing = false, cards = cards) }
                 // 刷新成功后更新桌面小组件
@@ -145,7 +147,7 @@ class DashboardViewModel @Inject constructor(
 
     private fun buildCard(
         local: CredentialRepository.LocalState,
-        lastFetchError: String?
+        lastFetchError: UiText?
     ): DashboardCardUi = DashboardCardUi(
         service = local.status.service,
         credentialState = local.status.state,
@@ -181,16 +183,37 @@ data class DashboardCardUi(
     val credentialState: CredentialStatus.State,
     val credentialFingerprint: String?,
     val cachedBalance: CachedBalance?,
-    val lastFetchError: String?
+    val lastFetchError: UiText?
 ) {
     /** 余额展示主数字。优先取缓存，错误时也展示（不隐藏，让用户看到旧值 + 红点提示）。 */
     val displayBalance: ServiceBalance? get() = cachedBalance?.balance
+}
 
-    /** 卡片顶部状态徽章。 */
-    val statusBadge: String get() = when {
-        credentialState == CredentialStatus.State.NOT_CONFIGURED -> "未配置"
-        lastFetchError != null -> "刷新失败"
-        cachedBalance == null -> "未获取"
-        else -> "正常"
+/** 把 Repository 错误映射为本地化文案（ParseError 按 reason 映射资源，detail 仅作日志，不流向 UI）。 */
+private fun errorToUiText(error: Throwable): UiText = when (error) {
+    is RepositoryError.InvalidCredential ->
+        UiText.Resource(R.string.error_credential_invalid_reconfigure)
+    is RepositoryError.RateLimited -> UiText.Resource(
+        R.string.error_rate_limited_retry,
+        listOf(
+            error.retryAfterSeconds?.let {
+                UiText.Resource(R.string.error_rate_limited_retry_suffix, listOf(it))
+            } ?: ""
+        )
+    )
+    is RepositoryError.Network -> UiText.Resource(R.string.error_network_check)
+    is RepositoryError.ServerError ->
+        UiText.Resource(R.string.error_server_http, listOf(error.code))
+    is RepositoryError.ParseError -> when (error.reason) {
+        RepositoryError.ParseErrorReason.EMPTY_BODY -> UiText.Resource(R.string.error_parse_empty_body)
+        RepositoryError.ParseErrorReason.NOT_JSON_OBJECT -> UiText.Resource(R.string.error_parse_not_json)
+        RepositoryError.ParseErrorReason.NO_WINDOWS -> UiText.Resource(R.string.error_parse_no_windows)
+        RepositoryError.ParseErrorReason.NO_MODELS -> UiText.Resource(R.string.error_parse_no_models)
+        RepositoryError.ParseErrorReason.MODELS_EMPTY -> UiText.Resource(R.string.error_parse_models_empty)
+        RepositoryError.ParseErrorReason.MALFORMED_RESPONSE -> UiText.Resource(R.string.error_parse_malformed)
     }
+    // Unknown 的 message 以硬编码中文"未知错误"开头，不能透传 UI，统一映射本地化文案
+    is RepositoryError.Unknown -> UiText.Resource(R.string.common_unknown)
+    else -> error.message?.let { UiText.Dynamic(it) }
+        ?: UiText.Resource(R.string.common_unknown)
 }

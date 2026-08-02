@@ -24,11 +24,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rainy.token.R
 import com.rainy.token.data.local.OverviewStats
+import com.rainy.token.ui.components.asString
 import com.rainy.token.ui.theme.InkMuted
 import com.rainy.token.ui.theme.StrawberryPink
 import java.util.Locale
@@ -67,12 +70,12 @@ fun UsageStatsCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "OpenCode 用量",
+                        text = stringResource(R.string.usage_title_opencode),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = if (uiState.recordCount > 0) "${uiState.recordCount} 条记录" else "点击同步",
+                        text = if (uiState.recordCount > 0) stringResource(R.string.usage_record_count, uiState.recordCount) else stringResource(R.string.usage_click_to_sync),
                         style = MaterialTheme.typography.bodySmall,
                         color = InkMuted
                     )
@@ -87,7 +90,7 @@ fun UsageStatsCard(
                     IconButton(onClick = { viewModel.sync() }) {
                         Icon(
                             imageVector = Icons.Filled.Refresh,
-                            contentDescription = "同步用量数据",
+                            contentDescription = stringResource(R.string.action_sync_usage),
                             tint = StrawberryPink
                         )
                     }
@@ -100,13 +103,13 @@ fun UsageStatsCard(
 
                 // 输入 Token = input + cacheRead
                 val inputTotal = overview.inputTokens + overview.cacheReadTokens
-                MetricRow("输入 Token", formatTokenCount(inputTotal))
+                MetricRow(stringResource(R.string.usage_input_tokens), formatTokenCount(inputTotal))
 
                 // 缓存子行
                 if (overview.cacheReadTokens > 0 || overview.cacheWriteTokens > 0) {
                     val parts = mutableListOf<String>()
-                    if (overview.cacheReadTokens > 0) parts.add("缓存读取 ${formatTokenCount(overview.cacheReadTokens)}")
-                    if (overview.cacheWriteTokens > 0) parts.add("缓存写入 ${formatTokenCount(overview.cacheWriteTokens)}")
+                    if (overview.cacheReadTokens > 0) parts.add(stringResource(R.string.usage_cache_read, formatTokenCount(overview.cacheReadTokens)))
+                    if (overview.cacheWriteTokens > 0) parts.add(stringResource(R.string.usage_cache_write, formatTokenCount(overview.cacheWriteTokens)))
                     Text(
                         text = parts.joinToString(" · "),
                         style = MaterialTheme.typography.bodySmall,
@@ -119,8 +122,8 @@ fun UsageStatsCard(
 
                 // 输出 Token + 总花费 同一排
                 Row(Modifier.fillMaxWidth()) {
-                    MetricRow("输出 Token", formatTokenCount(overview.outputTokens), Modifier.weight(1f))
-                    MetricRow("总花费", "$${String.format(Locale.US, "%.4f", overview.totalCost / 100_000_000.0)}", Modifier.weight(1f))
+                    MetricRow(stringResource(R.string.usage_output_tokens), formatTokenCount(overview.outputTokens), Modifier.weight(1f))
+                    MetricRow(stringResource(R.string.usage_total_cost), "$${String.format(Locale.US, "%.4f", overview.totalCost / 100_000_000.0)}", Modifier.weight(1f))
                 }
             }
 
@@ -128,7 +131,7 @@ fun UsageStatsCard(
             if (uiState.overview == null && !uiState.syncing) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = if (uiState.loading) "加载中…" else "暂无数据，点击 🔄 同步",
+                    text = if (uiState.loading) stringResource(R.string.common_loading) else stringResource(R.string.usage_no_data_sync),
                     style = MaterialTheme.typography.bodyMedium,
                     color = InkMuted
                 )
@@ -138,7 +141,7 @@ fun UsageStatsCard(
             if (uiState.overview != null) {
                 Spacer(modifier = Modifier.height(8.dp))
                 TextButton(onClick = onOpenDetail) {
-                    Text("查看详情", color = StrawberryPink)
+                    Text(stringResource(R.string.action_view_detail), color = StrawberryPink)
                     Spacer(modifier = Modifier.width(2.dp))
                     Icon(
                         imageVector = Icons.Filled.KeyboardArrowRight,
@@ -153,7 +156,7 @@ fun UsageStatsCard(
             if (uiState.lastSyncResult > 0) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "✓ 新增 ${uiState.lastSyncResult} 条",
+                    text = stringResource(R.string.usage_new_records, uiState.lastSyncResult),
                     style = MaterialTheme.typography.bodySmall,
                     color = StrawberryPink
                 )
@@ -161,7 +164,7 @@ fun UsageStatsCard(
             uiState.lastSyncError?.let { err ->
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "✗ $err",
+                    text = "✗ ${err.asString()}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error
                 )

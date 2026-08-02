@@ -112,12 +112,19 @@ class FormatUtilsTest {
         assertEquals("每周", normalizeWindowLabel("weekly"))
         assertEquals("每周", normalizeWindowLabel("Weekly"))
         assertEquals("每周", normalizeWindowLabel("WEEKLY"))
+        assertEquals("每周", normalizeWindowLabel("每周"))
     }
 
     @Test
-    fun `normalizeWindowLabel non-weekly passes through`() {
+    fun `normalizeWindowLabel monthly maps to monthly label`() {
+        assertEquals("每月", normalizeWindowLabel("monthly"))
+        assertEquals("Monthly", normalizeWindowLabel("MONTHLY", monthlyLabel = "Monthly"))
+        assertEquals("每月", normalizeWindowLabel("每月"))
+    }
+
+    @Test
+    fun `normalizeWindowLabel unknown passes through`() {
         assertEquals("5h", normalizeWindowLabel("5h"))
-        assertEquals("monthly", normalizeWindowLabel("monthly"))
         assertEquals("30d", normalizeWindowLabel("30d"))
     }
 

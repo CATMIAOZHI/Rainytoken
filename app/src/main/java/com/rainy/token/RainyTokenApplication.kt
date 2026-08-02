@@ -12,6 +12,12 @@ import dagger.hilt.android.HiltAndroidApp
  */
 @HiltAndroidApp
 class RainyTokenApplication : Application() {
+    override fun attachBaseContext(base: Context) {
+        // 应用内语言偏好（跟随系统 / 中文 / English）在 Application 层生效，
+        // 保证 appContext 与系统级回调（如小组件）之外的代码都使用所选语言。
+        super.attachBaseContext(com.rainy.token.util.LocaleManager.wrapContext(base))
+    }
+
     override fun onCreate() {
         super.onCreate()
         appContext = applicationContext

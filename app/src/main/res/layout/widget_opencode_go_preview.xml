@@ -41,7 +41,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="自动刷新"
+            android:text="@string/widget_auto_refresh"
             android:textColor="#C4A0AB"
             android:textSize="10sp" />
     </LinearLayout>
@@ -63,7 +63,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="OpenCode Go · 用量"
+            android:text="@string/widget_title_opencode"
             android:textColor="#8A7A82"
             android:textSize="11sp" />
     </LinearLayout>
@@ -77,7 +77,8 @@
         android:layout_marginBottom="6dp">
 
         <TextView
-            android:layout_width="36dp" android:layout_height="wrap_content"
+            android:layout_width="44dp" android:layout_height="wrap_content"
+            android:maxLines="1" android:ellipsize="end"
             android:text="5h" android:textColor="#8A7A82" android:textSize="11sp" />
 
         <TextView
@@ -102,8 +103,9 @@
         android:layout_marginBottom="6dp">
 
         <TextView
-            android:layout_width="36dp" android:layout_height="wrap_content"
-            android:text="本周" android:textColor="#8A7A82" android:textSize="11sp" />
+            android:layout_width="44dp" android:layout_height="wrap_content"
+            android:maxLines="1" android:ellipsize="end"
+            android:text="@string/window_weekly" android:textColor="#8A7A82" android:textSize="11sp" />
 
         <TextView
             android:layout_width="38dp" android:layout_height="wrap_content"
@@ -127,8 +129,9 @@
         android:layout_marginBottom="8dp">
 
         <TextView
-            android:layout_width="36dp" android:layout_height="wrap_content"
-            android:text="本月" android:textColor="#8A7A82" android:textSize="11sp" />
+            android:layout_width="44dp" android:layout_height="wrap_content"
+            android:maxLines="1" android:ellipsize="end"
+            android:text="@string/window_monthly" android:textColor="#8A7A82" android:textSize="11sp" />
 
         <TextView
             android:layout_width="38dp" android:layout_height="wrap_content"
@@ -161,7 +164,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="DeepSeek 余额"
+            android:text="@string/widget_deepseek_balance"
             android:textColor="#8A7A82"
             android:textSize="11sp" />
 

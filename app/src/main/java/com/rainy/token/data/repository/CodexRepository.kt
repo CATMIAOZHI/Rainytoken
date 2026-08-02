@@ -3,6 +3,7 @@ package com.rainy.token.data.repository
 import com.rainy.token.data.cache.BalanceCache
 import com.rainy.token.domain.model.Credential
 import com.rainy.token.domain.model.ServiceBalance
+import com.rainy.token.domain.model.TriggerSummary
 import com.rainy.token.domain.service.ServiceConfigProvider
 import com.rainy.token.domain.service.ServiceType
 import kotlinx.coroutines.Dispatchers
@@ -114,9 +115,9 @@ class CodexRepository(
             parseUsageWindows(usageResult)
         } catch (e: Exception) {
             DebugLog.e(TAG, "解析 Codex 用量失败: ${e::class.simpleName}: ${e.message}")
-            return@withContext Result.failure(RepositoryError.ParseError("Codex 用量响应格式异常: ${e.message ?: e::class.simpleName}"))
+            return@withContext Result.failure(RepositoryError.ParseError(RepositoryError.ParseErrorReason.MALFORMED_RESPONSE, "Codex 用量响应格式异常: ${e.message ?: e::class.simpleName}"))
         }
-        if (windows.isEmpty()) return@withContext Result.failure(RepositoryError.ParseError("未找到 Codex 用量窗口数据"))
+        if (windows.isEmpty()) return@withContext Result.failure(RepositoryError.ParseError(RepositoryError.ParseErrorReason.NO_WINDOWS, "未找到 Codex 用量窗口数据"))
 
         val config = ServiceConfigProvider.get(ServiceType.CODEX)
         val primary = windows.firstOrNull { it.label.contains("h") } ?: windows.first()
@@ -154,16 +155,16 @@ class CodexRepository(
                     DebugLog.e(TAG, "fetchModels: HTTP ${resp.code}")
                     return@withContext Result.failure(RepositoryError.ServerError(resp.code))
                 }
-                val root = json.parseToJsonElement(resp.body?.string() ?: throw RepositoryError.ParseError("响应体为空")) as? JsonObject
-                    ?: throw RepositoryError.ParseError("响应根节点不是 JSON 对象")
+                val root = json.parseToJsonElement(resp.body?.string() ?: throw RepositoryError.ParseError(RepositoryError.ParseErrorReason.EMPTY_BODY, "响应体为空")) as? JsonObject
+                    ?: throw RepositoryError.ParseError(RepositoryError.ParseErrorReason.NOT_JSON_OBJECT, "响应根节点不是 JSON 对象")
                 // 结构: { "openai": { "models": { "gpt-5.6": {...}, ... } } }
                 val openaiProvider = root["openai"] as? JsonObject
                 val modelsObj = openaiProvider?.get("models") as? JsonObject
                 modelsObj?.keys?.toList()?.sorted()
-                    ?: throw RepositoryError.ParseError("未找到 OpenAI 模型列表")
+                    ?: throw RepositoryError.ParseError(RepositoryError.ParseErrorReason.NO_MODELS, "未找到 OpenAI 模型列表")
             }
             if (models.isEmpty()) {
-                return@withContext Result.failure(RepositoryError.ParseError("模型列表为空"))
+                return@withContext Result.failure(RepositoryError.ParseError(RepositoryError.ParseErrorReason.MODELS_EMPTY, "模型列表为空"))
             }
             DebugLog.i(TAG, "fetchModels: 获取到 ${models.size} 个模型")
             Result.success(models)
@@ -203,7 +204,7 @@ class CodexRepository(
      * @param model 用户选择的模型 slug
      * @return Result.success(响应体原文) — 供 UI 展示
      */
-    suspend fun triggerUsage(model: String): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun triggerUsage(model: String): Result<TriggerSummary> = withContext(Dispatchers.IO) {
         val credential = credentialRepository.get(ServiceType.CODEX)
             ?: return@withContext Result.failure(RepositoryError.InvalidCredential("未找到 Codex 凭据"))
         if (credential !is Credential.CodexCredential)
@@ -239,10 +240,10 @@ class CodexRepository(
                                     DebugLog.i(TAG, "triggerUsage retry: HTTP ${resp2.code}, body=${body2.take(500)}")
                                     if (!resp2.isSuccessful) {
                                         DebugLog.e(TAG, "triggerUsage retry failed: HTTP ${resp2.code}")
-                                        return@use Result.failure<String>(
+                                        return@use Result.failure<TriggerSummary>(
                                             TriggerError(
                                                 "HTTP ${resp2.code}",
-                                                body2.ifBlank { "无响应体" }
+                                                body2.ifBlank { "" }
                                             )
                                         )
                                     }
@@ -251,12 +252,12 @@ class CodexRepository(
                             }
                             is RefreshResult.Failure -> {
                                 DebugLog.e(TAG, "triggerUsage: 二次刷新失败: ${r.reason}")
-                                return@use Result.failure(TriggerError("token 刷新失败: ${r.reason}", ""))
+                                return@use Result.failure(TriggerError("token 刷新失败: ${r.reason}", "", TriggerErrorReason.TOKEN_REFRESH))
                             }
                         }
                     } else {
-                        return@use Result.failure<String>(
-                            TriggerError("HTTP ${resp.code}", bodyStr.ifBlank { "无响应体" })
+                        return@use Result.failure<TriggerSummary>(
+                            TriggerError("HTTP ${resp.code}", bodyStr.ifBlank { "" })
                         )
                     }
                 } else {
@@ -385,22 +386,28 @@ class CodexRepository(
                 DebugLog.e(TAG, "fetchJson failed: HTTP ${it.code} ${it.message} url=$url")
                 throw if (it.code in listOf(401, 403)) RepositoryError.InvalidCredential("HTTP ${it.code}") else RepositoryError.ServerError(it.code)
             }
-            return (json.parseToJsonElement(it.body?.string() ?: throw RepositoryError.ParseError("响应体为空")) as? JsonObject)
-                ?: throw RepositoryError.ParseError("响应根节点不是 JSON 对象")
+            return (json.parseToJsonElement(it.body?.string() ?: throw RepositoryError.ParseError(RepositoryError.ParseErrorReason.EMPTY_BODY, "响应体为空")) as? JsonObject)
+                ?: throw RepositoryError.ParseError(RepositoryError.ParseErrorReason.NOT_JSON_OBJECT, "响应根节点不是 JSON 对象")
         }
     }
 
     @Serializable data class OAuthRefreshResponse(@kotlinx.serialization.SerialName("access_token") val accessToken: String, @kotlinx.serialization.SerialName("refresh_token") val refreshToken: String? = null, @kotlinx.serialization.SerialName("expires_in") val expiresIn: Long = 3600, @kotlinx.serialization.SerialName("token_type") val tokenType: String? = null)
 }
 
+/** TriggerError 的结构化原因（UI 层据此映射本地化文案；null = HTTP 错误，summary 为 ASCII 可直显） */
+enum class TriggerErrorReason {
+    /** token 刷新失败（summary 中为中文用户提示，不直接透传 UI） */
+    TOKEN_REFRESH
+}
+
 /** 携带完整响应体的错误类，供 UI 展示服务端返回的详细信息 */
-class TriggerError(val summary: String, val responseBody: String) : Exception(summary)
+class TriggerError(val summary: String, val responseBody: String, val reason: TriggerErrorReason? = null) : Exception(summary)
 
 /**
  * 将 SSE 流响应解析为简洁的文本摘要。
  * 提取：模型回复文本、用量统计（input/output tokens）。
  */
-internal fun parseSseResponse(sseText: String, model: String): String {
+internal fun parseSseResponse(sseText: String, model: String): TriggerSummary {
     val sseJson = Json { ignoreUnknownKeys = true }
     val outputText = StringBuilder()
     var inputTokens: String? = null
@@ -429,16 +436,11 @@ internal fun parseSseResponse(sseText: String, model: String): String {
         } catch (_: Exception) { }
     }
 
-    val sb = StringBuilder()
-    sb.appendLine("✓ 激活成功")
-    sb.appendLine("模型: $model")
-    if (responseId != null) sb.appendLine("Response ID: $responseId")
-    sb.appendLine()
-    sb.appendLine("回复:")
-    sb.appendLine(outputText.ifEmpty { "(空)" })
-    if (inputTokens != null || outputTokens != null) {
-        sb.appendLine()
-        sb.appendLine("用量: input=$inputTokens output=$outputTokens tokens")
-    }
-    return sb.toString().trim()
+    return TriggerSummary(
+        model = model,
+        reply = outputText.toString(),
+        inputTokens = inputTokens,
+        outputTokens = outputTokens,
+        responseId = responseId
+    )
 }

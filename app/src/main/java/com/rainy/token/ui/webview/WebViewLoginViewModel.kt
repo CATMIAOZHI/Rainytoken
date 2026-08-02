@@ -1,10 +1,12 @@
 package com.rainy.token.ui.webview
 
 import androidx.lifecycle.ViewModel
+import com.rainy.token.R
 import com.rainy.token.data.repository.WebViewSessionSaver
 import com.rainy.token.domain.model.Credential
 import com.rainy.token.domain.service.ServiceConfigProvider
 import com.rainy.token.domain.service.ServiceType
+import com.rainy.token.ui.components.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -75,7 +77,7 @@ class WebViewLoginViewModel @Inject constructor(
         } else {
             _uiState.update {
                 it.copy(
-                    error = "未抓到 Cookie，请确认已登录",
+                    error = UiText.Resource(R.string.error_cookie_not_found),
                     pendingManualConfirm = true
                 )
             }
@@ -96,5 +98,5 @@ data class WebViewLoginUiState(
     val loginSucceeded: Boolean = false,
     val savedSession: Credential.SessionCredential? = null,
     val pendingManualConfirm: Boolean = false,
-    val error: String? = null
+    val error: UiText? = null
 )

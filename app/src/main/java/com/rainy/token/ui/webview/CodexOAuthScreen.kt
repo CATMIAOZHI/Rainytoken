@@ -43,11 +43,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rainy.token.R
+import com.rainy.token.ui.components.UiText
+import com.rainy.token.ui.components.asString
 import com.rainy.token.ui.theme.StrawberryPink
 
 /**
@@ -77,10 +81,10 @@ fun CodexOAuthScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Codex OAuth 登录") },
+                title = { Text(stringResource(R.string.oauth_screen_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 }
             )
@@ -100,7 +104,7 @@ fun CodexOAuthScreen(
                     ) {
                         CircularProgressIndicator(color = StrawberryPink)
                         Text(
-                            "正在交换 Token...",
+                            stringResource(R.string.oauth_exchanging),
                             modifier = Modifier.padding(top = 16.dp),
                             style = MaterialTheme.typography.bodyLarge
                         )
@@ -116,12 +120,12 @@ fun CodexOAuthScreen(
                         verticalArrangement = Arrangement.Center
                     ) {
                         Text(
-                            uiState.error!!,
+                            uiState.error!!.asString(),
                             style = MaterialTheme.typography.bodyLarge,
                             color = androidx.compose.ui.graphics.Color(0xFFE91E63)
                         )
                         TextButton(onClick = { viewModel.start(CodexOAuthMode.WEBVIEW) }) {
-                            Text("重试", color = StrawberryPink)
+                            Text(stringResource(R.string.action_retry), color = StrawberryPink)
                         }
                     }
                 }
@@ -180,7 +184,7 @@ fun CodexOAuthScreen(
                     ) {
                         CircularProgressIndicator(color = StrawberryPink)
                         Text(
-                            "正在准备授权...",
+                            stringResource(R.string.oauth_preparing),
                             modifier = Modifier.padding(top = 16.dp),
                             style = MaterialTheme.typography.bodyLarge
                         )
@@ -197,7 +201,7 @@ fun CodexOAuthScreen(
 @Composable
 private fun HeadlessOAuthContent(
     authUrl: String,
-    error: String?,
+    error: UiText?,
     onCopyUrl: () -> Unit,
     onOpenInBrowser: () -> Unit,
     onSubmit: (String) -> Unit,
@@ -213,16 +217,12 @@ private fun HeadlessOAuthContent(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
-            text = "无头模式登录",
+            text = stringResource(R.string.oauth_headless_title),
             style = MaterialTheme.typography.titleMedium,
             color = StrawberryPink
         )
         Text(
-            text = "1. 点击「在浏览器中打开」或复制下方链接到浏览器\n" +
-                    "2. 在 OpenAI 页面完成登录和授权\n" +
-                    "3. 浏览器会跳转到一个 localhost 地址（页面打不开是正常的）\n" +
-                    "4. 复制浏览器地址栏的完整 URL 粘贴到下方输入框\n" +
-                    "5. 点击「提交回调 URL」",
+            text = stringResource(R.string.oauth_steps),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.outline
         )
@@ -231,7 +231,7 @@ private fun HeadlessOAuthContent(
         OutlinedTextField(
             value = authUrl,
             onValueChange = {},
-            label = { Text("授权链接") },
+            label = { Text(stringResource(R.string.oauth_auth_url_label)) },
             readOnly = true,
             minLines = 3,
             maxLines = 5,
@@ -246,18 +246,18 @@ private fun HeadlessOAuthContent(
                 onClick = onOpenInBrowser,
                 modifier = Modifier.weight(1f)
             ) {
-                Text("在浏览器中打开")
+                Text(stringResource(R.string.action_open_in_browser))
             }
             OutlinedButton(
                 onClick = onCopyUrl,
                 modifier = Modifier.weight(1f)
             ) {
-                Text("复制链接")
+                Text(stringResource(R.string.action_copy_link))
             }
         }
 
         Text(
-            text = "── 登录后粘贴回调 URL ──",
+            text = stringResource(R.string.oauth_paste_callback_hint),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.outline,
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -267,8 +267,8 @@ private fun HeadlessOAuthContent(
         OutlinedTextField(
             value = callbackUrl,
             onValueChange = { callbackUrl = it },
-            label = { Text("回调 URL") },
-            placeholder = { Text("http://localhost:1455/auth/callback?code=...") },
+            label = { Text(stringResource(R.string.oauth_callback_url_label)) },
+            placeholder = { Text(stringResource(R.string.oauth_callback_url_placeholder)) },
             minLines = 2,
             maxLines = 6,
             modifier = Modifier.fillMaxWidth()
@@ -279,18 +279,18 @@ private fun HeadlessOAuthContent(
             modifier = Modifier.fillMaxWidth(),
             enabled = callbackUrl.isNotBlank()
         ) {
-            Text("提交回调 URL")
+            Text(stringResource(R.string.action_submit_callback))
         }
 
         if (error != null) {
             Text(
-                text = error,
+                text = error.asString(),
                 style = MaterialTheme.typography.bodySmall,
                 color = androidx.compose.ui.graphics.Color(0xFFE91E63),
                 modifier = Modifier.padding(top = 4.dp)
             )
             TextButton(onClick = onRetry) {
-                Text("重新生成授权链接", color = StrawberryPink)
+                Text(stringResource(R.string.action_regenerate_link), color = StrawberryPink)
             }
         }
     }

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.annotation.StringRes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -16,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.rainy.token.ui.theme.StatusBlue
 import com.rainy.token.ui.theme.StatusGreen
@@ -33,7 +35,7 @@ import com.rainy.token.ui.theme.StatusRed
 enum class StatusLevel { OK, WARNING, ERROR, INFO }
 
 data class StatusStyle(
-    val label: String,
+    @StringRes val labelRes: Int,
     val level: StatusLevel
 )
 
@@ -64,7 +66,7 @@ fun StatusChip(
         )
         Spacer(modifier = Modifier.width(6.dp))
         Text(
-            text = style.label,
+            text = stringResource(style.labelRes),
             style = MaterialTheme.typography.labelSmall,
             color = textColor
         )

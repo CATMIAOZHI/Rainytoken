@@ -1,5 +1,7 @@
 package com.rainy.token.data.local
 
+import androidx.annotation.StringRes
+import com.rainy.token.R
 import java.time.Instant
 import java.time.ZoneOffset
 
@@ -25,18 +27,18 @@ data class ModelBucket(
     val outputTokens: Long
 )
 
-/** 时间粒度 */
-enum class ChartGranularity(val label: String) {
-    LAST_5H_HOURLY("最近5小时"),
-    LAST_12H_10MIN("最近12小时"),
-    LAST_24H_HOURLY("最近24小时"),
-    TODAY_HOURLY("今天"),
-    YESTERDAY_HOURLY("昨天"),
-    LAST_7D_DAILY("最近7天"),
-    THIS_MONTH_DAILY("当月"),
-    CUSTOM_DAY_HOURLY("自定义日"),
-    CUSTOM_MONTH_DAILY("自定义月"),
-    CUSTOM_RANGE_DAILY("自定义日期")
+/** 时间粒度（label 用字符串资源 ID，UI 层按当前语言解析） */
+enum class ChartGranularity(@StringRes val labelRes: Int) {
+    LAST_5H_HOURLY(R.string.time_last_5h),
+    LAST_12H_10MIN(R.string.time_last_12h),
+    LAST_24H_HOURLY(R.string.time_last_24h),
+    TODAY_HOURLY(R.string.time_today),
+    YESTERDAY_HOURLY(R.string.time_yesterday),
+    LAST_7D_DAILY(R.string.time_last_7d),
+    THIS_MONTH_DAILY(R.string.time_this_month),
+    CUSTOM_DAY_HOURLY(R.string.time_custom_day),
+    CUSTOM_MONTH_DAILY(R.string.time_custom_month),
+    CUSTOM_RANGE_DAILY(R.string.time_custom_range)
 }
 
 /** 聚合工具 */
