@@ -189,7 +189,7 @@ data class DashboardCardUi(
     val displayBalance: ServiceBalance? get() = cachedBalance?.balance
 }
 
-/** 把 Repository 错误映射为本地化文案（错误详情 detail 为技术信息，随资源参数展示）。 */
+/** 把 Repository 错误映射为本地化文案（ParseError 按 reason 映射资源，detail 仅作日志，不流向 UI）。 */
 private fun errorToUiText(error: Throwable): UiText = when (error) {
     is RepositoryError.InvalidCredential ->
         UiText.Resource(R.string.error_credential_invalid_reconfigure)
@@ -204,8 +204,14 @@ private fun errorToUiText(error: Throwable): UiText = when (error) {
     is RepositoryError.Network -> UiText.Resource(R.string.error_network_check)
     is RepositoryError.ServerError ->
         UiText.Resource(R.string.error_server_http, listOf(error.code))
-    is RepositoryError.ParseError ->
-        UiText.Resource(R.string.error_parse_failed, listOf(error.detail))
+    is RepositoryError.ParseError -> when (error.reason) {
+        RepositoryError.ParseErrorReason.EMPTY_BODY -> UiText.Resource(R.string.error_parse_empty_body)
+        RepositoryError.ParseErrorReason.NOT_JSON_OBJECT -> UiText.Resource(R.string.error_parse_not_json)
+        RepositoryError.ParseErrorReason.NO_WINDOWS -> UiText.Resource(R.string.error_parse_no_windows)
+        RepositoryError.ParseErrorReason.NO_MODELS -> UiText.Resource(R.string.error_parse_no_models)
+        RepositoryError.ParseErrorReason.MODELS_EMPTY -> UiText.Resource(R.string.error_parse_models_empty)
+        RepositoryError.ParseErrorReason.MALFORMED_RESPONSE -> UiText.Resource(R.string.error_parse_malformed)
+    }
     else -> error.message?.let { UiText.Dynamic(it) }
         ?: UiText.Resource(R.string.common_unknown)
 }

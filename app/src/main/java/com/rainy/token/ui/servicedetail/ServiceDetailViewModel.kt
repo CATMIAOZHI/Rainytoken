@@ -536,8 +536,14 @@ class ServiceDetailViewModel @Inject constructor(
         is RepositoryError.Network -> UiText.Resource(R.string.error_network_check)
         is RepositoryError.ServerError ->
             UiText.Resource(R.string.error_server_http, listOf(error.code))
-        is RepositoryError.ParseError ->
-            UiText.Resource(R.string.error_parse_failed, listOf(error.detail))
+        is RepositoryError.ParseError -> when (error.reason) {
+            RepositoryError.ParseErrorReason.EMPTY_BODY -> UiText.Resource(R.string.error_parse_empty_body)
+            RepositoryError.ParseErrorReason.NOT_JSON_OBJECT -> UiText.Resource(R.string.error_parse_not_json)
+            RepositoryError.ParseErrorReason.NO_WINDOWS -> UiText.Resource(R.string.error_parse_no_windows)
+            RepositoryError.ParseErrorReason.NO_MODELS -> UiText.Resource(R.string.error_parse_no_models)
+            RepositoryError.ParseErrorReason.MODELS_EMPTY -> UiText.Resource(R.string.error_parse_models_empty)
+            RepositoryError.ParseErrorReason.MALFORMED_RESPONSE -> UiText.Resource(R.string.error_parse_malformed)
+        }
         else -> error.message?.let { UiText.Dynamic(it) }
             ?: UiText.Resource(R.string.common_unknown)
     }

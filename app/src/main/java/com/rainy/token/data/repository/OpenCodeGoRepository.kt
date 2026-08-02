@@ -86,13 +86,14 @@ class OpenCodeGoRepository(
             }
 
             val html = resp.body?.string() ?: return@withContext Result.failure(
-                RepositoryError.ParseError("响应体为空")
+                RepositoryError.ParseError(RepositoryError.ParseErrorReason.EMPTY_BODY, "响应体为空")
             )
 
             val windows = parseWindows(html)
             if (windows.isEmpty()) {
                 return@withContext Result.failure(
                     RepositoryError.ParseError(
+                        RepositoryError.ParseErrorReason.NO_WINDOWS,
                         "解析失败：未找到任何 OpenCode Go 配额窗口。HTML=${html.length} 字节。"
                     )
                 )
@@ -151,15 +152,15 @@ class OpenCodeGoRepository(
                     DebugLog.e(TAG, "fetchModels: HTTP ${resp.code}")
                     return@withContext Result.failure(RepositoryError.ServerError(resp.code))
                 }
-                val root = json.parseToJsonElement(resp.body?.string() ?: throw RepositoryError.ParseError("响应体为空")) as? JsonObject
-                    ?: throw RepositoryError.ParseError("响应根节点不是 JSON 对象")
+                val root = json.parseToJsonElement(resp.body?.string() ?: throw RepositoryError.ParseError(RepositoryError.ParseErrorReason.EMPTY_BODY, "响应体为空")) as? JsonObject
+                    ?: throw RepositoryError.ParseError(RepositoryError.ParseErrorReason.NOT_JSON_OBJECT, "响应根节点不是 JSON 对象")
                 val provider = root["opencode-go"] as? JsonObject
                 val modelsObj = provider?.get("models") as? JsonObject
                 modelsObj?.keys?.toList()?.sorted()
-                    ?: throw RepositoryError.ParseError("未找到 OpenCode Go 模型列表")
+                    ?: throw RepositoryError.ParseError(RepositoryError.ParseErrorReason.NO_MODELS, "未找到 OpenCode Go 模型列表")
             }
             if (models.isEmpty()) {
-                return@withContext Result.failure(RepositoryError.ParseError("模型列表为空"))
+                return@withContext Result.failure(RepositoryError.ParseError(RepositoryError.ParseErrorReason.MODELS_EMPTY, "模型列表为空"))
             }
             DebugLog.i(TAG, "fetchModels: 获取到 ${models.size} 个模型")
             Result.success(models)

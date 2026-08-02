@@ -106,7 +106,7 @@ class CommandCodeUsageRepository(
                 }
 
                 if (body == null) return@withContext Result.failure(
-                    RepositoryError.ParseError("响应体为空")
+                    RepositoryError.ParseError(RepositoryError.ParseErrorReason.EMPTY_BODY, "响应体为空")
                 )
 
                 val records = parseUsageResponse(body)

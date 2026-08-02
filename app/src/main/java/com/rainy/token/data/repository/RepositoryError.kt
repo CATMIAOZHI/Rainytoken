@@ -23,8 +23,24 @@ sealed class RepositoryError(message: String, cause: Throwable? = null) : Except
     class ServerError(val code: Int, cause: Throwable? = null) :
         RepositoryError("服务端异常 (HTTP $code)", cause)
 
-    /** 解析失败（HTML 解析结果为空 / JSON 反序列化失败），detail 为具体原因 */
-    class ParseError(val detail: String, cause: Throwable? = null) :
+    /** 解析失败的具体原因（结构化错误码，UI 层据此映射本地化文案，detail 仅作日志/调试） */
+    enum class ParseErrorReason {
+        /** 响应体为空 */
+        EMPTY_BODY,
+        /** 响应根节点不是 JSON 对象 */
+        NOT_JSON_OBJECT,
+        /** 未找到用量窗口数据 */
+        NO_WINDOWS,
+        /** 未找到模型列表 */
+        NO_MODELS,
+        /** 模型列表为空 */
+        MODELS_EMPTY,
+        /** 响应格式异常（detail 含异常信息，仅供日志） */
+        MALFORMED_RESPONSE
+    }
+
+    /** 解析失败（HTML 解析结果为空 / JSON 反序列化失败），detail 为具体原因（日志用，不直接透传 UI） */
+    class ParseError(val reason: ParseErrorReason, val detail: String, cause: Throwable? = null) :
         RepositoryError("解析失败: $detail", cause)
 
     /** 未知错误 */

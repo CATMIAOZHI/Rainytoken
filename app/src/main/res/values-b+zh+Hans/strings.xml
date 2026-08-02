@@ -427,7 +427,12 @@
     <string name="action_save_cookie">保存 Cookie</string>
 
     <!-- ══════════ 服务详情/凭据校验（D 组迁移） ══════════ -->
-    <string name="error_parse_failed">数据解析失败: %1$s</string>
+    <string name="error_parse_empty_body">响应体为空</string>
+    <string name="error_parse_not_json">响应根节点不是 JSON 对象</string>
+    <string name="error_parse_no_windows">未找到用量窗口数据</string>
+    <string name="error_parse_no_models">未找到模型列表</string>
+    <string name="error_parse_models_empty">模型列表为空</string>
+    <string name="error_parse_malformed">响应格式异常</string>
     <string name="window_every_week">每周</string>
     <string name="msg_model_call_count">模型调用次数</string>
     <string name="msg_stale_cache">缓存数据 · %1$s</string>

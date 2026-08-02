@@ -115,9 +115,9 @@ class CodexRepository(
             parseUsageWindows(usageResult)
         } catch (e: Exception) {
             DebugLog.e(TAG, "解析 Codex 用量失败: ${e::class.simpleName}: ${e.message}")
-            return@withContext Result.failure(RepositoryError.ParseError("Codex 用量响应格式异常: ${e.message ?: e::class.simpleName}"))
+            return@withContext Result.failure(RepositoryError.ParseError(RepositoryError.ParseErrorReason.MALFORMED_RESPONSE, "Codex 用量响应格式异常: ${e.message ?: e::class.simpleName}"))
         }
-        if (windows.isEmpty()) return@withContext Result.failure(RepositoryError.ParseError("未找到 Codex 用量窗口数据"))
+        if (windows.isEmpty()) return@withContext Result.failure(RepositoryError.ParseError(RepositoryError.ParseErrorReason.NO_WINDOWS, "未找到 Codex 用量窗口数据"))
 
         val config = ServiceConfigProvider.get(ServiceType.CODEX)
         val primary = windows.firstOrNull { it.label.contains("h") } ?: windows.first()
@@ -155,16 +155,16 @@ class CodexRepository(
                     DebugLog.e(TAG, "fetchModels: HTTP ${resp.code}")
                     return@withContext Result.failure(RepositoryError.ServerError(resp.code))
                 }
-                val root = json.parseToJsonElement(resp.body?.string() ?: throw RepositoryError.ParseError("响应体为空")) as? JsonObject
-                    ?: throw RepositoryError.ParseError("响应根节点不是 JSON 对象")
+                val root = json.parseToJsonElement(resp.body?.string() ?: throw RepositoryError.ParseError(RepositoryError.ParseErrorReason.EMPTY_BODY, "响应体为空")) as? JsonObject
+                    ?: throw RepositoryError.ParseError(RepositoryError.ParseErrorReason.NOT_JSON_OBJECT, "响应根节点不是 JSON 对象")
                 // 结构: { "openai": { "models": { "gpt-5.6": {...}, ... } } }
                 val openaiProvider = root["openai"] as? JsonObject
                 val modelsObj = openaiProvider?.get("models") as? JsonObject
                 modelsObj?.keys?.toList()?.sorted()
-                    ?: throw RepositoryError.ParseError("未找到 OpenAI 模型列表")
+                    ?: throw RepositoryError.ParseError(RepositoryError.ParseErrorReason.NO_MODELS, "未找到 OpenAI 模型列表")
             }
             if (models.isEmpty()) {
-                return@withContext Result.failure(RepositoryError.ParseError("模型列表为空"))
+                return@withContext Result.failure(RepositoryError.ParseError(RepositoryError.ParseErrorReason.MODELS_EMPTY, "模型列表为空"))
             }
             DebugLog.i(TAG, "fetchModels: 获取到 ${models.size} 个模型")
             Result.success(models)
@@ -386,8 +386,8 @@ class CodexRepository(
                 DebugLog.e(TAG, "fetchJson failed: HTTP ${it.code} ${it.message} url=$url")
                 throw if (it.code in listOf(401, 403)) RepositoryError.InvalidCredential("HTTP ${it.code}") else RepositoryError.ServerError(it.code)
             }
-            return (json.parseToJsonElement(it.body?.string() ?: throw RepositoryError.ParseError("响应体为空")) as? JsonObject)
-                ?: throw RepositoryError.ParseError("响应根节点不是 JSON 对象")
+            return (json.parseToJsonElement(it.body?.string() ?: throw RepositoryError.ParseError(RepositoryError.ParseErrorReason.EMPTY_BODY, "响应体为空")) as? JsonObject)
+                ?: throw RepositoryError.ParseError(RepositoryError.ParseErrorReason.NOT_JSON_OBJECT, "响应根节点不是 JSON 对象")
         }
     }
 

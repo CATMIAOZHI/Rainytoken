@@ -430,7 +430,12 @@
     <string name="action_save_cookie">Save cookie</string>
 
     <!-- ══════════ 服务详情/凭据校验（D 组） ══════════ -->
-    <string name="error_parse_failed">Failed to parse data: %1$s</string>
+    <string name="error_parse_empty_body">Empty response body</string>
+    <string name="error_parse_not_json">Response root is not a JSON object</string>
+    <string name="error_parse_no_windows">No usage window data found</string>
+    <string name="error_parse_no_models">Model list not found</string>
+    <string name="error_parse_models_empty">Model list is empty</string>
+    <string name="error_parse_malformed">Response format is abnormal</string>
     <string name="window_every_week">Weekly</string>
     <string name="msg_model_call_count">Model call count</string>
     <string name="msg_stale_cache">Cached data · %1$s</string>
