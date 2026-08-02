@@ -55,6 +55,7 @@ Android AI 余额与用量查询 APP —— 统一查看 DeepSeek、OpenCode Go�
 | ⚡ **Codex 一键激活用量** | Codex 详情页可向 ChatGPT API 发送简短请求触发用量统计；模型列表从 models.dev 动态获取并持久化，支持手动刷新；响应弹窗可复制 |
 | ⚡ **OCGO / Ollama 一键激活用量** | OCGO 详情页可向 `opencode.ai/zen/v1` 发送请求，Ollama 详情页可向 `ollama.com/v1` 发送请求触发用量统计；API Key 在设置页手动填写，模型列表从 models.dev 动态获取 |
 | 🐛 **调试日志** | APP 内「调试日志」页面，查看 Repository 网络请求、Token 刷新、解析错误等详细日志，无需连接电脑 |
+| 🌐 **多语言** | 简体中文 / 繁體中文 / English 三语言界面；设置页一键切换（跟随系统 / 简体 / 繁体 / English）；Android 13+ 与系统「应用语言」页双向同步；非中英系统语言自动回退英文；桌面 APP 名称与小组件跟随语言 |
 
 ---
 
