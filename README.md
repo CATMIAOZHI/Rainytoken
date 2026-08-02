@@ -1,12 +1,12 @@
 # 🌧️ 雨晴Token (RainyToken)
 
-> *"AI 用量，尽在掌握 — AI Balance & Usage at a Glance"* 🐱✨
+> *"AI 用量，尽在掌握 — AI Balance & Usage at a Glance"*
 
 [![CI](https://github.com/CATMIAOZHI/Rainytoken/actions/workflows/ci.yml/badge.svg)](https://github.com/CATMIAOZHI/Rainytoken/actions/workflows/ci.yml)
 [![Release](https://github.com/CATMIAOZHI/Rainytoken/actions/workflows/release.yml/badge.svg)](https://github.com/CATMIAOZHI/Rainytoken/actions)
 [![Version](https://img.shields.io/github/v/release/CATMIAOZHI/Rainytoken?color=ff85a2)](https://github.com/CATMIAOZHI/Rainytoken/releases)
 Android AI 余额与用量查询 APP —— 统一查看 DeepSeek、OpenCode Go、CommandCode Go、Codex / ChatGPT Plus、Ollama Pro 的余额与用量配额。粉色调品牌 UI，配套桌面小组件。
-🐱 雨晴Token — AI Balance & Usage Quota Query | the Rainy Family tools.
+RainyToken（雨晴Token）— AI Balance & Usage Quota Query · the Rainy Family tools.
 
 ---
 
@@ -205,14 +205,14 @@ wrapper 脚本将等号形式拆分为空格分隔的两个独立 argv。项目 
 
 ## 🐱 关于
 
-RainyToken（雨晴Token）是「雨晴系列」的第 4 个成员，由 [雨晴喵](https://github.com/CATMIAOZHI) 编纂，随 [雨晴系列](https://github.com/CATMIAOZHI?tab=repositories) 发布：
+RainyToken（雨晴Token）是「雨晴系列」的第 4 个成员，由 [雨晴喵](https://github.com/CATMIAOZHI) 开发维护，随 [雨晴系列](https://github.com/CATMIAOZHI?tab=repositories) 发布：
 
 - [RainyLLM](https://github.com/CATMIAOZHI/RainyLLM) — 纯离线 Android 本地 LLM 推理服务器（Gemma + OpenAI 兼容 API）
 - [RainyScanner](https://github.com/CATMIAOZHI/RainyScanner) — 不拦截不跳转的 Android 扫码工具
 - [Rainy2FA](https://github.com/CATMIAOZHI/Rainy2FA) — 纯本地 · 零联网 · 生物识别保护的 TOTP 验证器
 - **RainyToken** — AI 余额与用量查询 APP | AI Balance & Usage Quota Query（本项目）
 
-> 🎀 Made with love by 雨晴喵 — 守护主人的每一分算力预算 💖
+> 守护每一分 AI 算力预算 💖
 
 ---
 
@@ -222,4 +222,4 @@ MIT License © 2026 Rainy
 
 ---
 
-<p align="center">💖 Made with love by 雨晴喵</p>
+<p align="center">RainyToken · the Rainy Family tools</p>
