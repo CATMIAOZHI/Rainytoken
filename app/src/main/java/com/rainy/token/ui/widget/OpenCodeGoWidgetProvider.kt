@@ -15,6 +15,7 @@ import com.rainy.token.data.cache.BalanceCache
 import com.rainy.token.data.cache.balanceCacheDataStore
 import com.rainy.token.domain.service.ServiceType
 import com.rainy.token.ui.components.normalizeWindowLabel
+import com.rainy.token.util.LocaleManager
 import kotlinx.coroutines.runBlocking
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -57,15 +58,19 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
     ) {
         var selectedHasCachedData = false
 
+        // 每次渲染都用最新语言偏好重新包装 context：Application 层的 wrap 在进程启动时固定，
+        // 应用内切换语言后不会自动更新，必须在这里按当前偏好重建，否则 widget 文本停留在旧语言
+        val localized = LocaleManager.wrapContext(context)
+
         for (widgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_opencode_go)
 
             // 署名动态设置：与行标签同源（跟随应用内语言），
             // 避免 XML 静态文本由宿主进程按系统语言渲染造成中英混搭
-            views.setTextViewText(R.id.widget_brand, context.getString(R.string.widget_brand))
+            views.setTextViewText(R.id.widget_brand, localized.getString(R.string.widget_brand))
 
             // DeepSeek 余额标签同样动态设置（静态 XML 文本由 Launcher 按系统语言解析）
-            views.setTextViewText(R.id.widget_ds_label, context.getString(R.string.widget_deepseek_balance))
+            views.setTextViewText(R.id.widget_ds_label, localized.getString(R.string.widget_deepseek_balance))
 
             // 点击左上角品牌 → 打开 APP；点击其它内容区域 → 切换服务；刷新按钮单独刷新。
             val openAppIntent = Intent(context, MainActivity::class.java).apply {
@@ -102,7 +107,7 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                     views.setTextViewText(R.id.widget_switch, shortName(selectedService))
                     views.setTextViewText(
                         R.id.widget_service_title,
-                        context.getString(R.string.widget_service_quota, selectedService.displayName)
+                        localized.getString(R.string.widget_service_quota, selectedService.displayName)
                     )
                     views.setImageViewResource(R.id.widget_logo, widgetLogo(selectedService))
                     // Ollama logo 是正方形，XML 默认 22x12 是给宽扁 logo 的
@@ -116,20 +121,20 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                     val cached = cache.get(selectedService)
                     if (cached != null) {
                         selectedHasCachedData = true
-                        populateServiceRows(views, context, selectedService, cached.balance)
+                        populateServiceRows(views, localized, selectedService, cached.balance)
 
                         val sdf = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
                         val timeText = sdf.format(Date(cached.fetchedAt))
                         views.setTextViewText(
                             R.id.widget_updated,
-                            context.getString(R.string.widget_updated_at, timeText)
+                            localized.getString(R.string.widget_updated_at, timeText)
                         )
                     } else {
-                        setEmptyState(views, context)
+                        setEmptyState(views, localized)
                         views.setTextViewText(R.id.widget_switch, shortName(selectedService))
                         views.setTextViewText(
                             R.id.widget_service_title,
-                            context.getString(R.string.widget_service_quota, selectedService.displayName)
+                            localized.getString(R.string.widget_service_quota, selectedService.displayName)
                         )
                     }
 
@@ -143,7 +148,7 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                         views.setTextViewText(R.id.widget_ds_amount, "—")
                     }
                 } catch (_: Exception) {
-                    setEmptyState(views, context)
+                    setEmptyState(views, localized)
                 }
             }
 
@@ -378,12 +383,14 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
         }
 
         fun showRefreshing(context: Context) {
+            // 与 onUpdate 同理：用最新语言偏好包装，避免进程启动后切换语言不生效
+            val localized = LocaleManager.wrapContext(context)
             val appWidgetManager = AppWidgetManager.getInstance(context)
             val component = ComponentName(context, OpenCodeGoWidgetProvider::class.java)
             val ids = appWidgetManager.getAppWidgetIds(component)
             ids.forEach { id ->
                 val views = RemoteViews(context.packageName, R.layout.widget_opencode_go)
-                views.setTextViewText(R.id.widget_updated, context.getString(R.string.widget_refreshing))
+                views.setTextViewText(R.id.widget_updated, localized.getString(R.string.widget_refreshing))
                 appWidgetManager.partiallyUpdateAppWidget(id, views)
             }
         }

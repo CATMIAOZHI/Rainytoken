@@ -1,6 +1,7 @@
 package com.rainy.token.ui.settings
 
 import android.app.Activity
+import android.os.Build
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -230,8 +231,11 @@ private fun LanguageDialog(onDismiss: () -> Unit) {
                             .clickable {
                                 LocaleManager.saveLocale(context, code)
                                 onDismiss()
-                                // 重建 Activity 让资源按新语言重新解析
-                                (context as? Activity)?.recreate()
+                                // Android 13+：framework 设置语言后系统自动重建 Activity；
+                                // 旧系统才需要手动 recreate 让资源按新语言重新解析
+                                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                                    (context as? Activity)?.recreate()
+                                }
                             }
                             .padding(vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
