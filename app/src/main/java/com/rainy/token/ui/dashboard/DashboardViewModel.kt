@@ -212,6 +212,8 @@ private fun errorToUiText(error: Throwable): UiText = when (error) {
         RepositoryError.ParseErrorReason.MODELS_EMPTY -> UiText.Resource(R.string.error_parse_models_empty)
         RepositoryError.ParseErrorReason.MALFORMED_RESPONSE -> UiText.Resource(R.string.error_parse_malformed)
     }
+    // Unknown 的 message 以硬编码中文"未知错误"开头，不能透传 UI，统一映射本地化文案
+    is RepositoryError.Unknown -> UiText.Resource(R.string.common_unknown)
     else -> error.message?.let { UiText.Dynamic(it) }
         ?: UiText.Resource(R.string.common_unknown)
 }

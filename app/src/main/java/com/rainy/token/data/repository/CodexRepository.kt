@@ -252,7 +252,7 @@ class CodexRepository(
                             }
                             is RefreshResult.Failure -> {
                                 DebugLog.e(TAG, "triggerUsage: 二次刷新失败: ${r.reason}")
-                                return@use Result.failure(TriggerError("token 刷新失败: ${r.reason}", ""))
+                                return@use Result.failure(TriggerError("token 刷新失败: ${r.reason}", "", TriggerErrorReason.TOKEN_REFRESH))
                             }
                         }
                     } else {
@@ -394,8 +394,14 @@ class CodexRepository(
     @Serializable data class OAuthRefreshResponse(@kotlinx.serialization.SerialName("access_token") val accessToken: String, @kotlinx.serialization.SerialName("refresh_token") val refreshToken: String? = null, @kotlinx.serialization.SerialName("expires_in") val expiresIn: Long = 3600, @kotlinx.serialization.SerialName("token_type") val tokenType: String? = null)
 }
 
+/** TriggerError 的结构化原因（UI 层据此映射本地化文案；null = HTTP 错误，summary 为 ASCII 可直显） */
+enum class TriggerErrorReason {
+    /** token 刷新失败（summary 中为中文用户提示，不直接透传 UI） */
+    TOKEN_REFRESH
+}
+
 /** 携带完整响应体的错误类，供 UI 展示服务端返回的详细信息 */
-class TriggerError(val summary: String, val responseBody: String) : Exception(summary)
+class TriggerError(val summary: String, val responseBody: String, val reason: TriggerErrorReason? = null) : Exception(summary)
 
 /**
  * 将 SSE 流响应解析为简洁的文本摘要。

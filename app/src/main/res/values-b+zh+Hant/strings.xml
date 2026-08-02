@@ -139,6 +139,7 @@
     <string name="usage_cache_write">快取寫入 %1$s</string>
     <string name="usage_no_data_sync">暫無數據，點選 🔄 同步</string>
     <string name="usage_new_records">✓ 新增 %1$d 條</string>
+    <string name="sync_partial">部分同步完成：插入 %1$d條，%2$d頁失敗</string>
     <string name="usage_click_to_switch"> 點選切換</string>
     <string name="usage_utc0_note">所有時間按 UTC+0 計算</string>
     <string name="msg_utc8_on">已切換到 UTC+8，圖表按北京時間顯示</string>
@@ -273,7 +274,7 @@
     <string name="trigger_parse_failed">(響應解析失敗，但請求已發出)</string>
     <string name="trigger_usage_prompt_completion_total">用量: prompt=%1$s completion=%2$s total=%3$s tokens</string>
     <string name="trigger_usage_input_output">用量: input=%1$s output=%2$s tokens</string>
-    <string name="error_token_refresh_failed">token 重新整理失敗：%1$s</string>
+    <string name="error_token_refresh_generic">token 重新整理失敗，請重新登入或重新匯入 auth.json</string>
 
     <!-- ══════════ WebView 登录 ══════════ -->
     <string name="title_webview_login">登入 %1$s</string>

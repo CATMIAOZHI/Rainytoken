@@ -8,6 +8,7 @@ import com.rainy.token.data.debug.DebugLog
 import com.rainy.token.data.repository.CredentialRepository
 import com.rainy.token.data.repository.RepositoryError
 import com.rainy.token.data.repository.TriggerError
+import com.rainy.token.data.repository.TriggerErrorReason
 import com.rainy.token.domain.model.Credential
 import com.rainy.token.domain.model.CredentialStatus
 import com.rainy.token.domain.model.ServiceBalance
@@ -337,12 +338,10 @@ class ServiceDetailViewModel @Inject constructor(
                     val responseBody: String?
                     when (error) {
                         is TriggerError -> {
-                            val prefix = "token 刷新失败: "
-                            message = if (error.summary.startsWith(prefix)) {
-                                UiText.Resource(
-                                    R.string.error_token_refresh_failed,
-                                    listOf(error.summary.removePrefix(prefix))
-                                )
+                            // reason 结构化：token 刷新失败显示本地化文案（summary 中文提示只进日志）；
+                            // 其余（HTTP 错误）summary 为 ASCII 可直接展示
+                            message = if (error.reason == TriggerErrorReason.TOKEN_REFRESH) {
+                                UiText.Resource(R.string.error_token_refresh_generic)
                             } else {
                                 UiText.Dynamic(error.summary)
                             }
@@ -544,6 +543,8 @@ class ServiceDetailViewModel @Inject constructor(
             RepositoryError.ParseErrorReason.MODELS_EMPTY -> UiText.Resource(R.string.error_parse_models_empty)
             RepositoryError.ParseErrorReason.MALFORMED_RESPONSE -> UiText.Resource(R.string.error_parse_malformed)
         }
+        // Unknown 的 message 以硬编码中文"未知错误"开头，不能透传 UI，统一映射本地化文案
+        is RepositoryError.Unknown -> UiText.Resource(R.string.common_unknown)
         else -> error.message?.let { UiText.Dynamic(it) }
             ?: UiText.Resource(R.string.common_unknown)
     }

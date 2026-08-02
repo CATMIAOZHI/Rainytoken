@@ -31,6 +31,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rainy.token.R
 import com.rainy.token.data.local.OverviewStats
+import com.rainy.token.ui.components.asString
 import com.rainy.token.ui.theme.InkMuted
 import com.rainy.token.ui.theme.StrawberryPink
 import java.util.Locale
@@ -163,7 +164,7 @@ fun UsageStatsCard(
             uiState.lastSyncError?.let { err ->
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "✗ $err",
+                    text = "✗ ${err.asString()}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error
                 )
