@@ -2,7 +2,7 @@
 <resources>
 <!-- ══════════ 品牌资源（translatable=false，所有语言共用，不参与翻译） ══════════ -->
     <string name="brand_token" translatable="false">RainyToken</string>
-    <string name="dashboard_footer_version" translatable="false">RainyToken · v1.0</string>
+    <string name="dashboard_footer_version" translatable="false">RainyToken · v%1$s</string>
 
     <!-- ══════════ 应用名称（跟随语言：中文系统显示中文名，其他显示英文名） ══════════ -->
     <string name="app_name">RainyToken</string>

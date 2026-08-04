@@ -78,6 +78,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rainy.token.BuildConfig
 import com.rainy.token.R
 import com.rainy.token.domain.model.CredentialStatus
 import com.rainy.token.domain.model.ServiceBalance
@@ -697,7 +698,7 @@ private fun DashboardFooter() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = stringResource(R.string.dashboard_footer_version),
+            text = stringResource(R.string.dashboard_footer_version, BuildConfig.VERSION_NAME),
             style = MaterialTheme.typography.bodySmall,
             color = inkMuted()
         )
