@@ -171,6 +171,16 @@ fun CommandCodeUsageStatsCard(
                 )
             }
 
+            // ─── 刷新时间（与其余服务卡片底部一致） ───
+            if (uiState.lastSyncAt > 0) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = usageUpdatedAtText(uiState.lastSyncAt),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkMuted
+                )
+            }
+
         }
     }
 }

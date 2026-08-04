@@ -559,3 +559,20 @@ internal fun footerText(card: DashboardCardUi): UiText {
         else -> UiText.Resource(R.string.footer_updated_at, listOf(timeStr))
     }
 }
+
+/**
+ * 用量卡片（OCGO / CCGO）底部刷新时间文案，规则与 [footerText] 完全一致：
+ * <1 分钟"刚刚更新"、<1 小时"X 分钟前"、<24 小时"X 小时前"、更早显示 "MM-dd HH:mm 更新"。
+ */
+@Composable
+internal fun usageUpdatedAtText(updatedAt: Long): String {
+    val now = System.currentTimeMillis()
+    val diffMin = (now - updatedAt) / 60_000
+    val sdf = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
+    return when {
+        diffMin < 1 -> stringResource(R.string.footer_just_updated)
+        diffMin < 60 -> stringResource(R.string.footer_minutes_ago, diffMin)
+        diffMin < 1440 -> stringResource(R.string.footer_hours_ago, diffMin / 60)
+        else -> stringResource(R.string.footer_updated_at, sdf.format(Date(updatedAt)))
+    }
+}

@@ -88,6 +88,22 @@ class UsageViewModel @Inject constructor(
     private var workspaceIdOverride: String? = null
     private var loadGeneration = 0  // 递增：过时的 loadStatsInternal 结果自动丢弃
 
+    /** 用量同步时间持久化（按 workspace 区分 OCGO / CCGO），重启后卡片仍能显示刷新时间。 */
+    private fun syncAtPrefs(): android.content.SharedPreferences =
+        com.rainy.token.RainyTokenApplication.appContext.getSharedPreferences(
+            "usage_sync_at",
+            android.content.Context.MODE_PRIVATE
+        )
+
+    private fun syncAtKey(wid: String): String = "sync_at_$wid"
+
+    private fun loadLastSyncAt(wid: String): Long =
+        syncAtPrefs().getLong(syncAtKey(wid), 0L)
+
+    private fun saveLastSyncAt(wid: String, ts: Long) {
+        syncAtPrefs().edit().putLong(syncAtKey(wid), ts).apply()
+    }
+
     /** 覆盖 workspaceId，用于 CCGO 等非 OCGO 服务。必须在 loadStats() 前调用。 */
     fun setWorkspace(wid: String) {
         workspaceIdOverride = wid
@@ -158,7 +174,8 @@ class UsageViewModel @Inject constructor(
                 dailyStats = dailyStats,
                 recordCount = totalCount,
                 loading = false,
-                dailyPage = 1
+                dailyPage = 1,
+                lastSyncAt = loadLastSyncAt(wid)
             )
         }
     }
@@ -189,6 +206,7 @@ class UsageViewModel @Inject constructor(
     fun sync() {
         viewModelScope.launch {
             _uiState.update { it.copy(syncing = true) }
+            val wid = workspaceIdOverride ?: workspaceId()
             val result = withContext(Dispatchers.Default) {
                 val cache = cacheProvider.get()
                 if (workspaceIdOverride == com.rainy.token.data.repository.CommandCodeUsageRepository.CCGO_WORKSPACE_ID) {
@@ -201,12 +219,15 @@ class UsageViewModel @Inject constructor(
                     if (count == 0) useCase.fullSync() else useCase.incrementalSync()
                 }
             }
+            val syncedAt = System.currentTimeMillis()
+            if (result.isSuccess && wid != null) saveLastSyncAt(wid, syncedAt)
             result.onSuccess { loadStats() }
             _uiState.update {
                 it.copy(
                     syncing = false,
                     lastSyncResult = result.getOrNull()?.inserted ?: 0,
-                    lastSyncError = result.exceptionOrNull()?.let { syncErrorToUiText(it) }
+                    lastSyncError = result.exceptionOrNull()?.let { syncErrorToUiText(it) },
+                    lastSyncAt = if (result.isSuccess && wid != null) syncedAt else it.lastSyncAt
                 )
             }
         }
@@ -222,12 +243,15 @@ class UsageViewModel @Inject constructor(
             invalidateData()
             val useCase = syncCommandCodeUseCaseProvider.get()
             val result = useCase.fullSync()
+            val syncedAt = System.currentTimeMillis()
+            if (result.isSuccess) saveLastSyncAt(wid, syncedAt)
             result.onSuccess { loadStats() }
             _uiState.update {
                 it.copy(
                     syncing = false,
                     lastSyncResult = result.getOrNull()?.inserted ?: 0,
-                    lastSyncError = result.exceptionOrNull()?.let { syncErrorToUiText(it) }
+                    lastSyncError = result.exceptionOrNull()?.let { syncErrorToUiText(it) },
+                    lastSyncAt = if (result.isSuccess) syncedAt else it.lastSyncAt
                 )
             }
         }
@@ -247,6 +271,7 @@ data class UsageUiState(
     val recordCount: Int = 0,
     val lastSyncResult: Int = 0,
     val lastSyncError: UiText? = null,
+    val lastSyncAt: Long = 0,  // 最近一次成功同步的 epoch ms（0 = 从未同步）
     val timeFilter: TimeFilter = TimeFilter.All,
     val dailyPage: Int = 1,
     val modelFilter: String? = null  // null = 全部模型

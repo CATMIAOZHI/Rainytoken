@@ -65,6 +65,9 @@ class ServiceDetailViewModel @Inject constructor(
         private const val OCGO_PREFS = "ocgo_trigger_prefs"
         private const val OLLAMA_PREFS = "ollama_trigger_prefs"
 
+        /** 缓存新鲜度阈值：fetchedAt 距今 ≤5 分钟视为最新数据，不再标记为"缓存"。 */
+        private const val CACHE_FRESH_THRESHOLD_MS = 5 * 60_000L
+
         internal fun credentialFingerprint(credential: Credential?): String? =
             CredentialRepository.credentialFingerprint(credential)
 
@@ -441,7 +444,12 @@ class ServiceDetailViewModel @Inject constructor(
                         RepositoryError.InvalidCredential()
                     )
                 cached != null && status.state == CredentialStatus.State.OK ->
-                    State.Stale(cached.balance, cached.fetchedAt)
+                    // 缓存新鲜（≤5 分钟）时视为最新数据直接展示，避免"刚刷新完进详情却显示缓存"的困惑
+                    if (isCacheFresh(cached.fetchedAt)) {
+                        State.Fresh(cached.balance)
+                    } else {
+                        State.Stale(cached.balance, cached.fetchedAt)
+                    }
                 cached != null ->
                     State.Error(
                         cached.balance,
@@ -460,7 +468,11 @@ class ServiceDetailViewModel @Inject constructor(
                     state = newState
                 )
             }
-            if (!isManual && status.state != CredentialStatus.State.NOT_CONFIGURED && cached == null) {
+            // 无缓存或缓存已过期（>5 分钟）时自动刷新一次；
+            // 缓存新鲜时直接展示，避免每次进详情页都发网络请求
+            if (!isManual && status.state != CredentialStatus.State.NOT_CONFIGURED &&
+                (cached == null || !isCacheFresh(cached.fetchedAt))
+            ) {
                 refresh()
             }
         }
@@ -486,10 +498,19 @@ class ServiceDetailViewModel @Inject constructor(
             cacheAdvanced && current.state is State.Fresh ->
                 State.Fresh(mergedCache!!.balance)
             cacheAdvanced && current.state is State.Stale ->
-                State.Stale(mergedCache!!.balance, mergedCache.fetchedAt)
+                if (isCacheFresh(mergedCache!!.fetchedAt)) {
+                    State.Fresh(mergedCache.balance)
+                } else {
+                    State.Stale(mergedCache.balance, mergedCache.fetchedAt)
+                }
             current.state is State.Fresh -> current.state
             current.state is State.Stale -> current.state
-            mergedCache != null -> State.Stale(mergedCache.balance, mergedCache.fetchedAt)
+            mergedCache != null ->
+                if (isCacheFresh(mergedCache.fetchedAt)) {
+                    State.Fresh(mergedCache.balance)
+                } else {
+                    State.Stale(mergedCache.balance, mergedCache.fetchedAt)
+                }
             else -> current.state
         }
         return current.copy(
@@ -513,6 +534,10 @@ class ServiceDetailViewModel @Inject constructor(
         candidate: CachedBalance?,
         current: CachedBalance?
     ): Boolean = candidate != null && (current == null || candidate.fetchedAt > current.fetchedAt)
+
+    /** 缓存是否仍算"最新"：fetchedAt 距今 ≤5 分钟（与 Dashboard 底部"刚刚更新"感知一致）。 */
+    private fun isCacheFresh(fetchedAt: Long): Boolean =
+        System.currentTimeMillis() - fetchedAt <= CACHE_FRESH_THRESHOLD_MS
 
     private fun isStaleRequest(type: ServiceType, serviceGen: Int, refreshGen: Int): Boolean =
         refreshGen != refreshGeneration ||
