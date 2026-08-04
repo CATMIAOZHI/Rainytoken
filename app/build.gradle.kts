@@ -16,8 +16,8 @@ android {
         applicationId = "com.rainy.token"
         minSdk = 31
         targetSdk = 35
-        versionCode = 8
-        versionName = "1.5.3"
+        versionCode = 9
+        versionName = "1.5.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
