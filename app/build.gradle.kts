@@ -32,9 +32,18 @@ android {
             val keystoreFile = rootProject.file("release.jks")
             if (keystoreFile.exists()) {
                 storeFile = keystoreFile
-                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "RainyToken2026!"
-                keyAlias = System.getenv("KEYSTORE_ALIAS") ?: "rainy"
-                keyPassword = System.getenv("KEY_PASSWORD") ?: "RainyToken2026!"
+                // 凭据必须通过环境变量注入；缺失或为空时直接报错，不提供任何隐式 fallback
+                // 注意：GitHub Actions 中未设置的 secret 会被替换为空字符串（非 null），
+                // 因此用 takeIf { isNotBlank() } 同时防御 null 和空字符串
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                    ?.takeIf { it.isNotBlank() }
+                    ?: throw GradleException("KEYSTORE_PASSWORD env var not set or empty — cannot sign release")
+                keyAlias = System.getenv("KEYSTORE_ALIAS")
+                    ?.takeIf { it.isNotBlank() }
+                    ?: throw GradleException("KEYSTORE_ALIAS env var not set or empty — cannot sign release")
+                keyPassword = System.getenv("KEY_PASSWORD")
+                    ?.takeIf { it.isNotBlank() }
+                    ?: throw GradleException("KEY_PASSWORD env var not set or empty — cannot sign release")
             } else {
                 // 仅在 CI 环境中 fallback 到 debug keystore（用于编译/资源完整性验证）
                 // 本地构建缺少 release.jks 时直接报错，避免静默生成 debug 签名的 Release APK
