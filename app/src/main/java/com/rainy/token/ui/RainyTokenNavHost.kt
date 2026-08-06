@@ -48,6 +48,7 @@ import com.rainy.token.ui.dashboard.UsageDataViewModel
 import com.rainy.token.ui.dashboard.UsageDetailScreen
 import com.rainy.token.ui.dashboard.UsageOverviewScreen
 import com.rainy.token.ui.dashboard.UsageViewModel
+import com.rainy.token.ui.heatmap.HeatmapScreen
 import com.rainy.token.ui.servicedetail.ServiceDetailScreen
 import com.rainy.token.ui.settings.CredentialEditScreen
 import com.rainy.token.ui.settings.SettingsScreen
@@ -83,6 +84,7 @@ object Routes {
     const val CCGO_USAGE_DETAIL = "ccgo_usage_detail"
     const val CCGO_USAGE_OVERVIEW = "ccgo_usage_overview"
     const val CCGO_USAGE_DATA = "ccgo_usage_data"
+    const val HEATMAP = "heatmap"
 }
 
 private fun parseServiceType(typeName: String?): ServiceType =
@@ -96,6 +98,7 @@ private sealed class DetailPane {
     object OCGOUsage : DetailPane()
     object CCGOUsage : DetailPane()
     object Settings : DetailPane()
+    object Heatmap : DetailPane()
 }
 
 @Composable
@@ -191,7 +194,8 @@ private fun CompactNavHost() {
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                 onOpenService = { type -> navController.navigate(Routes.serviceDetail(type)) },
                 onOpenUsageDetail = { navController.navigate(Routes.USAGE_DETAIL) },
-                onOpenCcgoUsageDetail = { navController.navigate(Routes.CCGO_USAGE_DETAIL) }
+                onOpenCcgoUsageDetail = { navController.navigate(Routes.CCGO_USAGE_DETAIL) },
+                onOpenHeatmap = { navController.navigate(Routes.HEATMAP) }
             )
         }
         composable(Routes.USAGE_DETAIL) {
@@ -303,6 +307,9 @@ private fun CompactNavHost() {
                 onStartWebViewLogin = { svc -> navController.navigate(Routes.webviewLogin(svc)) }
             )
         }
+        composable(Routes.HEATMAP) {
+            HeatmapScreen(onBack = guardedPop)
+        }
     }
 }
 
@@ -336,6 +343,7 @@ private fun ExpandedLayout() {
                 onOpenService = { type -> detailPane = DetailPane.ServiceDetail(type) },
                 onOpenUsageDetail = { detailPane = DetailPane.OCGOUsage },
                 onOpenCcgoUsageDetail = { detailPane = DetailPane.CCGOUsage },
+                onOpenHeatmap = { detailPane = DetailPane.Heatmap },
                 viewModel = dashboardVm
             )
         }
@@ -441,6 +449,9 @@ private fun ExpandedDetailPane(
                     UsageDataScreen(onBack = { navController.popBackStack() }, viewModel = dataVm, autoLoad = false)
                 }
             }
+        }
+        is DetailPane.Heatmap -> {
+            HeatmapScreen(onBack = onClose)
         }
         is DetailPane.Settings -> {
             val settingsNavController = rememberNavController()

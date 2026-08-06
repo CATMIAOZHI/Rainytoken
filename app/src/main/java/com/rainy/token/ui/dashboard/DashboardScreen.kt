@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -122,6 +123,7 @@ fun DashboardScreen(
     onOpenService: (ServiceType) -> Unit,
     onOpenUsageDetail: () -> Unit,
     onOpenCcgoUsageDetail: () -> Unit = {},
+    onOpenHeatmap: () -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
     // 从设置页返回时重新读取本地凭据状态 + 缓存（不自动发起网络请求）
@@ -280,6 +282,7 @@ fun DashboardScreen(
                             onOpenUsageDetail = onOpenUsageDetail,
                             onOpenCcgoUsageDetail = onOpenCcgoUsageDetail,
                             onOpenService = onOpenService,
+                            onOpenHeatmap = onOpenHeatmap,
                             refreshTrigger = usageSyncTrigger
                         )
                         DraggableDashboardCards(
@@ -346,6 +349,7 @@ private const val DASHBOARD_ORDER_KEY = "order"
 private const val USAGE_OCGO_CARD_ID = "usage:opencode_go"
 private const val USAGE_CCGO_CARD_ID = "usage:commandcode_go"
 private const val DASHBOARD_CARD_SPACING_DP = 12
+private const val HEATMAP_CARD_ID = "heatmap"
 
 private data class DashboardHomeItem(
     val id: String,
@@ -359,6 +363,7 @@ private fun rememberDashboardItems(
     onOpenUsageDetail: () -> Unit,
     onOpenCcgoUsageDetail: () -> Unit,
     onOpenService: (ServiceType) -> Unit,
+    onOpenHeatmap: () -> Unit,
     refreshTrigger: Int
 ): List<DashboardHomeItem> {
     val defaultItems = buildList {
@@ -367,6 +372,9 @@ private fun rememberDashboardItems(
         })
         add(DashboardHomeItem(USAGE_CCGO_CARD_ID) {
             CommandCodeUsageStatsCard(onOpenDetail = onOpenCcgoUsageDetail, refreshTrigger = refreshTrigger)
+        })
+        add(DashboardHomeItem(HEATMAP_CARD_ID) {
+            HeatmapEntryCard(onOpenHeatmap = onOpenHeatmap)
         })
         cards.forEach { card ->
             add(DashboardHomeItem("service:${card.service.storageKey}") {
@@ -680,6 +688,54 @@ private fun DashboardCard(card: DashboardCardUi, onClick: () -> Unit, onOpenUsag
                     MaterialTheme.colorScheme.error
                 else
                     inkMuted()
+            )
+        }
+    }
+}
+
+/**
+ * Token 活动热力图入口卡片。
+ * 白底圆角，左侧日历图标，中间标题，右侧箭头，点击跳转热力图页面。
+ */
+@Composable
+private fun HeatmapEntryCard(onOpenHeatmap: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onOpenHeatmap() },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.CalendarMonth,
+                contentDescription = null,
+                tint = StrawberryPink,
+                modifier = Modifier.size(44.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.heatmap_entry),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = stringResource(R.string.heatmap_entry_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = inkMuted()
+                )
+            }
+            Icon(
+                imageVector = Icons.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = StrawberryPink
             )
         }
     }

@@ -492,4 +492,15 @@
     <string name="action_submit_callback">提交回调 URL</string>
     <string name="action_regenerate_link">重新生成授权链接</string>
     <string name="oauth_preparing">正在准备授权...</string>
+
+    <!-- ══════════ Token 活动热力图 ══════════ -->
+    <string name="heatmap_title">Token 活动</string>
+    <string name="heatmap_view_daily">每日</string>
+    <string name="heatmap_view_weekly">每周</string>
+    <string name="heatmap_view_cumulative">累计</string>
+    <string name="heatmap_entry">Token 活动</string>
+    <string name="heatmap_entry_subtitle">每日 Token 使用热力图</string>
+    <string name="heatmap_no_data">暂无数据</string>
+    <string name="heatmap_legend_less">少</string>
+    <string name="heatmap_legend_more">多</string>
 </resources>

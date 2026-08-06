@@ -495,4 +495,15 @@
     <string name="action_submit_callback">Submit callback URL</string>
     <string name="action_regenerate_link">Regenerate auth link</string>
     <string name="oauth_preparing">Preparing authorization...</string>
+
+    <!-- ══════════ Token 活动热力图 ══════════ -->
+    <string name="heatmap_title">Token Activity</string>
+    <string name="heatmap_view_daily">Daily</string>
+    <string name="heatmap_view_weekly">Weekly</string>
+    <string name="heatmap_view_cumulative">Cumulative</string>
+    <string name="heatmap_entry">Token Activity</string>
+    <string name="heatmap_entry_subtitle">Daily Token usage heatmap</string>
+    <string name="heatmap_no_data">No data yet</string>
+    <string name="heatmap_legend_less">Less</string>
+    <string name="heatmap_legend_more">More</string>
 </resources>
