@@ -504,4 +504,6 @@
     <string name="heatmap_legend_less">少</string>
     <string name="heatmap_legend_more">多</string>
     <string name="heatmap_accessibility_desc">Token 活动热力图，%1$d 天数据</string>
+    <string name="heatmap_accessibility_desc_weekly">Token 活动热力图，%1$d 周数据</string>
+    <string name="heatmap_select_year">选择年份</string>
 </resources>

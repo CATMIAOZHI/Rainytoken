@@ -21,3 +21,4 @@ release.jks
 *.jks
 tmp_cc/
 goal.md
+/reference/

@@ -507,4 +507,6 @@
     <string name="heatmap_legend_less">Less</string>
     <string name="heatmap_legend_more">More</string>
     <string name="heatmap_accessibility_desc">Token activity heatmap, %1$d days</string>
+    <string name="heatmap_accessibility_desc_weekly">Token activity heatmap, %1$d weeks</string>
+    <string name="heatmap_select_year">Select year</string>
 </resources>

@@ -2,19 +2,24 @@ package com.rainy.token.ui.heatmap
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rainy.token.data.local.ChartSettingsStore
 import com.rainy.token.data.local.UsageCache
 import com.rainy.token.data.local.UsageRecord
 import com.rainy.token.data.repository.CredentialRepository
 import com.rainy.token.domain.model.Credential
 import com.rainy.token.domain.service.ServiceType
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.Instant
+import java.time.ZoneOffset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Provider
 
@@ -35,35 +40,48 @@ data class HeatmapWeekData(
     val weekStartTs: Long, // 该周起始日时间戳
     val tokens: Long,      // 该周 7 天累计 token 数
     val level: Int,        // 0-5 颜色等级
+    val barHeight: Int,    // 柱状图高度（格数）：0 用量周=1（Level 0 浅色格，可见可点），非零周=2~7（按 token 排名比例）
 )
 
 /** UI 状态 */
 data class HeatmapUiState(
     val loading: Boolean = true,
     val viewMode: HeatmapViewMode = HeatmapViewMode.DAILY,
+    val selectedYear: Int = 0,  // 当前选中年份（0=尚未加载）
+    val currentYear: Int = 0,   // 今年（浮层日期判断是否显示年份用）
+    val availableYears: List<Int> = emptyList(),  // 可选年份（最早数据年份..今年，降序展示）
     val dailyData: List<HeatmapDayData> = emptyList(),
     val weeklyData: List<HeatmapWeekData> = emptyList(),
     val cumulativeData: List<HeatmapDayData> = emptyList(),
     val colorLevels: IntArray = IntArray(6),  // [0, p25, p50, p75, p95, max]
+    val useUtc8: Boolean = false,  // 与全局图表设置一致：true=UTC+8 分桶，false=UTC
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is HeatmapUiState) return false
         return loading == other.loading &&
             viewMode == other.viewMode &&
+            selectedYear == other.selectedYear &&
+            currentYear == other.currentYear &&
+            availableYears == other.availableYears &&
             dailyData == other.dailyData &&
             weeklyData == other.weeklyData &&
             cumulativeData == other.cumulativeData &&
-            colorLevels.contentEquals(other.colorLevels)
+            colorLevels.contentEquals(other.colorLevels) &&
+            useUtc8 == other.useUtc8
     }
 
     override fun hashCode(): Int {
         var result = loading.hashCode()
         result = 31 * result + viewMode.hashCode()
+        result = 31 * result + selectedYear
+        result = 31 * result + currentYear
+        result = 31 * result + availableYears.hashCode()
         result = 31 * result + dailyData.hashCode()
         result = 31 * result + weeklyData.hashCode()
         result = 31 * result + cumulativeData.hashCode()
         result = 31 * result + colorLevels.contentHashCode()
+        result = 31 * result + useUtc8.hashCode()
         return result
     }
 }
@@ -110,17 +128,24 @@ internal data class QuantileLevels(val thresholds: LongArray) {
 class HeatmapViewModel @Inject constructor(
     private val cacheProvider: Provider<UsageCache>,
     private val credentialRepository: CredentialRepository,
+    private val chartSettingsStore: ChartSettingsStore,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HeatmapUiState())
     val uiState: StateFlow<HeatmapUiState> = _uiState.asStateFlow()
 
     private var loaded = false
-    private var allViewsResult: AllViewsResult? = null
+    // 全量记录缓存（仅在 load 时拉取一次，切换年份/视图时复用）
+    private var records: List<UsageRecord> = emptyList()
+    private var useUtc8 = false
+    // 按年缓存三视图计算结果，切换年份不必重复计算（跨线程读写，用并发容器）
+    private val yearResults = ConcurrentHashMap<Int, AllViewsResult>()
+    // 最近一次请求的年份（防止快速连续切换时旧协程后完成覆盖新选择）
+    private var latestRequestedYear = 0
 
     /**
      * Composable 层在 LaunchedEffect 中调用一次即可。
-     * 三种视图数据全部在此次加载中计算好，切换视图不需要重新加载。
+     * 首次加载拉取全量记录并计算默认年份（今年）的三视图数据。
      */
     fun load() {
         if (loaded) return
@@ -130,7 +155,7 @@ class HeatmapViewModel @Inject constructor(
 
     /** 切换视图模式（仅改 State，不重新加载数据） */
     fun setViewMode(mode: HeatmapViewMode) {
-        val result = allViewsResult
+        val result = yearResults[_uiState.value.selectedYear]
         val levels = result?.let {
             when (mode) {
                 HeatmapViewMode.DAILY -> it.dailyLevels
@@ -139,6 +164,34 @@ class HeatmapViewModel @Inject constructor(
             }
         }
         _uiState.update { it.copy(viewMode = mode, colorLevels = levels?.toIntArray() ?: it.colorLevels) }
+    }
+
+    /** 切换年份：用缓存的记录按所选自然年重新聚合三视图 */
+    fun setYear(year: Int) {
+        if (year == _uiState.value.selectedYear || records.isEmpty()) return
+        latestRequestedYear = year
+        viewModelScope.launch {
+            val result = yearResults[year] ?: withContext(Dispatchers.Default) {
+                computeAllViews(records, useUtc8, year).also { yearResults[year] = it }
+            }
+            // 期间用户又切了别的年份：丢弃过期结果，避免旧协程覆盖新选择
+            if (year != latestRequestedYear) return@launch
+            val mode = _uiState.value.viewMode
+            val levels = when (mode) {
+                HeatmapViewMode.DAILY -> result.dailyLevels
+                HeatmapViewMode.WEEKLY -> result.weeklyLevels
+                HeatmapViewMode.CUMULATIVE -> result.cumulativeLevels
+            }
+            _uiState.update {
+                it.copy(
+                    selectedYear = year,
+                    dailyData = result.dailyData,
+                    weeklyData = result.weeklyData,
+                    cumulativeData = result.cumulativeData,
+                    colorLevels = levels.toIntArray(),
+                )
+            }
+        }
     }
 
     // ── 内部逻辑 ────────────────────────────────────────────
@@ -155,22 +208,42 @@ class HeatmapViewModel @Inject constructor(
                 return
             }
             val cache = cacheProvider.get()
+            // 与全局图表设置一致：读取 UTC+8 / UTC 分桶偏好
+            useUtc8 = chartSettingsStore.useUtc8Flow.first()
+
+            // 拉取全量记录 + 计算可选年份（在 IO 线程，避免主线程遍历大列表）
+            val zone = if (useUtc8) ZoneOffset.ofHours(8) else ZoneOffset.UTC
+            val currentYear = Instant.now().atOffset(zone).year
+            val (fetched, availableYears) = withContext(Dispatchers.Default) {
+                val all = cache.getRecords(wid)
+                all to computeAvailableYears(all, zone, currentYear)
+            }
+            records = fetched
+            latestRequestedYear = currentYear
 
             // 所有重操作放在 Dispatchers.Default 上
             val result = withContext(Dispatchers.Default) {
-                val records = cache.getRecords(wid)
-                computeAllViews(records)
+                computeAllViews(fetched, useUtc8, currentYear).also { yearResults[currentYear] = it }
             }
 
-            allViewsResult = result
-
+            // 重操作完成后按当前视图模式写入对应的分位阈值（加载期间可能已切换视图）
+            val mode = _uiState.value.viewMode
+            val levels = when (mode) {
+                HeatmapViewMode.DAILY -> result.dailyLevels
+                HeatmapViewMode.WEEKLY -> result.weeklyLevels
+                HeatmapViewMode.CUMULATIVE -> result.cumulativeLevels
+            }
             _uiState.update {
                 it.copy(
                     loading = false,
+                    selectedYear = currentYear,
+                    currentYear = currentYear,
+                    availableYears = availableYears,
+                    useUtc8 = useUtc8,
                     dailyData = result.dailyData,
                     weeklyData = result.weeklyData,
                     cumulativeData = result.cumulativeData,
-                    colorLevels = result.dailyLevels.toIntArray(),
+                    colorLevels = levels.toIntArray(),
                 )
             }
         } catch (e: Exception) {
@@ -178,50 +251,78 @@ class HeatmapViewModel @Inject constructor(
         }
     }
 
+    /** 可选年份列表：最早有数据的年份 ～ 今年；无数据时只有今年 */
+    private fun computeAvailableYears(records: List<UsageRecord>, zone: ZoneOffset, currentYear: Int): List<Int> {
+        val minYear = records.minOfOrNull { Instant.ofEpochMilli(it.timeCreated).atOffset(zone).year }
+            ?: currentYear
+        return (minYear..currentYear).toList()
+    }
+
     // ── 聚合计算 ────────────────────────────────────────────
 
     companion object {
         private const val DAY_MS = 86_400_000L
-        private const val RANGE_DAYS = 365
 
         /**
-         * 从全部记录计算三种视图数据 + 颜色等级阈值。
-         * 返回 (dailyData, weeklyData, cumulativeData, colorLevels)
+         * 按指定自然年从全部记录计算三种视图数据 + 颜色等级阈值。
+         *
+         * - 今年：范围 = 1月1日 ～ 今天（滚动 365 天窗口被年份选择器取代）
+         * - 往年：范围 = 1月1日 ～ 12月31日（完整自然年）
+         * - 周视图：周日对齐，第一列为该年 1月1日 所在周（可能含去年 12 月空位），
+         *   最后一列为结束日所在周（今年=今天所在周；往年可能跨到次年 1 月初），
+         *   列数按年份浮动（约 52~54 列），不丢数据
+         * - 三种视图的分位数均按所选年份独立计算（颜色随年份数据变化是预期行为）
+         *
+         * @param useUtc8 true=按 UTC+8 零点分桶（与全局图表设置一致），false=按 UTC 零点分桶
+         * @param year 目标自然年
          */
-        internal fun computeAllViews(records: List<UsageRecord>): AllViewsResult {
+        internal fun computeAllViews(records: List<UsageRecord>, useUtc8: Boolean = false, year: Int): AllViewsResult {
+            val zone = if (useUtc8) ZoneOffset.ofHours(8) else ZoneOffset.UTC
             val now = System.currentTimeMillis()
+            val todayTs = startOfDayTs(now, zone)
+            val currentYear = Instant.ofEpochMilli(now).atOffset(zone).year
+            val isCurrentYear = year == currentYear
 
-            // 1. 按天分桶聚合 token 数
-            val todayTs = now / DAY_MS * DAY_MS
-            val rangeStartTs = todayTs - (RANGE_DAYS - 1) * DAY_MS
+            // 1. 年份边界（该时区下的自然年）
+            val yearStartTs = Instant.parse("${year}-01-01T00:00:00Z")
+                .atOffset(zone).toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
+            val yearEndTs = if (isCurrentYear) {
+                todayTs
+            } else {
+                Instant.parse("${year}-12-31T00:00:00Z")
+                    .atOffset(zone).toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
+            }
+            val totalDays = ((yearEndTs - yearStartTs) / DAY_MS).toInt() + 1
 
-            // 聚合每一天的 token
+            // 2. 按天分桶聚合 token 数（按所选时区的自然日零点切日）
             val dayTokenMap = HashMap<Long, Long>()
             for (r in records) {
-                val dayTs = r.timeCreated / DAY_MS * DAY_MS
-                if (dayTs < rangeStartTs || dayTs > todayTs) continue
+                val dayTs = startOfDayTs(r.timeCreated, zone)
+                if (dayTs < yearStartTs || dayTs > yearEndTs) continue
                 val tokens = r.inputTokens + r.cacheReadTokens + r.reasoningTokens + r.outputTokens
                 dayTokenMap.merge(dayTs, tokens, Long::plus)
             }
 
-            // 2. 构建完整的每日数据列表（365 天，从 rangeStartTs 到 todayTs）
-            val dailyRaw = ArrayList<HeatmapDayData>(RANGE_DAYS)
-            for (i in 0 until RANGE_DAYS) {
-                val ts = rangeStartTs + i * DAY_MS
+            // 3. 构建完整的每日数据列表（1月1日 ～ 结束日）
+            val dailyRaw = ArrayList<HeatmapDayData>(totalDays)
+            for (i in 0 until totalDays) {
+                val ts = yearStartTs + i * DAY_MS
                 val tokens = dayTokenMap[ts] ?: 0L
                 dailyRaw.add(HeatmapDayData(dayTs = ts, tokens = tokens, level = 0))
             }
 
-            // 3. 计算每日视图颜色等级
+            // 4. 计算每日视图颜色等级
             val dailyLevels = computeQuantileLevels(dailyRaw.map { it.tokens })
             val dailyData = dailyRaw.map { it.copy(level = dailyLevels.getColorLevel(it.tokens)) }
 
-            // 4. 每周视图：从最早日数据开始，每 7 天一组
-            val (weeklyData, weeklyLevels) = buildWeeklyData(dailyRaw)
+            // 5. 每周视图：周日对齐，第一列=1月1日所在周，最后一列=结束日所在周
+            val firstWeekStart = startOfWeekTs(yearStartTs, zone)
+            val lastWeekStart = startOfWeekTs(yearEndTs, zone)
+            val (weeklyData, weeklyLevels) = buildWeeklyData(dailyRaw, firstWeekStart, lastWeekStart)
 
-            // 5. 累计视图：从第一天到当天的累计总和
+            // 6. 累计视图：从 1月1日 到结束日的累计总和
             var cumulativeSum = 0L
-            val cumulativeRaw = ArrayList<HeatmapDayData>(RANGE_DAYS)
+            val cumulativeRaw = ArrayList<HeatmapDayData>(totalDays)
             for (d in dailyRaw) {
                 cumulativeSum += d.tokens
                 cumulativeRaw.add(HeatmapDayData(dayTs = d.dayTs, tokens = cumulativeSum, level = 0))
@@ -234,29 +335,84 @@ class HeatmapViewModel @Inject constructor(
         }
 
         /**
-         * 构建每周视图数据。
-         * 从 rangeStartTs 对应的那天开始，每 7 天为一组。
+         * 构建每周视图数据：周日对齐，从 firstWeekStart 到 lastWeekStart（含）每周一列。
+         *
+         * 每列聚合该周落在 [yearStartTs, yearEndTs] 范围内的天数（dailyRaw 只含年内天数，
+         * 首列跨前一年 12 月的部分、末列跨次年 1 月初的部分天然不计入），
+         * 周总量决定该列统一的热度等级；渲染层（HeatmapCanvas）按 barHeight
+         * 从底部向上绘制柱状图（0 用量周=1 格浅色，非零周=2~7 格）。
          */
-        private fun buildWeeklyData(dailyRaw: List<HeatmapDayData>): Pair<List<HeatmapWeekData>, QuantileLevels> {
-            val weeks = ArrayList<HeatmapWeekData>()
-            var i = 0
-            while (i < 52 * 7 && i < dailyRaw.size) {
-                val weekEnd = minOf(i + 7, dailyRaw.size)
+        private fun buildWeeklyData(
+            dailyRaw: List<HeatmapDayData>,
+            firstWeekStart: Long,
+            lastWeekStart: Long,
+        ): Pair<List<HeatmapWeekData>, QuantileLevels> {
+            val numWeeks = ((lastWeekStart - firstWeekStart) / (7L * DAY_MS)).toInt() + 1
+            val weeks = ArrayList<HeatmapWeekData>(numWeeks)
+
+            for (w in 0 until numWeeks) {
+                val ws = firstWeekStart + w * 7L * DAY_MS
+                val we = ws + 7L * DAY_MS
                 var weekTokens = 0L
-                for (j in i until weekEnd) {
-                    weekTokens += dailyRaw[j].tokens
+                for (d in dailyRaw) {
+                    if (d.dayTs >= ws && d.dayTs < we) weekTokens += d.tokens
                 }
                 weeks.add(HeatmapWeekData(
-                    weekStartTs = dailyRaw[i].dayTs,
+                    weekStartTs = ws,
                     tokens = weekTokens,
                     level = 0,
+                    barHeight = 1,
                 ))
-                i += 7
             }
 
-            // 计算每周视图颜色等级
+            // 颜色等级：6 级分位数（供颜色与图例使用）
             val weekLevels = computeQuantileLevels(weeks.map { it.tokens })
-            return weeks.map { it.copy(level = weekLevels.getColorLevel(it.tokens)) } to weekLevels
+            // 柱高：非零周按 token 去重排序的排名比例映射 2~7 格（排名不同高度必不同），
+            // 0 用量周固定 1 格（Level 0 浅色，可见可点击）
+            val barHeights = computeBarHeights(weeks.map { it.tokens })
+            return weeks.mapIndexed { i, w ->
+                w.copy(level = weekLevels.getColorLevel(w.tokens), barHeight = barHeights[i])
+            } to weekLevels
+        }
+
+        /**
+         * 计算每周视图的柱状图高度（格数）。
+         *
+         * - 0 用量周：1 格（Level 0 浅色格，作为「空白周」的可见标记，不隐藏）
+         * - 非零周：按 token 值去重排序，排名比例映射到 2~7 格：
+         *   height = 2 + rankIndex * 5 / (uniqueCount - 1)（rankIndex 0-based）
+         *   唯一非零值只有 1 个时该周为 7 格（满柱）
+         *
+         * 用排名比例而非分位档，保证不同量级的周（如 3.7亿 vs 10.7亿）高度不同。
+         */
+        private fun computeBarHeights(tokens: List<Long>): IntArray {
+            val uniqueNonZero = tokens.filter { it > 0L }.distinct().sorted()
+            val n = uniqueNonZero.size
+            return IntArray(tokens.size) { i ->
+                val t = tokens[i]
+                when {
+                    t <= 0L -> 1
+                    n == 1 -> 7
+                    else -> 2 + uniqueNonZero.indexOf(t) * 5 / (n - 1)
+                }
+            }
+        }
+
+        /** 返回时间戳在指定时区下的自然日零点（epoch 毫秒） */
+        private fun startOfDayTs(ts: Long, zone: ZoneOffset): Long {
+            return Instant.ofEpochMilli(ts).atOffset(zone).toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
+        }
+
+        /** 返回时间戳在指定时区下所在周的周日零点（0=Sunday） */
+        private fun startOfWeekTs(ts: Long, zone: ZoneOffset): Long {
+            val dow = dayOfWeekFromTs(ts, zone)
+            return startOfDayTs(ts, zone) - dow * DAY_MS
+        }
+
+        /** 时间戳在指定时区下的星期几 (0=Sunday, 6=Saturday) */
+        private fun dayOfWeekFromTs(ts: Long, zone: ZoneOffset): Int {
+            val dow = Instant.ofEpochMilli(ts).atOffset(zone).dayOfWeek.value
+            return dow % 7 // Sunday=7 → 0
         }
 
         // ── 分位数颜色等级计算 ──────────────────────────────
