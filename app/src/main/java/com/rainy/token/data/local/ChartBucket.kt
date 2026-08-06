@@ -35,6 +35,7 @@ enum class ChartGranularity(@StringRes val labelRes: Int) {
     TODAY_HOURLY(R.string.time_today),
     YESTERDAY_HOURLY(R.string.time_yesterday),
     LAST_7D_DAILY(R.string.time_last_7d),
+    LAST_30D_DAILY(R.string.time_last_30d),
     THIS_MONTH_DAILY(R.string.time_this_month),
     CUSTOM_DAY_HOURLY(R.string.time_custom_day),
     CUSTOM_MONTH_DAILY(R.string.time_custom_month),

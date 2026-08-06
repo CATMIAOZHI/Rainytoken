@@ -120,6 +120,7 @@ class UsageChartViewModel @Inject constructor(
                     ChartAggregator.aggregateHourly(filtered, offsetHours)
                 ChartGranularity.THIS_MONTH_DAILY,
                 ChartGranularity.LAST_7D_DAILY,
+                ChartGranularity.LAST_30D_DAILY,
                 ChartGranularity.CUSTOM_MONTH_DAILY,
                 ChartGranularity.CUSTOM_RANGE_DAILY ->
                     ChartAggregator.aggregateDaily(filtered, offsetHours)
@@ -196,6 +197,7 @@ class UsageChartViewModel @Inject constructor(
             ChartGranularity.TODAY_HOURLY -> todayMidnight to todayMidnight + 86400_000L - 1
             ChartGranularity.YESTERDAY_HOURLY -> todayMidnight - 86400_000L to todayMidnight - 1
             ChartGranularity.LAST_7D_DAILY -> todayMidnight - 6 * 86400_000L to todayMidnight + 86400_000L - 1
+            ChartGranularity.LAST_30D_DAILY -> todayMidnight - 29 * 86400_000L to todayMidnight + 86400_000L - 1
             ChartGranularity.CUSTOM_DAY_HOURLY -> dayRange(_customDay ?: today, zoneOffset)
             ChartGranularity.THIS_MONTH_DAILY -> monthRange(today.withDayOfMonth(1), zoneOffset)
             ChartGranularity.CUSTOM_MONTH_DAILY -> {

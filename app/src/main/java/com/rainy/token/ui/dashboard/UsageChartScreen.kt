@@ -813,6 +813,7 @@ ChartGranularity.YESTERDAY_HOURLY,
 ChartGranularity.CUSTOM_DAY_HOURLY ->
 index == 0 || index == total - 1  // 只显示首尾小时
 ChartGranularity.LAST_7D_DAILY,
+ChartGranularity.LAST_30D_DAILY,
 ChartGranularity.THIS_MONTH_DAILY,
 ChartGranularity.CUSTOM_MONTH_DAILY,
 ChartGranularity.CUSTOM_RANGE_DAILY ->
