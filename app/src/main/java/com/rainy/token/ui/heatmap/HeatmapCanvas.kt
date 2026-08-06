@@ -33,6 +33,8 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rainy.token.ui.theme.inkMuted
@@ -191,6 +193,10 @@ private fun filterMonthLabels(rawLabels: List<MonthLabel>, totalWeeks: Int): Lis
 fun HeatmapCanvas(
     state: HeatmapUiState,
     modifier: Modifier = Modifier,
+    noDataText: String = "",
+    lessText: String = "",
+    moreText: String = "",
+    accessibilityDesc: String = "",
     onDayClick: (HeatmapDayData) -> Unit = {},
     onWeekClick: (HeatmapWeekData) -> Unit = {},
 ) {
@@ -240,7 +246,7 @@ fun HeatmapCanvas(
             if (state.loading) {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             } else {
-                Text("暂无数据", color = mutedColor, fontSize = 14.sp)
+                Text(noDataText.ifEmpty { "No data" }, color = mutedColor, fontSize = 14.sp)
             }
         }
         return
@@ -265,7 +271,9 @@ fun HeatmapCanvas(
     }
 
     Column(
-        modifier = modifier.horizontalScroll(rememberScrollState()),
+        modifier = modifier
+            .horizontalScroll(rememberScrollState())
+            .semantics { contentDescription = accessibilityDesc.ifEmpty { "Token activity heatmap, ${if (isWeekly) state.weeklyData.size else state.dailyData.size} days" } },
     ) {
         // ── 热力图网格 + 月份标签 ──
         Canvas(
@@ -344,7 +352,7 @@ fun HeatmapCanvas(
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("少", color = mutedColor, fontSize = 12.sp)
+            Text(lessText.ifEmpty { "Less" }, color = mutedColor, fontSize = 12.sp)
             Spacer(Modifier.width(4.dp))
             for (level in 0..5) {
                 Box(
@@ -357,7 +365,7 @@ fun HeatmapCanvas(
                 }
             }
             Spacer(Modifier.width(4.dp))
-            Text("多", color = mutedColor, fontSize = 12.sp)
+            Text(moreText.ifEmpty { "More" }, color = mutedColor, fontSize = 12.sp)
         }
     }
 }

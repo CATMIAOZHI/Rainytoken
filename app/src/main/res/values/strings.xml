@@ -506,4 +506,5 @@
     <string name="heatmap_no_data">No data yet</string>
     <string name="heatmap_legend_less">Less</string>
     <string name="heatmap_legend_more">More</string>
+    <string name="heatmap_accessibility_desc">Token activity heatmap, %1$d days</string>
 </resources>
