@@ -43,6 +43,14 @@ data class HeatmapWeekData(
     val barHeight: Int,    // 柱状图高度（格数）：0 用量周=1（Level 0 浅色格，可见可点），非零周=2~7（按 token 排名比例）
 )
 
+/** 年度统计指标（按所选年份的每日数据计算，切换年份跟随变化） */
+data class HeatmapStats(
+    val totalTokens: Long = 0L, // 累计 token 数（当年全部天之和）
+    val peakTokens: Long = 0L,  // 峰值 token 数（单日最大；当年无数据=0）
+    val currentStreak: Int = 0, // 当前连续天数（从数据最后一天往前数连续 >0 的天数；最后一天为 0 则=0）
+    val maxStreak: Int = 0,     // 最长连续天数（当年内连续 >0 的最大天数）
+)
+
 /** UI 状态 */
 data class HeatmapUiState(
     val loading: Boolean = true,
@@ -54,6 +62,7 @@ data class HeatmapUiState(
     val weeklyData: List<HeatmapWeekData> = emptyList(),
     val cumulativeData: List<HeatmapDayData> = emptyList(),
     val colorLevels: IntArray = IntArray(6),  // [0, p25, p50, p75, p95, max]
+    val stats: HeatmapStats = HeatmapStats(), // 年度统计（累计/峰值/当前连续/最长连续）
     val useUtc8: Boolean = false,  // 与全局图表设置一致：true=UTC+8 分桶，false=UTC
 ) {
     override fun equals(other: Any?): Boolean {
@@ -68,6 +77,7 @@ data class HeatmapUiState(
             weeklyData == other.weeklyData &&
             cumulativeData == other.cumulativeData &&
             colorLevels.contentEquals(other.colorLevels) &&
+            stats == other.stats &&
             useUtc8 == other.useUtc8
     }
 
@@ -81,6 +91,7 @@ data class HeatmapUiState(
         result = 31 * result + weeklyData.hashCode()
         result = 31 * result + cumulativeData.hashCode()
         result = 31 * result + colorLevels.contentHashCode()
+        result = 31 * result + stats.hashCode()
         result = 31 * result + useUtc8.hashCode()
         return result
     }
@@ -189,6 +200,7 @@ class HeatmapViewModel @Inject constructor(
                     weeklyData = result.weeklyData,
                     cumulativeData = result.cumulativeData,
                     colorLevels = levels.toIntArray(),
+                    stats = computeStats(result.dailyData),
                 )
             }
         }
@@ -244,6 +256,7 @@ class HeatmapViewModel @Inject constructor(
                     weeklyData = result.weeklyData,
                     cumulativeData = result.cumulativeData,
                     colorLevels = levels.toIntArray(),
+                    stats = computeStats(result.dailyData),
                 )
             }
         } catch (e: Exception) {
@@ -396,6 +409,29 @@ class HeatmapViewModel @Inject constructor(
                     else -> 2 + uniqueNonZero.indexOf(t) * 5 / (n - 1)
                 }
             }
+        }
+
+        /**
+         * 计算年度统计指标（基于所选年份的完整日序列，dailyRaw 含 0 token 的天）。
+         *
+         * - totalTokens：全部天之和
+         * - peakTokens：单日最大 token（当年无数据=0）
+         * - currentStreak：从最后一天往前数连续 >0 的天数（最后一天为 0 则=0）
+         * - maxStreak：当年内连续 >0 的最大天数
+         */
+        internal fun computeStats(dailyData: List<HeatmapDayData>): HeatmapStats {
+            var total = 0L
+            var peak = 0L
+            var currentStreak = 0
+            var maxStreak = 0
+            for (d in dailyData) {
+                total += d.tokens
+                if (d.tokens > peak) peak = d.tokens
+                if (d.tokens > 0L) currentStreak++ else currentStreak = 0
+                if (currentStreak > maxStreak) maxStreak = currentStreak
+            }
+            // 循环结束后 currentStreak = 以最后一天结尾的连续天数（最后一天为 0 时为 0）= 当前连续天数
+            return HeatmapStats(total, peak, currentStreak, maxStreak)
         }
 
         /** 返回时间戳在指定时区下的自然日零点（epoch 毫秒） */

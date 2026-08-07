@@ -2,12 +2,14 @@ package com.rainy.token.ui.heatmap
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -40,10 +42,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -177,6 +181,45 @@ fun HeatmapScreen(
                 }
             }
 
+            // ── 年度统计（按所选年份，切换年份跟随变化）──
+            // loading 期间显示占位，避免全 0 造成"无数据"假象
+            val dash = "–"
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                StatItem(
+                    label = stringResource(R.string.heatmap_stats_total),
+                    value = if (state.loading) dash else formatTokenChinese(state.stats.totalTokens),
+                    modifier = Modifier.weight(1f),
+                )
+                StatItem(
+                    label = stringResource(R.string.heatmap_stats_peak),
+                    value = if (state.loading) dash else formatTokenChinese(state.stats.peakTokens),
+                    modifier = Modifier.weight(1f),
+                )
+                StatItem(
+                    label = stringResource(R.string.heatmap_stats_current_streak),
+                    value = if (state.loading) {
+                        dash
+                    } else {
+                        pluralStringResource(R.plurals.heatmap_stats_days, state.stats.currentStreak, state.stats.currentStreak)
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                StatItem(
+                    label = stringResource(R.string.heatmap_stats_max_streak),
+                    value = if (state.loading) {
+                        dash
+                    } else {
+                        pluralStringResource(R.plurals.heatmap_stats_days, state.stats.maxStreak, state.stats.maxStreak)
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+
             // ── 热力图 Canvas（带 Crossfade 淡入淡出动画）──
             Crossfade(
                 targetState = state.viewMode,
@@ -286,5 +329,37 @@ fun HeatmapScreen(
                 )
             }
         }
+    }
+}
+
+// ── 年度统计卡片（累计/峰值/当前连续/最长连续）──
+@Composable
+private fun StatItem(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = inkMuted(),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }

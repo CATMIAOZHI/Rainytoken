@@ -509,4 +509,12 @@
     <string name="heatmap_accessibility_desc">Token activity heatmap, %1$d days</string>
     <string name="heatmap_accessibility_desc_weekly">Token activity heatmap, %1$d weeks</string>
     <string name="heatmap_select_year">Select year</string>
+    <string name="heatmap_stats_total">Total tokens</string>
+    <string name="heatmap_stats_peak">Peak tokens</string>
+    <string name="heatmap_stats_current_streak">Current streak</string>
+    <string name="heatmap_stats_max_streak">Longest streak</string>
+    <plurals name="heatmap_stats_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
 </resources>
