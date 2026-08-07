@@ -37,8 +37,14 @@ class HeatmapStatsTest {
     fun `current streak counts from last day backward`() {
         // 末尾是 2（>0），往前数只有它自己（前一个 0 断档）→ 1
         assertEquals(1, HeatmapViewModel.computeStats(days(0, 5, 0, 3, 7, 0, 2)).currentStreak)
-        // 末尾断档 → 0
-        assertEquals(0, HeatmapViewModel.computeStats(days(5, 3, 0)).currentStreak)
+        // 末尾为 0（当天尚未产生 token）不算断档：跳过末尾 0，从 3 往前数 3、5 连续 → 2
+        assertEquals(2, HeatmapViewModel.computeStats(days(5, 3, 0)).currentStreak)
+        // 末尾多个 0 同样跳过 → 2
+        assertEquals(2, HeatmapViewModel.computeStats(days(5, 3, 0, 0)).currentStreak)
+        // 跳过末尾 0 后从最后一个非零天往前数，前面 0 断档 → 2
+        assertEquals(2, HeatmapViewModel.computeStats(days(0, 5, 3, 0)).currentStreak)
+        // 末尾非零，正常从末尾往前数 → 2
+        assertEquals(2, HeatmapViewModel.computeStats(days(5, 3)).currentStreak)
         // 全零 → 0
         assertEquals(0, HeatmapViewModel.computeStats(days(0, 0, 0)).currentStreak)
         // 全连续 → 全部天数

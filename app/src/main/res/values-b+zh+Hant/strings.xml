@@ -516,6 +516,26 @@
     </plurals>
     <string name="heatmap_day_used">%1$s使用了%2$s Token</string>
     <string name="heatmap_week_used">%1$s使用了%2$s Token</string>
+    <!-- 個人資料（頁面頂部，暱稱/郵箱均可完全自訂） -->
+    <string name="heatmap_profile_title">個人資料</string>
+    <string name="heatmap_profile_nickname">暱稱</string>
+    <string name="heatmap_profile_email">郵箱</string>
+    <string name="heatmap_profile_empty">未設定</string>
+    <string name="heatmap_profile_edit">編輯</string>
+    <string name="heatmap_profile_dialog_title">編輯個人資料</string>
+    <string name="heatmap_profile_avatar_change">更換頭像</string>
+    <string name="heatmap_profile_avatar_pick">從相冊選擇</string>
+    <string name="heatmap_profile_avatar_remove">移除頭像</string>
+    <string name="heatmap_profile_save">儲存</string>
+    <string name="heatmap_profile_cancel">取消</string>
+    <!-- 活動洞察 -->
+    <string name="heatmap_insights_title">活動洞察</string>
+    <string name="heatmap_insights_requests">總請求次數</string>
+    <plurals name="heatmap_insights_request_count">
+        <item quantity="other">%1$d 次</item>
+    </plurals>
+    <string name="heatmap_insights_peak_hours">最多請求時段</string>
+    <string name="heatmap_insight_hour_range">%1$d～%2$d點</string>
     <string name="month_1">一月</string>
     <string name="month_2">二月</string>
     <string name="month_3">三月</string>

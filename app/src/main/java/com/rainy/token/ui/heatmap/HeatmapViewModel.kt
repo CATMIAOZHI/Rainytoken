@@ -47,8 +47,20 @@ data class HeatmapWeekData(
 data class HeatmapStats(
     val totalTokens: Long = 0L, // 累计 token 数（当年全部天之和）
     val peakTokens: Long = 0L,  // 峰值 token 数（单日最大；当年无数据=0）
-    val currentStreak: Int = 0, // 当前连续天数（从数据最后一天往前数连续 >0 的天数；最后一天为 0 则=0）
+    val currentStreak: Int = 0, // 当前连续天数（从最后一天往前数连续 >0 的天数；末尾为 0 的天跳过，从最后一个非零天往前数）
     val maxStreak: Int = 0,     // 最长连续天数（当年内连续 >0 的最大天数）
+)
+
+/**
+ * 活动洞察（基于全部历史记录，不随年份切换变化）。
+ *
+ * - totalRequests：总请求次数（= 记录条数，一条 UsageRecord 即一次请求）
+ * - topHours：请求最多的时段（按小时 0-23），降序取前 3；
+ *   并列时小时数小的优先；不足 3 个时列表较短
+ */
+data class HeatmapInsights(
+    val totalRequests: Int = 0,
+    val topHours: List<Int> = emptyList(),
 )
 
 /** UI 状态 */
@@ -63,6 +75,7 @@ data class HeatmapUiState(
     val cumulativeData: List<HeatmapDayData> = emptyList(),
     val colorLevels: IntArray = IntArray(6),  // [0, p25, p50, p75, p95, max]
     val stats: HeatmapStats = HeatmapStats(), // 年度统计（累计/峰值/当前连续/最长连续）
+    val insights: HeatmapInsights = HeatmapInsights(), // 活动洞察（全量记录：总请求次数 + 最多请求时段 Top3）
     val useUtc8: Boolean = false,  // 与全局图表设置一致：true=UTC+8 分桶，false=UTC
 ) {
     override fun equals(other: Any?): Boolean {
@@ -78,6 +91,7 @@ data class HeatmapUiState(
             cumulativeData == other.cumulativeData &&
             colorLevels.contentEquals(other.colorLevels) &&
             stats == other.stats &&
+            insights == other.insights &&
             useUtc8 == other.useUtc8
     }
 
@@ -92,6 +106,7 @@ data class HeatmapUiState(
         result = 31 * result + cumulativeData.hashCode()
         result = 31 * result + colorLevels.contentHashCode()
         result = 31 * result + stats.hashCode()
+        result = 31 * result + insights.hashCode()
         result = 31 * result + useUtc8.hashCode()
         return result
     }
@@ -233,6 +248,9 @@ class HeatmapViewModel @Inject constructor(
             records = fetched
             latestRequestedYear = currentYear
 
+            // 活动洞察基于全量历史记录（不随年份变化），在后台线程计算（万级记录仅数 ms）
+            val insights = withContext(Dispatchers.Default) { computeInsights(fetched, useUtc8) }
+
             // 所有重操作放在 Dispatchers.Default 上
             val result = withContext(Dispatchers.Default) {
                 computeAllViews(fetched, useUtc8, currentYear).also { yearResults[currentYear] = it }
@@ -257,6 +275,7 @@ class HeatmapViewModel @Inject constructor(
                     cumulativeData = result.cumulativeData,
                     colorLevels = levels.toIntArray(),
                     stats = computeStats(result.dailyData),
+                    insights = insights,
                 )
             }
         } catch (e: Exception) {
@@ -416,22 +435,57 @@ class HeatmapViewModel @Inject constructor(
          *
          * - totalTokens：全部天之和
          * - peakTokens：单日最大 token（当年无数据=0）
-         * - currentStreak：从最后一天往前数连续 >0 的天数（最后一天为 0 则=0）
+         * - currentStreak：从最后一天往前数连续 >0 的天数；结尾为 0 的天（如当天尚未产生 token）跳过，
+         *   从最后一个非零天往前数（全部为 0 则=0）
          * - maxStreak：当年内连续 >0 的最大天数
          */
         internal fun computeStats(dailyData: List<HeatmapDayData>): HeatmapStats {
             var total = 0L
             var peak = 0L
-            var currentStreak = 0
             var maxStreak = 0
+            var run = 0
             for (d in dailyData) {
                 total += d.tokens
                 if (d.tokens > peak) peak = d.tokens
-                if (d.tokens > 0L) currentStreak++ else currentStreak = 0
-                if (currentStreak > maxStreak) maxStreak = currentStreak
+                if (d.tokens > 0L) run++ else run = 0
+                if (run > maxStreak) maxStreak = run
             }
-            // 循环结束后 currentStreak = 以最后一天结尾的连续天数（最后一天为 0 时为 0）= 当前连续天数
+            // 当前连续天数：最后一天即使为 0（当天尚未产生 token）也计入连续——跳过结尾的 0，
+            // 从最后一个非零天往前数连续 >0 的天数；全部为 0 时=0
+            var currentStreak = 0
+            var i = dailyData.size - 1
+            while (i >= 0 && dailyData[i].tokens == 0L) i--
+            while (i >= 0 && dailyData[i].tokens > 0L) {
+                currentStreak++
+                i--
+            }
             return HeatmapStats(total, peak, currentStreak, maxStreak)
+        }
+
+        /**
+         * 计算活动洞察（基于全部历史记录，不随年份变化）。
+         *
+         * - totalRequests：总请求次数 = 记录条数（一条 UsageRecord 即一次请求）
+         * - topHours：请求最多的时段（按小时 0-23），降序取前 3；
+         *   并列时小时数小的优先；不足 3 个时列表较短；无数据时为空列表
+         *
+         * 小时按 useUtc8 对应的时区（UTC+8 / UTC）计算，与热力图分桶口径一致。
+         */
+        internal fun computeInsights(records: List<UsageRecord>, useUtc8: Boolean = false): HeatmapInsights {
+            if (records.isEmpty()) return HeatmapInsights()
+            val offsetMs = if (useUtc8) 8 * 3_600_000L else 0L
+            val hourCounts = IntArray(24)
+            for (r in records) {
+                // 纯算术取小时（避免逐条分配 Instant/OffsetDateTime）：
+                // (时间戳 + 时区偏移) 对一天取余 → 所在小时（ts 恒为正，无负数取模问题）
+                val hour = (((r.timeCreated + offsetMs) % 86_400_000L) / 3_600_000L).toInt()
+                hourCounts[hour]++
+            }
+            val topHours = hourCounts.indices
+                .sortedWith(compareByDescending<Int> { hourCounts[it] }.thenBy { it })
+                .filter { hourCounts[it] > 0 }
+                .take(3)
+            return HeatmapInsights(totalRequests = records.size, topHours = topHours)
         }
 
         /** 返回时间戳在指定时区下的自然日零点（epoch 毫秒） */

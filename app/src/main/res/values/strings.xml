@@ -520,6 +520,27 @@
     </plurals>
     <string name="heatmap_day_used">%1$s used %2$s tokens</string>
     <string name="heatmap_week_used">%1$s used %2$s tokens</string>
+    <!-- 个人资料（页面顶部，昵称/邮箱均可完全自定义） -->
+    <string name="heatmap_profile_title">Profile</string>
+    <string name="heatmap_profile_nickname">Nickname</string>
+    <string name="heatmap_profile_email">Email</string>
+    <string name="heatmap_profile_empty">Not set</string>
+    <string name="heatmap_profile_edit">Edit</string>
+    <string name="heatmap_profile_dialog_title">Edit Profile</string>
+    <string name="heatmap_profile_avatar_change">Change Avatar</string>
+    <string name="heatmap_profile_avatar_pick">Choose from gallery</string>
+    <string name="heatmap_profile_avatar_remove">Remove avatar</string>
+    <string name="heatmap_profile_save">Save</string>
+    <string name="heatmap_profile_cancel">Cancel</string>
+    <!-- 活动洞察 -->
+    <string name="heatmap_insights_title">Activity Insights</string>
+    <string name="heatmap_insights_requests">Total requests</string>
+    <plurals name="heatmap_insights_request_count">
+        <item quantity="one">%1$d request</item>
+        <item quantity="other">%1$d requests</item>
+    </plurals>
+    <string name="heatmap_insights_peak_hours">Peak hours</string>
+    <string name="heatmap_insight_hour_range">%1$d–%2$d</string>
     <string name="month_1">Jan</string>
     <string name="month_2">Feb</string>
     <string name="month_3">Mar</string>
