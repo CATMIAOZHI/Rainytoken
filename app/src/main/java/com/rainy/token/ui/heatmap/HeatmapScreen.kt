@@ -54,8 +54,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rainy.token.R
 import com.rainy.token.ui.theme.inkMuted
-import java.time.Instant
-import java.time.ZoneOffset
 import kotlin.math.roundToInt
 
 /**
@@ -234,25 +232,9 @@ fun HeatmapScreen(
     val anchor = popupAnchor
     if (day != null || week != null) {
         val useUtc8 = state.useUtc8
-        val zone = if (useUtc8) ZoneOffset.ofHours(8) else ZoneOffset.UTC
         val popupText = when {
             day != null -> "${formatDateChinese(day.dayTs, useUtc8, state.currentYear)} 使用了${formatTokenChinese(day.tokens)}token"
-            week != null -> {
-                val start = formatDateChinese(week.weekStartTs, useUtc8, state.selectedYear)
-                // 末周/跨年周只显示到该周落在所选年内的有效日期（数据最后一天），
-                // 避免出现未绘制的未来/次年空位日期；数据同源，不依赖实时时钟
-                val dataEndTs = state.dailyData.lastOrNull()?.dayTs ?: (week.weekStartTs + 6L * 86_400_000L)
-                val endTs = minOf(week.weekStartTs + 6L * 86_400_000L, dataEndTs)
-                // 首列跨年（start 在上一年）时，end 与 start 不同年 → end 也强制带年份前缀，避免范围歧义
-                val startDate = Instant.ofEpochMilli(week.weekStartTs).atOffset(zone).toLocalDate()
-                val endDate = Instant.ofEpochMilli(endTs).atOffset(zone).toLocalDate()
-                val end = if (endDate.year != startDate.year) {
-                    "${endDate.year}年${endDate.monthValue}月${endDate.dayOfMonth}日"
-                } else {
-                    formatDateChinese(endTs, useUtc8, state.selectedYear)
-                }
-                "$start-$end 使用了${formatTokenChinese(week.tokens)}token"
-            }
+            week != null -> formatWeekRangeText(week, useUtc8, state.selectedYear, state.dailyData.lastOrNull()?.dayTs)
             else -> ""
         }
         // 浮层相对锚点的偏移：水平居中、优先显示在格子上方 8dp 处；
@@ -285,7 +267,9 @@ fun HeatmapScreen(
                 selectedWeek = null
                 popupAnchor = null
             },
-            properties = PopupProperties(focusable = true)
+            // 不拦截图表交互：浮层不获取焦点，点击/滑动直接作用于图表，
+            // 点击其他格子即切换浮层，再次点击同一格子关闭
+            properties = PopupProperties(focusable = false)
         ) {
             Surface(
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
@@ -303,52 +287,4 @@ fun HeatmapScreen(
             }
         }
     }
-}
-
-// ── 格式化辅助函数 ──────────────────────────────────────────
-
-/**
- * 将 Token 数按中文数量级格式化：
- * - 亿级（≥1亿）：1.9亿
- * - 万级（≥1万）：11.2万 / 1124.5万
- * - 万以下：原始数字
- *
- * 注意：万级先舍入到一位小数再判断是否升亿（如 99999999 → "1.0亿"，而非 "10000.0万"）。
- */
-private fun formatTokenChinese(tokens: Long): String {
-    return when {
-        tokens >= 1_0000_0000 -> {
-            val v = tokens / 1_0000_0000.0
-            if (v >= 100) "${v.roundToInt()}亿"
-            else "${"%.1f".format(v)}亿"
-        }
-        tokens >= 1_0000 -> {
-            val v = tokens / 1_0000.0
-            // 先舍入到一位小数，避免 "99999999 → 10000.0万"
-            val rounded = (v * 10).roundToInt() / 10.0
-            if (rounded >= 10000) {
-                // 万级溢出升亿：9999.99万 → 1.0亿
-                val v2 = rounded / 10000.0
-                if (v2 >= 100) "${v2.roundToInt()}亿"
-                else "${"%.1f".format(v2)}亿"
-            } else {
-                "${"%.1f".format(v)}万"  // 始终保留一位小数
-            }
-        }
-        else -> "$tokens"
-    }
-}
-
-/**
- * 将时间戳格式化为 "7月9日" 格式（月+日），按与数据分桶一致的时区。
- * 日期所在年份与 [yearContext] 不同时，前缀加年份（如 "2024年7月9日"）。
- *
- * 日浮层传 [currentYear]（查看往年时带年份前缀）；周浮层两端传 [selectedYear]，
- * 使跨年周（如 12月28日-次年1月3日）的结束日带 "2026年" 前缀，避免范围倒挂。
- */
-private fun formatDateChinese(ts: Long, useUtc8: Boolean, yearContext: Int): String {
-    val zone = if (useUtc8) ZoneOffset.ofHours(8) else ZoneOffset.UTC
-    val date = Instant.ofEpochMilli(ts).atOffset(zone).toLocalDate()
-    val yearPrefix = if (date.year != yearContext) "${date.year}年" else ""
-    return "$yearPrefix${date.monthValue}月${date.dayOfMonth}日"
 }

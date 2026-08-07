@@ -1,8 +1,11 @@
 package com.rainy.token.ui.heatmap
 
 import android.graphics.Paint
+import android.os.SystemClock
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -13,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -21,6 +25,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import com.rainy.token.ui.theme.inkMuted
 import java.time.Instant
 import java.time.ZoneOffset
+import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.first
 
@@ -81,7 +87,91 @@ private val ChineseMonthNames = listOf(
     "七月", "八月", "九月", "十月", "十一月", "十二月",
 )
 
+// ── 格式化辅助函数（HeatmapScreen 浮层与滑动查看读数条共用）──
+
+/**
+ * 将 Token 数按中文数量级格式化：
+ * - 亿级（≥1亿）：1.9亿
+ * - 万级（≥1万）：11.2万 / 1124.5万
+ * - 万以下：原始数字
+ *
+ * 注意：万级先舍入到一位小数再判断是否升亿（如 99999999 → "1.0亿"，而非 "10000.0万"）。
+ */
+internal fun formatTokenChinese(tokens: Long): String {
+    return when {
+        tokens >= 1_0000_0000 -> {
+            val v = tokens / 1_0000_0000.0
+            if (v >= 100) "${v.roundToInt()}亿"
+            else "${"%.1f".format(v)}亿"
+        }
+        tokens >= 1_0000 -> {
+            val v = tokens / 1_0000.0
+            // 先舍入到一位小数，避免 "99999999 → 10000.0万"
+            val rounded = (v * 10).roundToInt() / 10.0
+            if (rounded >= 10000) {
+                // 万级溢出升亿：9999.99万 → 1.0亿
+                val v2 = rounded / 10000.0
+                if (v2 >= 100) "${v2.roundToInt()}亿"
+                else "${"%.1f".format(v2)}亿"
+            } else {
+                "${"%.1f".format(v)}万"  // 始终保留一位小数
+            }
+        }
+        else -> "$tokens"
+    }
+}
+
+/**
+ * 将时间戳格式化为 "7月9日" 格式（月+日），按与数据分桶一致的时区。
+ * 日期所在年份与 [yearContext] 不同时，前缀加年份（如 "2024年7月9日"）。
+ *
+ * 日浮层传 [currentYear]（查看往年时带年份前缀）；周浮层两端传 [selectedYear]，
+ * 使跨年周（如 12月28日-次年1月3日）的结束日带 "2026年" 前缀，避免范围倒挂。
+ */
+internal fun formatDateChinese(ts: Long, useUtc8: Boolean, yearContext: Int): String {
+    val zone = if (useUtc8) ZoneOffset.ofHours(8) else ZoneOffset.UTC
+    val date = Instant.ofEpochMilli(ts).atOffset(zone).toLocalDate()
+    val yearPrefix = if (date.year != yearContext) "${date.year}年" else ""
+    return "$yearPrefix${date.monthValue}月${date.dayOfMonth}日"
+}
+
+/**
+ * 将周数据格式化为浮层/读数条共用的范围文本："12月28日-12月31日 使用了X token"。
+ *
+ * - 末周只显示到该周落在所选年内的有效日期（[dataEndTs]，数据最后一天），
+ *   避免出现未绘制的未来/次年空位日期；数据同源，不依赖实时时钟
+ * - 首列跨年（start 在上一年）时，end 与 start 不同年 → end 强制带年份前缀，避免范围倒挂
+ */
+internal fun formatWeekRangeText(
+    week: HeatmapWeekData,
+    useUtc8: Boolean,
+    selectedYear: Int,
+    dataEndTs: Long?,
+): String {
+    val zone = if (useUtc8) ZoneOffset.ofHours(8) else ZoneOffset.UTC
+    val start = formatDateChinese(week.weekStartTs, useUtc8, selectedYear)
+    val endTs = minOf(week.weekStartTs + 6L * 86_400_000L, dataEndTs ?: (week.weekStartTs + 6L * 86_400_000L))
+    val startDate = Instant.ofEpochMilli(week.weekStartTs).atOffset(zone).toLocalDate()
+    val endDate = Instant.ofEpochMilli(endTs).atOffset(zone).toLocalDate()
+    val end = if (endDate.year != startDate.year) {
+        "${endDate.year}年${endDate.monthValue}月${endDate.dayOfMonth}日"
+    } else {
+        formatDateChinese(endTs, useUtc8, selectedYear)
+    }
+    return "$start-$end 使用了${formatTokenChinese(week.tokens)}token"
+}
+
 // ── 辅助类型与函数 ──────────────────────────────────────────
+
+/**
+ * 水平拖动手势的仲裁模式：
+ * - VIEW：慢速横向拖动 → 滑动查看模式（显示手指所在天的信息，图表锁定不滚动）
+ * - SCROLL：快速横向拖动或纵向拖动 → 放行给 scrollable 正常滚动
+ */
+private enum class DragMode { VIEW, SCROLL }
+
+/** 慢速/快速拖动分界速度（dp/s，密度无关；低于=查看拖动，高于=滚动拖动） */
+private const val VIEW_SPEED_DP_PER_S = 150f
 
 /** 月份标签 */
 private data class MonthLabel(
@@ -224,6 +314,13 @@ fun HeatmapCanvas(
     val selectionColor = MaterialTheme.colorScheme.primary
     val selectionStrokePx = with(density) { 1.5.dp.toPx() }
 
+    // 滑动查看指示器（三种视图）：慢速拖动或长按时"所见即所得"——手指所在格子高亮预览，
+    // 底部读数条显示该格数据（每日/累计=当天，每周=该周）；抬起后保留最后预览，切换视图/年份时清除
+    var indicatorDay by remember { mutableStateOf<HeatmapDayData?>(null) }
+    var indicatorWeek by remember { mutableStateOf<HeatmapWeekData?>(null) }
+    var indicatorCol by remember { mutableStateOf(-1) }
+    var indicatorRow by remember { mutableStateOf(-1) }
+
     // Canvas 在窗口中的位置（浮层锚点定位用）
     var canvasWindowPos by remember { mutableStateOf(IntOffset.Zero) }
 
@@ -282,8 +379,12 @@ fun HeatmapCanvas(
     // 横向滚动状态（图例固定在外层，不随热力图滚动）
     val scrollState = rememberScrollState()
 
-    // 打开页面 / 切换视图 / 切换年份时，横向滚动自动定位到最右（最新数据）
-    LaunchedEffect(cols, isWeekly, state.selectedYear) {
+    // 打开页面 / 切换视图 / 切换年份时，横向滚动自动定位到最右（最新数据），并清除滑动查看指示器
+    LaunchedEffect(cols, state.viewMode, state.selectedYear) {
+        indicatorDay = null
+        indicatorWeek = null
+        indicatorCol = -1
+        indicatorRow = -1
         snapshotFlow { scrollState.maxValue }.first { it > 0 }
         scrollState.scrollTo(scrollState.maxValue)
     }
@@ -302,8 +403,140 @@ fun HeatmapCanvas(
                 modifier = Modifier
                     .size(canvasWidthDp, totalHeightDp)
                     .onGloballyPositioned { canvasWindowPos = it.positionInWindow().round() }
+                    // 手势仲裁（与点击共存）：慢速横向拖动/长按=滑动查看（锁定图表、指示器跟手），
+                    // 快速横向拖动或纵向拖动=放行给 scrollable 正常滚动；三种视图均启用。
+                    // ⚠️ 必须声明在下方 detectTapGestures 之前：仲裁先收到 Main pass 事件，
+                    // VIEW 模式先 consume 可阻止 tap 误触发（顺序承重，勿调换）
+                    .pointerInput(state, cellStepPx, blockSizePx, gridWeeks, state.viewMode) {
+                        // 慢速/快速分界：密度无关（dp/s），保证不同设备手感一致
+                        val viewSpeedThresholdPxPerMs = with(density) { VIEW_SPEED_DP_PER_S.dp.toPx() } / 1000f
+                        // 指示器更新：手指所在列/行的格子（所见即所得）。
+                        // change.position 已是滚动内容内的本地坐标（与 detectTapGestures 命中一致），
+                        // 不能再加 scrollState.value，否则滚动后列索引整体偏右
+                        fun updateIndicator(pos: Offset) {
+                            val col = (pos.x / cellStepPx).toInt().coerceIn(0, cols - 1)
+                            val row = (pos.y / cellStepPx).toInt().coerceIn(0, rows - 1)
+                            if (isWeekly) {
+                                // 每周视图：整列=同一周（柱状图），读数条显示该周范围与总量
+                                val week = state.weeklyData.getOrNull(col)
+                                if (week != null) {
+                                    indicatorDay = null
+                                    indicatorWeek = week
+                                    indicatorCol = col
+                                    indicatorRow = row
+                                } else {
+                                    indicatorDay = null
+                                    indicatorWeek = null
+                                    indicatorCol = -1
+                                    indicatorRow = -1
+                                }
+                            } else {
+                                // 每日/累计视图：格子=一天（累计视图 tokens 为累计值）
+                                val cell = gridWeeks.getOrNull(col)?.getOrNull(row)
+                                if (cell != null) {
+                                    indicatorWeek = null
+                                    indicatorDay = cell
+                                    indicatorCol = col
+                                    indicatorRow = row
+                                } else {
+                                    indicatorWeek = null
+                                    indicatorDay = null
+                                    indicatorCol = -1
+                                    indicatorRow = -1
+                                }
+                            }
+                        }
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            // 模式判定（本次手势内锁定）：
+                            // - 按住不动/慢速横向拖动 → VIEW：指示器跟手、消费事件锁定图表滚动
+                            // - 快速横向拖动或纵向主导 → SCROLL：不消费，放行给 scrollable 正常滚动
+                            var mode: DragMode? = null
+                            var lastPos = down.position
+                            var lastTime = SystemClock.uptimeMillis()
+                            var totalDx = 0f
+                            var totalDy = 0f
+                            val slop = viewConfiguration.touchSlop
+                            val downTime = lastTime
+                            // 长按阈值：按住不动（含微移未超 slop）超过系统长按时长 → 直接进入查看模式。
+                            // 静止时系统不一定派发 move 事件，故用 withTimeoutOrNull 做超时心跳，不依赖事件频率。
+                            // ⚠️ 此符号解析为 AwaitPointerEventScope 的框架成员（非 kotlinx 协程版），
+                            // 勿补 import kotlinx.coroutines.withTimeoutOrNull（会被接口成员遮蔽且语义不同）
+                            val longPressMs = viewConfiguration.longPressTimeoutMillis
+
+                            // 阶段一：模式判定。位移超 slop 按帧速度判 VIEW/SCROLL；提前抬起 = 点击放行给 tap；
+                            // 长按超时（手指未动）→ VIEW
+                            while (mode == null) {
+                                val remaining = longPressMs - (SystemClock.uptimeMillis() - downTime)
+                                val event = if (remaining > 0) {
+                                    withTimeoutOrNull(remaining) { awaitPointerEvent() }
+                                } else {
+                                    null
+                                }
+                                if (event == null) {
+                                    // 长按成立：按住不动（或微移 < slop）→ 查看模式
+                                    mode = DragMode.VIEW
+                                    break
+                                }
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (!change.pressed) break // 快速抬起 = 点击，交给 detectTapGestures
+                                val cur = change.position
+                                val now = SystemClock.uptimeMillis()
+                                // 帧瞬时速度：停顿后快甩的帧速度大 → 判为滚动；慢速拖动各帧速度都小 → 判为查看
+                                val dxFrame = cur.x - lastPos.x
+                                val dyFrame = cur.y - lastPos.y
+                                val dtFrame = (now - lastTime).coerceAtLeast(1L)
+                                val speedX = abs(dxFrame) / dtFrame
+                                lastPos = cur
+                                lastTime = now
+                                totalDx += dxFrame
+                                totalDy += dyFrame
+                                // 首次超过触摸阈值时判定模式（本次手势内锁定）：
+                                // 横向主导且慢速 → VIEW（查看）；否则 → SCROLL（滚动）
+                                if (abs(totalDx) > slop || abs(totalDy) > slop) {
+                                    mode = if (abs(totalDx) > abs(totalDy) && speedX < viewSpeedThresholdPxPerMs) {
+                                        DragMode.VIEW
+                                    } else {
+                                        DragMode.SCROLL
+                                    }
+                                    if (mode == DragMode.VIEW) {
+                                        // 判决事件立即消费：否则同帧（Main pass leaf→root）会漏到父 scrollable，
+                                        // 其越过自身 slop 先滚一帧（约 0~4px 抖动）后才被 phase2 消费取消
+                                        change.consume()
+                                    }
+                                }
+                            }
+
+                            if (mode == DragMode.VIEW) {
+                                // 进入查看模式立即用最后已知位置更新指示器（长按超时瞬间就要显示，不等下一个事件）
+                                updateIndicator(lastPos)
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                    // 先消费再判抬起：up 若不消费会漏到 detectTapGestures 误触发 onTap 浮层
+                                    // （waitForUpOrCancellation 对 consumed up 返回 null → tap 取消），
+                                    // 与慢拖路径行为保持一致
+                                    updateIndicator(change.position)
+                                    change.consume() // 消费事件锁定图表滚动
+                                    if (!change.pressed) break // 抬起：保留最后预览的格子
+                                }
+                            } else if (mode == DragMode.SCROLL) {
+                                // 滚动模式：清除上次预览的指示器，避免滚动后残留过期信息；
+                                // 不消费事件，scrollable 正常滚动（含惯性）
+                                indicatorDay = null
+                                indicatorWeek = null
+                                indicatorCol = -1
+                                indicatorRow = -1
+                            }
+                        }
+                    }
                     .pointerInput(state, cellStepPx, blockSizePx, gridWeeks) {
                     detectTapGestures(onTap = { offset ->
+                        // 点击时清除滑动查看残留的预览（抬起后保留的指示器），避免与浮层同时显示
+                        indicatorDay = null
+                        indicatorWeek = null
+                        indicatorCol = -1
+                        indicatorRow = -1
                         // 点击落在格子间隙内时不触发（Minor：命中精度）
                         if (offset.x % cellStepPx >= blockSizePx || offset.y % cellStepPx >= blockSizePx) {
                             return@detectTapGestures
@@ -388,6 +621,51 @@ fun HeatmapCanvas(
                     nativeCanvas.drawText(label.label, x, labelY, monthLabelPaint)
                 }
             }
+
+            // 预览格子高亮（三种视图，所见即所得）：手指所在格子加主题色边框。
+            // 防御性校验：指示器指向的格子数据仍存在（防未来"同一年份数据刷新"后残留过期高亮）
+            val indicatorValid = when {
+                indicatorWeek != null -> state.weeklyData.getOrNull(indicatorCol) != null
+                indicatorDay != null -> gridWeeks.getOrNull(indicatorCol)?.getOrNull(indicatorRow) != null
+                else -> false
+            }
+            if (indicatorValid &&
+                indicatorCol in 0 until cols && indicatorRow in 0 until rows
+            ) {
+                drawRoundRect(
+                    color = selectionColor,
+                    topLeft = Offset(indicatorCol * cellStepPx, indicatorRow * cellStepPx),
+                    size = Size(blockSizePx, blockSizePx),
+                    cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx),
+                    style = Stroke(width = selectionStrokePx * 1.5f),
+                )
+            }
+            }
+        }
+
+        // 滑动查看读数条（三种视图）：显示手指所在格子的数据（每日/累计=当天，每周=该周范围），
+        // 抬起后保留；固定高度占位，避免出现/消失导致图例上下跳动
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(20.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            val d = indicatorDay
+            val w = indicatorWeek
+            val text = when {
+                d != null -> "${formatDateChinese(d.dayTs, state.useUtc8, state.currentYear)} 使用了${formatTokenChinese(d.tokens)}token"
+                w != null -> formatWeekRangeText(w, state.useUtc8, state.selectedYear, state.dailyData.lastOrNull()?.dayTs)
+                else -> null
+            }
+            if (text != null) {
+                Text(
+                    text = text,
+                    fontSize = 12.sp,
+                    color = mutedColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
 
