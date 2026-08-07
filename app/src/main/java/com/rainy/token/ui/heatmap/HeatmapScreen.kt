@@ -72,6 +72,8 @@ fun HeatmapScreen(
     viewModel: HeatmapViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    // 应用内语言（LocaleManager 只覆写配置、不改变 Locale.getDefault()，故从配置取）
+    val activeLocale = LocalConfiguration.current.locales[0]
 
     // ── 浮层状态 ──
     var selectedDay: HeatmapDayData? by remember { mutableStateOf(null) }
@@ -184,40 +186,44 @@ fun HeatmapScreen(
             // ── 年度统计（按所选年份，切换年份跟随变化）──
             // loading 期间显示占位，避免全 0 造成"无数据"假象
             val dash = "–"
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                StatItem(
-                    label = stringResource(R.string.heatmap_stats_total),
-                    value = if (state.loading) dash else formatTokenChinese(state.stats.totalTokens),
-                    modifier = Modifier.weight(1f),
-                )
-                StatItem(
-                    label = stringResource(R.string.heatmap_stats_peak),
-                    value = if (state.loading) dash else formatTokenChinese(state.stats.peakTokens),
-                    modifier = Modifier.weight(1f),
-                )
-                StatItem(
-                    label = stringResource(R.string.heatmap_stats_current_streak),
-                    value = if (state.loading) {
-                        dash
-                    } else {
-                        pluralStringResource(R.plurals.heatmap_stats_days, state.stats.currentStreak, state.stats.currentStreak)
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-                StatItem(
-                    label = stringResource(R.string.heatmap_stats_max_streak),
-                    value = if (state.loading) {
-                        dash
-                    } else {
-                        pluralStringResource(R.plurals.heatmap_stats_days, state.stats.maxStreak, state.stats.maxStreak)
-                    },
-                    modifier = Modifier.weight(1f),
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatItem(
+                        label = stringResource(R.string.heatmap_stats_total),
+                        value = if (state.loading) dash else formatTokenChinese(state.stats.totalTokens, activeLocale),
+                        modifier = Modifier.weight(1f),
+                    )
+                    StatItem(
+                        label = stringResource(R.string.heatmap_stats_peak),
+                        value = if (state.loading) dash else formatTokenChinese(state.stats.peakTokens, activeLocale),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatItem(
+                        label = stringResource(R.string.heatmap_stats_current_streak),
+                        value = if (state.loading) {
+                            dash
+                        } else {
+                            pluralStringResource(R.plurals.heatmap_stats_days, state.stats.currentStreak, state.stats.currentStreak)
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                    StatItem(
+                        label = stringResource(R.string.heatmap_stats_max_streak),
+                        value = if (state.loading) {
+                            dash
+                        } else {
+                            pluralStringResource(R.plurals.heatmap_stats_days, state.stats.maxStreak, state.stats.maxStreak)
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
 
             // ── 热力图 Canvas（带 Crossfade 淡入淡出动画）──
@@ -276,8 +282,16 @@ fun HeatmapScreen(
     if (day != null || week != null) {
         val useUtc8 = state.useUtc8
         val popupText = when {
-            day != null -> "${formatDateChinese(day.dayTs, useUtc8, state.currentYear)} 使用了${formatTokenChinese(day.tokens)}token"
-            week != null -> formatWeekRangeText(week, useUtc8, state.selectedYear, state.dailyData.lastOrNull()?.dayTs)
+            day != null -> stringResource(
+                R.string.heatmap_day_used,
+                formatDateChinese(day.dayTs, useUtc8, state.currentYear, activeLocale),
+                formatTokenChinese(day.tokens, activeLocale),
+            )
+            week != null -> stringResource(
+                R.string.heatmap_week_used,
+                formatWeekRangeText(week, useUtc8, state.selectedYear, state.dailyData.lastOrNull()?.dayTs, activeLocale),
+                formatTokenChinese(week.tokens, activeLocale),
+            )
             else -> ""
         }
         // 浮层相对锚点的偏移：水平居中、优先显示在格子上方 8dp 处；

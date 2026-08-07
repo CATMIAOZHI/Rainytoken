@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -44,6 +45,7 @@ import java.util.Locale
 @Composable
 fun UsageStatsCard(
     onOpenDetail: () -> Unit,
+    onOpenHeatmap: () -> Unit = {},
     refreshTrigger: Int = 0,
     viewModel: UsageViewModel = hiltViewModel()
 ) {
@@ -137,18 +139,43 @@ fun UsageStatsCard(
                 )
             }
 
-            // ─── 查看详情 ───
+            // ─── 查看详情 + Token 活动快捷入口 ───
             if (uiState.overview != null) {
                 Spacer(modifier = Modifier.height(8.dp))
-                TextButton(onClick = onOpenDetail) {
-                    Text(stringResource(R.string.action_view_detail), color = StrawberryPink)
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Icon(
-                        imageVector = Icons.Filled.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = StrawberryPink,
-                        modifier = Modifier.padding(top = 1.dp)
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onOpenDetail) {
+                        Text(
+                            stringResource(R.string.action_view_detail),
+                            color = StrawberryPink,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Icon(
+                            imageVector = Icons.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = StrawberryPink,
+                            modifier = Modifier.padding(top = 1.dp)
+                        )
+                    }
+                    // 弹性间距：窄屏/英文长文案时优先压缩间距，避免按钮折行变形
+                    Spacer(modifier = Modifier.weight(1f))
+                    // OCGO Token 活动热力图快捷入口（与"查看详情"并列，右对齐）
+                    TextButton(onClick = onOpenHeatmap) {
+                        Text(
+                            stringResource(R.string.heatmap_quick_entry),
+                            color = StrawberryPink,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Icon(
+                            imageVector = Icons.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = StrawberryPink,
+                            modifier = Modifier.padding(top = 1.dp)
+                        )
+                    }
                 }
             }
 

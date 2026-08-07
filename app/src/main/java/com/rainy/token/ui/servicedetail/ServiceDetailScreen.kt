@@ -73,6 +73,7 @@ import com.rainy.token.ui.components.asString
 import com.rainy.token.ui.components.DurationText
 import com.rainy.token.ui.components.formatAmount
 import com.rainy.token.ui.components.formatResetInSec
+import com.rainy.token.ui.components.isFiveHourLabel
 import com.rainy.token.ui.theme.inkMuted
 import com.rainy.token.ui.theme.StrawberryPink
 import java.text.SimpleDateFormat
@@ -487,10 +488,9 @@ private fun CodexUsageCard(state: State) {
     val windows = remember(extras) { extractCodexWindows(extras) }
     if (windows.isEmpty()) return
 
-    // 判断是否有 5h 窗口
+    // 判断是否有 5h 窗口（与语言无关：匹配 "5h"/"5H" 或本地化标签）
     val has5h = windows.any {
-        it.rawLabel.equals("5h", ignoreCase = true) ||
-            (it.rawLabel.contains("5") && it.rawLabel.contains("小时"))
+        isFiveHourLabel(it.rawLabel, stringResource(R.string.window_5h), stringResource(R.string.window_5h_short))
     }
 
     Card(
@@ -574,8 +574,9 @@ private fun extractCodexWindows(extras: Map<String, String>): List<CodexWindow> 
 @Composable
 private fun codexWindowLabel(raw: String): String = when (raw.lowercase()) {
     "5h" -> stringResource(R.string.window_5h)
-    "7d", "每周" -> stringResource(R.string.window_weekly)
-    "30d", "每月" -> stringResource(R.string.window_monthly)
+    "7d", "weekly", "每周" -> stringResource(R.string.window_weekly)
+    "30d", "monthly", "每月" -> stringResource(R.string.window_monthly)
+    "usage" -> stringResource(R.string.window_usage)
     else -> raw
 }
 
@@ -591,7 +592,7 @@ private fun OllamaUsageCard(state: State) {
         else -> null
     }
     val extras = balance?.extras ?: return
-    val plan = extras["plan"] ?: "—"
+    val plan = extras["plan"]?.takeIf { it.isNotBlank() } ?: "—"
 
     val sessionModels = parseModelRequests(extras["session.models"])
     val weeklyModels = parseModelRequests(extras["weekly.models"])

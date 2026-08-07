@@ -24,14 +24,14 @@ class CodexRepositoryTest {
     // ── durationLabel ──
 
     @Test
-    fun `durationLabel null returns Usage`() {
-        assertEquals("Usage", CodexRepository.durationLabel(null))
+    fun `durationLabel null returns usage`() {
+        assertEquals("usage", CodexRepository.durationLabel(null))
     }
 
     @Test
     fun `durationLabel weekly threshold`() {
         // 10079 minutes = ~7 days. 7 * 86400 = 604800 seconds = 10080 minutes ≥ 10079
-        assertEquals("每周", CodexRepository.durationLabel(604800L))
+        assertEquals("weekly", CodexRepository.durationLabel(604800L))
     }
 
     @Test
@@ -91,7 +91,7 @@ class CodexRepositoryTest {
         assertEquals(2, windows.size)
         assertEquals("5h", windows[0].label)
         assertEquals(58, windows[0].remainingPct)  // 100 - 42 = 58
-        assertEquals("每周", windows[1].label)
+        assertEquals("weekly", windows[1].label)
         assertEquals(85, windows[1].remainingPct)  // 100 - 15 = 85
     }
 
@@ -114,7 +114,7 @@ class CodexRepositoryTest {
         val windows = CodexRepository.parseUsageWindows(data)
         // Only secondary_window should be parsed (primary skipped due to JsonNull used_percent)
         assertEquals(1, windows.size)
-        assertEquals("每周", windows[0].label)
+        assertEquals("weekly", windows[0].label)
     }
 
     @Test

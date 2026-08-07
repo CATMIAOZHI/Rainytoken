@@ -31,6 +31,7 @@ import com.rainy.token.ui.components.DurationText
 import com.rainy.token.ui.components.UiText
 import com.rainy.token.ui.components.formatAmount
 import com.rainy.token.ui.components.formatResetInSec
+import com.rainy.token.ui.components.isFiveHourLabel
 import com.rainy.token.ui.components.normalizeWindowLabel
 import com.rainy.token.ui.theme.StrawberryPink
 import com.rainy.token.ui.theme.StatusOrange
@@ -228,7 +229,7 @@ internal fun CommandCodeGoUsageWindows(balance: ServiceBalance) {
 
 @Composable
 internal fun CodexMainBalance(balance: ServiceBalance) {
-    val plan = balance.extras["plan"]?.let {
+    val plan = balance.extras["plan"]?.takeIf { it.isNotBlank() }?.let {
         when (it) { "plus" -> "Plus"; "pro" -> "Pro"; "free" -> "Free"; else -> it.replaceFirstChar { c -> c.uppercaseChar() } }
     } ?: "—"
     val primaryLabel = formatCodexPrimaryLabel(
@@ -274,13 +275,13 @@ internal fun CodexMainBalance(balance: ServiceBalance) {
  */
 internal fun formatCodexPrimaryLabel(
     raw: String?,
-    weeklyLabel: String = "每周",
-    monthlyLabel: String = "每月",
-    usageLabel: String = "用量"
+    weeklyLabel: String = "Weekly",
+    monthlyLabel: String = "Monthly",
+    usageLabel: String = "Usage"
 ): String = when (raw?.lowercase()) {
     "5h" -> "5h"
-    "7d", "每周", weeklyLabel -> weeklyLabel
-    "30d", "每月", monthlyLabel -> monthlyLabel
+    "7d", "weekly", "每周", weeklyLabel -> weeklyLabel
+    "30d", "monthly", "每月", monthlyLabel -> monthlyLabel
     "usage" -> usageLabel
     null -> "5h"
     else -> raw ?: "5h"
@@ -298,22 +299,23 @@ internal fun CodexUsageWindows(balance: ServiceBalance) {
     val monthlyLabel = stringResource(R.string.window_every_month)
     val windows = (0 until windowCount).map { i ->
         val label = normalizeWindowLabel(
-            extras["window_$i.label"] ?: "Usage",
+            extras["window_$i.label"] ?: "usage",
             weeklyLabel = weeklyLabel,
-            monthlyLabel = monthlyLabel
+            monthlyLabel = monthlyLabel,
+            usageLabel = stringResource(R.string.window_usage)
         )
         val remainingPct = extras["window_$i.remainingPct"]?.toIntOrNull()
         val resetAt = extras["window_$i.resetAt"]?.toLongOrNull()?.takeIf { it > 0 }
         Triple(label, remainingPct, resetAt)
     }
 
-    // 判断是否有 5h 窗口（用于保留空槽位）
+    // 判断是否有 5h 窗口（与语言无关：匹配 "5h"/"5H" 或本地化标签，用于保留空槽位）
     val fiveHourLabel = stringResource(R.string.window_5h)
-    val has5h = windows.any { it.first.contains("5") && it.first.contains("小时") }
+    val has5h = windows.any { isFiveHourLabel(it.first, fiveHourLabel, stringResource(R.string.window_5h_short)) }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (windows.isEmpty()) {
-            CompactUsageRowEmpty(label = "Usage", resetInSec = null)
+            CompactUsageRowEmpty(label = stringResource(R.string.usage_window_title_plain), resetInSec = null)
         } else {
             // 如果没有 5h 窗口，在顶部插入一个空的 5h 槽位（保留位置，等恢复后自动填充）
             if (!has5h) {
@@ -333,7 +335,7 @@ internal fun CodexUsageWindows(balance: ServiceBalance) {
 
 @Composable
 internal fun OllamaMainBalance(balance: ServiceBalance) {
-    val plan = balance.extras["plan"]?.let {
+    val plan = balance.extras["plan"]?.takeIf { it.isNotBlank() }?.let {
         when (it.lowercase()) { "pro" -> "Pro"; "max" -> "Max"; "free" -> "Free"; else -> it }
     } ?: "—"
     Row(verticalAlignment = Alignment.Bottom) {

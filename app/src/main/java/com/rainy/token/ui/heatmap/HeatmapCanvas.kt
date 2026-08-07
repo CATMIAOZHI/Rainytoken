@@ -45,16 +45,21 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.sp
+import com.rainy.token.R
 import com.rainy.token.ui.theme.inkMuted
 import java.time.Instant
 import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.first
@@ -81,28 +86,43 @@ private val DarkHeatmapColors = listOf(
     Color(0xFFD67F9A), // Level 5
 )
 
-/** 中文月份名称 */
-private val ChineseMonthNames = listOf(
-    "一月", "二月", "三月", "四月", "五月", "六月",
-    "七月", "八月", "九月", "十月", "十一月", "十二月",
+/** 月份名称资源（按月索引 1~12，locale-aware） */
+private val monthNameRes = intArrayOf(
+    R.string.month_1, R.string.month_2, R.string.month_3, R.string.month_4,
+    R.string.month_5, R.string.month_6, R.string.month_7, R.string.month_8,
+    R.string.month_9, R.string.month_10, R.string.month_11, R.string.month_12,
 )
 
 // ── 格式化辅助函数（HeatmapScreen 浮层与滑动查看读数条共用）──
 
+/** 是否为繁体中文 locale（数字单位用 萬/億） */
+private fun isTraditionalChinese(locale: Locale): Boolean =
+    locale.language == "zh" &&
+        (locale.country == "TW" || locale.country == "HK" || locale.country == "MO")
+
 /**
- * 将 Token 数按中文数量级格式化：
- * - 亿级（≥1亿）：1.9亿
- * - 万级（≥1万）：11.2万 / 1124.5万
- * - 万以下：原始数字
+ * 将 Token 数按数量级格式化（locale-aware）：
+ * - 中文（zh）：亿级 1.9亿 / 万级 11.2万（繁体用 萬/億）
+ * - 其他语言：≥1e9 → 1.9B，≥1e6 → 11.2M，≥1e3 → 16.8K，否则原数字
  *
- * 注意：万级先舍入到一位小数再判断是否升亿（如 99999999 → "1.0亿"，而非 "10000.0万"）。
+ * 注意：中文万级先舍入到一位小数再判断是否升亿（如 99999999 → "1.0亿"，而非 "10000.0万"）。
  */
-internal fun formatTokenChinese(tokens: Long): String {
+internal fun formatTokenChinese(tokens: Long, locale: Locale = Locale.getDefault()): String {
+    if (locale.language != "zh") {
+        return when {
+            tokens >= 1_000_000_000L -> "${"%.1f".format(tokens / 1_000_000_000.0)}B"
+            tokens >= 1_000_000L -> "${"%.1f".format(tokens / 1_000_000.0)}M"
+            tokens >= 1_000L -> "${"%.1f".format(tokens / 1_000.0)}K"
+            else -> "$tokens"
+        }
+    }
+    val wan = if (isTraditionalChinese(locale)) "萬" else "万"
+    val yi = if (isTraditionalChinese(locale)) "億" else "亿"
     return when {
         tokens >= 1_0000_0000 -> {
             val v = tokens / 1_0000_0000.0
-            if (v >= 100) "${v.roundToInt()}亿"
-            else "${"%.1f".format(v)}亿"
+            if (v >= 100) "${v.roundToInt()}$yi"
+            else "${"%.1f".format(v)}$yi"
         }
         tokens >= 1_0000 -> {
             val v = tokens / 1_0000.0
@@ -111,10 +131,10 @@ internal fun formatTokenChinese(tokens: Long): String {
             if (rounded >= 10000) {
                 // 万级溢出升亿：9999.99万 → 1.0亿
                 val v2 = rounded / 10000.0
-                if (v2 >= 100) "${v2.roundToInt()}亿"
-                else "${"%.1f".format(v2)}亿"
+                if (v2 >= 100) "${v2.roundToInt()}$yi"
+                else "${"%.1f".format(v2)}$yi"
             } else {
-                "${"%.1f".format(v)}万"  // 始终保留一位小数
+                "${"%.1f".format(v)}$wan"  // 始终保留一位小数
             }
         }
         else -> "$tokens"
@@ -122,21 +142,28 @@ internal fun formatTokenChinese(tokens: Long): String {
 }
 
 /**
- * 将时间戳格式化为 "7月9日" 格式（月+日），按与数据分桶一致的时区。
- * 日期所在年份与 [yearContext] 不同时，前缀加年份（如 "2024年7月9日"）。
+ * 将时间戳格式化为日期文本（locale-aware），按与数据分桶一致的时区：
+ * - 中文（zh）："7月9日"，跨年前缀 "2024年7月9日"
+ * - 其他语言：按 locale 的 "MMM d"，跨年 "MMM d, yyyy"（如 "Jul 9, 2024"）
  *
  * 日浮层传 [currentYear]（查看往年时带年份前缀）；周浮层两端传 [selectedYear]，
- * 使跨年周（如 12月28日-次年1月3日）的结束日带 "2026年" 前缀，避免范围倒挂。
+ * 使跨年周（如 12月28日-次年1月3日）的结束日带年份前缀，避免范围倒挂。
  */
-internal fun formatDateChinese(ts: Long, useUtc8: Boolean, yearContext: Int): String {
+internal fun formatDateChinese(ts: Long, useUtc8: Boolean, yearContext: Int, locale: Locale = Locale.getDefault()): String {
     val zone = if (useUtc8) ZoneOffset.ofHours(8) else ZoneOffset.UTC
     val date = Instant.ofEpochMilli(ts).atOffset(zone).toLocalDate()
-    val yearPrefix = if (date.year != yearContext) "${date.year}年" else ""
-    return "$yearPrefix${date.monthValue}月${date.dayOfMonth}日"
+    return if (locale.language == "zh") {
+        val yearPrefix = if (date.year != yearContext) "${date.year}年" else ""
+        "$yearPrefix${date.monthValue}月${date.dayOfMonth}日"
+    } else {
+        val fmt = if (date.year != yearContext) "MMM d, yyyy" else "MMM d"
+        DateTimeFormatter.ofPattern(fmt, locale).format(date)
+    }
 }
 
 /**
- * 将周数据格式化为浮层/读数条共用的范围文本："12月28日-12月31日 使用了X token"。
+ * 将周数据格式化为范围文本："12月28日-12月31日"（不含"使用了X token"，
+ * 句子由调用方用 stringResource 按语言拼接）。
  *
  * - 末周只显示到该周落在所选年内的有效日期（[dataEndTs]，数据最后一天），
  *   避免出现未绘制的未来/次年空位日期；数据同源，不依赖实时时钟
@@ -147,18 +174,23 @@ internal fun formatWeekRangeText(
     useUtc8: Boolean,
     selectedYear: Int,
     dataEndTs: Long?,
+    locale: Locale = Locale.getDefault(),
 ): String {
     val zone = if (useUtc8) ZoneOffset.ofHours(8) else ZoneOffset.UTC
-    val start = formatDateChinese(week.weekStartTs, useUtc8, selectedYear)
+    val start = formatDateChinese(week.weekStartTs, useUtc8, selectedYear, locale)
     val endTs = minOf(week.weekStartTs + 6L * 86_400_000L, dataEndTs ?: (week.weekStartTs + 6L * 86_400_000L))
-    val startDate = Instant.ofEpochMilli(week.weekStartTs).atOffset(zone).toLocalDate()
-    val endDate = Instant.ofEpochMilli(endTs).atOffset(zone).toLocalDate()
-    val end = if (endDate.year != startDate.year) {
-        "${endDate.year}年${endDate.monthValue}月${endDate.dayOfMonth}日"
-    } else {
-        formatDateChinese(endTs, useUtc8, selectedYear)
+    if (locale.language == "zh") {
+        val startDate = Instant.ofEpochMilli(week.weekStartTs).atOffset(zone).toLocalDate()
+        val endDate = Instant.ofEpochMilli(endTs).atOffset(zone).toLocalDate()
+        val end = if (endDate.year != startDate.year) {
+            "${endDate.year}年${endDate.monthValue}月${endDate.dayOfMonth}日"
+        } else {
+            formatDateChinese(endTs, useUtc8, selectedYear, locale)
+        }
+        return "$start-$end"
     }
-    return "$start-$end 使用了${formatTokenChinese(week.tokens)}token"
+    // 非中文：formatDateChinese 已按 yearContext 决定是否带年份
+    return "$start-${formatDateChinese(endTs, useUtc8, selectedYear, locale)}"
 }
 
 // ── 辅助类型与函数 ──────────────────────────────────────────
@@ -214,8 +246,12 @@ private fun groupByWeeks(dailyData: List<HeatmapDayData>, zone: ZoneOffset): Lis
     }
 }
 
-/** 从按周分组的每日数据计算月份标签 */
-private fun getMonthLabels(weeks: List<List<HeatmapDayData?>>, zone: ZoneOffset): List<MonthLabel> {
+/** 从按周分组的每日数据计算月份标签（[monthNames] 为当前 locale 的月份名，索引 0~11） */
+private fun getMonthLabels(
+    weeks: List<List<HeatmapDayData?>>,
+    zone: ZoneOffset,
+    monthNames: List<String>,
+): List<MonthLabel> {
     if (weeks.isEmpty()) return emptyList()
 
     val rawLabels = mutableListOf<MonthLabel>()
@@ -226,7 +262,7 @@ private fun getMonthLabels(weeks: List<List<HeatmapDayData?>>, zone: ZoneOffset)
         val month = monthFromTs(firstDay.dayTs, zone)
 
         if (weekIndex == 0 || month != prevMonth) {
-            rawLabels.add(MonthLabel(weekIndex, ChineseMonthNames[month]))
+            rawLabels.add(MonthLabel(weekIndex, monthNames[month]))
             prevMonth = month
         }
     }
@@ -294,6 +330,9 @@ fun HeatmapCanvas(
     val colors = if (darkTheme) DarkHeatmapColors else LightHeatmapColors
     val mutedColor = inkMuted()
     val density = LocalDensity.current
+    // 应用内语言（LocaleManager 只覆写配置、不改变 Locale.getDefault()，故从配置取；
+    // 与 UsageOverviewScreen 的 date_format_md 同一做法）
+    val activeLocale = LocalConfiguration.current.locales[0]
     // 与全局图表设置一致的时区（分桶与显示口径统一）
     val zone = if (state.useUtc8) ZoneOffset.ofHours(8) else ZoneOffset.UTC
 
@@ -333,9 +372,10 @@ fun HeatmapCanvas(
         }
     }
 
-    // 月份标签（三种视图共用同一计算，位置与每日视图完全一致）
-    val monthLabels = remember(gridWeeks, zone) {
-        getMonthLabels(gridWeeks, zone)
+    // 月份标签（三种视图共用同一计算，位置与每日视图完全一致；月份名按当前 locale）
+    val monthNames = List(12) { stringResource(monthNameRes[it]) }
+    val monthLabels = remember(gridWeeks, zone, monthNames) {
+        getMonthLabels(gridWeeks, zone, monthNames)
     }
 
     val cols = gridWeeks.size
@@ -654,8 +694,16 @@ fun HeatmapCanvas(
             val d = indicatorDay
             val w = indicatorWeek
             val text = when {
-                d != null -> "${formatDateChinese(d.dayTs, state.useUtc8, state.currentYear)} 使用了${formatTokenChinese(d.tokens)}token"
-                w != null -> formatWeekRangeText(w, state.useUtc8, state.selectedYear, state.dailyData.lastOrNull()?.dayTs)
+                d != null -> stringResource(
+                    R.string.heatmap_day_used,
+                    formatDateChinese(d.dayTs, state.useUtc8, state.currentYear, activeLocale),
+                    formatTokenChinese(d.tokens, activeLocale),
+                )
+                w != null -> stringResource(
+                    R.string.heatmap_week_used,
+                    formatWeekRangeText(w, state.useUtc8, state.selectedYear, state.dailyData.lastOrNull()?.dayTs, activeLocale),
+                    formatTokenChinese(w.tokens, activeLocale),
+                )
                 else -> null
             }
             if (text != null) {

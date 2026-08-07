@@ -63,7 +63,14 @@ class CodexRepository(
             return result
         }
 
-        internal fun durationLabel(seconds: Long?): String = when { seconds == null -> "Usage"; seconds / 60.0 >= 10079 -> "每周"; seconds / 60.0 >= 1439 -> "${(seconds / 86400).toInt()}d"; seconds / 60.0 >= 60 -> "${(seconds / 3600).toInt()}h"; else -> "${maxOf(1, (seconds / 60).toInt())}m" }
+        /** 窗口时长 → 中性标识（weekly/monthly/usage/数字标签），由 UI 层按语言本地化 */
+        internal fun durationLabel(seconds: Long?): String = when {
+            seconds == null -> "usage"
+            seconds / 60.0 >= 10079 -> "weekly"
+            seconds / 60.0 >= 1439 -> "${(seconds / 86400).toInt()}d"
+            seconds / 60.0 >= 60 -> "${(seconds / 3600).toInt()}h"
+            else -> "${maxOf(1, (seconds / 60).toInt())}m"
+        }
     }
 
     suspend fun fetchBalance(): Result<ServiceBalance> = withContext(Dispatchers.IO) {

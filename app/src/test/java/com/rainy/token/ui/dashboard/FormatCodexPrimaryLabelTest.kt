@@ -17,28 +17,39 @@ class FormatCodexPrimaryLabelTest {
     }
 
     @Test
-    fun `7d maps to weekly Chinese`() {
-        assertEquals("每周", formatCodexPrimaryLabel("7d"))
+    fun `7d maps to weekly label`() {
+        assertEquals("Weekly", formatCodexPrimaryLabel("7d"))
+        assertEquals("每周", formatCodexPrimaryLabel("7d", weeklyLabel = "每周"))
+        // 中性标识（durationLabel 输出）
+        assertEquals("Weekly", formatCodexPrimaryLabel("weekly"))
+        assertEquals("每周", formatCodexPrimaryLabel("weekly", weeklyLabel = "每周"))
     }
 
     @Test
     fun `weekly Chinese stays`() {
-        assertEquals("每周", formatCodexPrimaryLabel("每周"))
+        assertEquals("每周", formatCodexPrimaryLabel("每周", weeklyLabel = "每周"))
+        assertEquals("Weekly", formatCodexPrimaryLabel("每周"))
     }
 
     @Test
-    fun `30d maps to monthly Chinese`() {
-        assertEquals("每月", formatCodexPrimaryLabel("30d"))
+    fun `30d maps to monthly label`() {
+        assertEquals("Monthly", formatCodexPrimaryLabel("30d"))
+        assertEquals("每月", formatCodexPrimaryLabel("30d", monthlyLabel = "每月"))
+        // 中性标识（durationLabel 输出）
+        assertEquals("Monthly", formatCodexPrimaryLabel("monthly"))
+        assertEquals("每月", formatCodexPrimaryLabel("monthly", monthlyLabel = "每月"))
     }
 
     @Test
     fun `monthly Chinese stays`() {
-        assertEquals("每月", formatCodexPrimaryLabel("每月"))
+        assertEquals("每月", formatCodexPrimaryLabel("每月", monthlyLabel = "每月"))
+        assertEquals("Monthly", formatCodexPrimaryLabel("每月"))
     }
 
     @Test
-    fun `usage maps to Chinese`() {
-        assertEquals("用量", formatCodexPrimaryLabel("usage"))
+    fun `usage maps to usage label`() {
+        assertEquals("Usage", formatCodexPrimaryLabel("usage"))
+        assertEquals("用量", formatCodexPrimaryLabel("usage", usageLabel = "用量"))
     }
 
     @Test
@@ -55,7 +66,7 @@ class FormatCodexPrimaryLabelTest {
     @Test
     fun `case insensitive`() {
         assertEquals("5h", formatCodexPrimaryLabel("5H"))
-        assertEquals("每周", formatCodexPrimaryLabel("7D"))
-        assertEquals("每月", formatCodexPrimaryLabel("30D"))
+        assertEquals("Weekly", formatCodexPrimaryLabel("7D"))
+        assertEquals("Monthly", formatCodexPrimaryLabel("30D"))
     }
 }

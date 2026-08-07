@@ -538,7 +538,7 @@ class CredentialEditViewModel @Inject constructor(
                 formatSuccess = { bal ->
                     UiText.Resource(
                         R.string.msg_connect_success_session,
-                        listOf(bal.amount.toString(), bal.extras["plan"] ?: "—")
+                        listOf(bal.amount.toString(), bal.extras["plan"]?.takeIf { it.isNotBlank() } ?: "—")
                     )
                 },
                 rollbackOnFailure = true

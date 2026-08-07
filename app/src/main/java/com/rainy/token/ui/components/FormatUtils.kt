@@ -56,13 +56,29 @@ fun formatResetForWidget(sec: Long, text: DurationText = ChineseDurationText): S
     }
 }
 
-/** 标准化窗口标签：weekly/每周 → 每周标签，monthly/每月 → 每月标签，其他原样返回 */
+/** 标准化窗口标签：weekly/每周 → 每周标签，monthly/每月 → 每月标签，usage/用量 → 用量标签，其他原样返回 */
 fun normalizeWindowLabel(
     label: String,
-    weeklyLabel: String = "每周",
-    monthlyLabel: String = "每月"
+    weeklyLabel: String = "Weekly",
+    monthlyLabel: String = "Monthly",
+    usageLabel: String = "Usage"
 ): String = when (label.lowercase()) {
     "weekly", "每周" -> weeklyLabel
     "monthly", "每月" -> monthlyLabel
+    "usage", "用量" -> usageLabel
     else -> label
+}
+
+/**
+ * 判断窗口标签是否为 5h 窗口（与语言无关）：
+ * - 匹配英文缩写（5h/5H）
+ * - 匹配本地化标签（如 "5小时"/"5 小时"/"5小時"）
+ * - 兼容历史中文数据（含 "5" 且含 "小时"）
+ */
+fun isFiveHourLabel(label: String, fiveHourLabel: String, fiveHourShort: String): Boolean {
+    val normalized = label.trim()
+    return normalized.equals(fiveHourShort, ignoreCase = true) ||
+        normalized == fiveHourLabel ||
+        (normalized.contains("5") && normalized.contains("小时")) ||
+        (normalized.contains("5") && normalized.contains("小時"))
 }

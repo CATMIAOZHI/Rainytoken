@@ -338,7 +338,7 @@ private fun OllamaCookieForm(
     OutlinedTextField(
         value = cookie,
         onValueChange = onCookieChange,
-        label = { Text("Cookie") },
+        label = { Text(stringResource(R.string.field_cookie_string)) },
         placeholder = { Text("aid=xxx; __Secure-session=yyy") },
         singleLine = false,
         minLines = 2,
@@ -388,7 +388,7 @@ private fun OllamaCookieForm(
     OutlinedTextField(
         value = triggerApiKey,
         onValueChange = onApiKeyChange,
-        label = { Text("API Key") },
+        label = { Text(stringResource(R.string.field_api_key)) },
         placeholder = { Text(stringResource(R.string.placeholder_ollama_api_key)) },
         singleLine = true,
         visualTransformation = PasswordVisualTransformation(),
@@ -434,7 +434,7 @@ private fun OpenCodeGoForm(
     OutlinedTextField(
         value = workspaceId,
         onValueChange = onWorkspaceIdChange,
-        label = { Text("Workspace ID") },
+        label = { Text(stringResource(R.string.field_workspace_id)) },
         placeholder = { Text(stringResource(R.string.placeholder_workspace_id)) },
         singleLine = true,
         modifier = Modifier.fillMaxWidth()
@@ -490,7 +490,7 @@ private fun OpenCodeGoForm(
     OutlinedTextField(
         value = triggerApiKey,
         onValueChange = onApiKeyChange,
-        label = { Text("API Key") },
+        label = { Text(stringResource(R.string.field_api_key)) },
         placeholder = { Text("opencode-xxx") },
         singleLine = true,
         visualTransformation = PasswordVisualTransformation(),
@@ -526,7 +526,7 @@ private fun CommandCodeGoForm(
     OutlinedTextField(
         value = apiKey,
         onValueChange = onApiKeyChange,
-        label = { Text("API Key") },
+        label = { Text(stringResource(R.string.field_api_key)) },
         placeholder = { Text(stringResource(R.string.placeholder_api_key_from_settings)) },
         singleLine = true,
         visualTransformation = PasswordVisualTransformation(),
@@ -573,7 +573,7 @@ private fun ApiKeyForm(
     OutlinedTextField(
         value = apiKey,
         onValueChange = onApiKeyChange,
-        label = { Text("API Key") },
+        label = { Text(stringResource(R.string.field_api_key)) },
         singleLine = true,
         visualTransformation = PasswordVisualTransformation(),
         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(

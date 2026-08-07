@@ -108,18 +108,39 @@ class FormatUtilsTest {
     // ── normalizeWindowLabel ──
 
     @Test
-    fun `normalizeWindowLabel weekly to Chinese`() {
-        assertEquals("每周", normalizeWindowLabel("weekly"))
-        assertEquals("每周", normalizeWindowLabel("Weekly"))
-        assertEquals("每周", normalizeWindowLabel("WEEKLY"))
-        assertEquals("每周", normalizeWindowLabel("每周"))
+    fun `normalizeWindowLabel weekly maps to weekly label`() {
+        assertEquals("Weekly", normalizeWindowLabel("weekly"))
+        assertEquals("Weekly", normalizeWindowLabel("Weekly"))
+        assertEquals("Weekly", normalizeWindowLabel("WEEKLY"))
+        assertEquals("每周", normalizeWindowLabel("每周", weeklyLabel = "每周"))
+        assertEquals("Weekly", normalizeWindowLabel("每周"))
     }
 
     @Test
     fun `normalizeWindowLabel monthly maps to monthly label`() {
-        assertEquals("每月", normalizeWindowLabel("monthly"))
+        assertEquals("Monthly", normalizeWindowLabel("monthly"))
         assertEquals("Monthly", normalizeWindowLabel("MONTHLY", monthlyLabel = "Monthly"))
-        assertEquals("每月", normalizeWindowLabel("每月"))
+        assertEquals("每月", normalizeWindowLabel("每月", monthlyLabel = "每月"))
+        assertEquals("Monthly", normalizeWindowLabel("每月"))
+    }
+
+    @Test
+    fun `normalizeWindowLabel usage maps to usage label`() {
+        assertEquals("Usage", normalizeWindowLabel("usage"))
+        assertEquals("用量", normalizeWindowLabel("usage", usageLabel = "用量"))
+        assertEquals("Usage", normalizeWindowLabel("用量"))
+    }
+
+    @Test
+    fun `isFiveHourLabel matches english short and localized labels`() {
+        assertEquals(true, isFiveHourLabel("5h", "5 小时", "5h"))
+        assertEquals(true, isFiveHourLabel("5H", "5 小时", "5h"))
+        assertEquals(true, isFiveHourLabel("5小时", "5 小时", "5h"))
+        assertEquals(true, isFiveHourLabel("5 小时", "5 小时", "5h"))
+        assertEquals(true, isFiveHourLabel("5小時", "5 小時", "5h"))
+        assertEquals(true, isFiveHourLabel("5 小時", "5 小時", "5h"))
+        assertEquals(false, isFiveHourLabel("7d", "5 小时", "5h"))
+        assertEquals(false, isFiveHourLabel("", "5 小时", "5h"))
     }
 
     @Test

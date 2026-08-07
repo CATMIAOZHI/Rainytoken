@@ -196,7 +196,7 @@ class OllamaRepositoryTest {
     }
 
     @Test
-    fun `plan defaults to Unknown when badge missing`() {
+    fun `plan defaults to empty when badge missing`() {
         val html = """
         <html><body>
         <div aria-label="Session usage 8.0% used">
@@ -209,7 +209,7 @@ class OllamaRepositoryTest {
         """.trimIndent()
         val result = OllamaRepository.parseUsage(html)
         assertNotNull(result)
-        assertEquals("Unknown", result!!.plan)
+        assertEquals("", result!!.plan)
     }
 
     @Test

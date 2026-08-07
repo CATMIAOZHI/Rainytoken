@@ -108,7 +108,7 @@ class OllamaRepository(
             if (sessionPct == null && weeklyPct == null) return null
 
             return ParsedUsage(
-                plan = plan ?: "Unknown",
+                plan = plan.orEmpty(),  // 空串由 UI 层兜底显示 "—"，避免英文 "Unknown" 出现在中文 UI
                 sessionPercent = sessionPct ?: 0f,
                 weeklyPercent = weeklyPct ?: 0f,
                 sessionResetAt = sessionResetAt,

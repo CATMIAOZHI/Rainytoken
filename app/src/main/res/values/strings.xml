@@ -501,8 +501,9 @@
     <string name="heatmap_view_daily">Daily</string>
     <string name="heatmap_view_weekly">Weekly</string>
     <string name="heatmap_view_cumulative">Cumulative</string>
-    <string name="heatmap_entry">Token Activity</string>
-    <string name="heatmap_entry_subtitle">Daily Token usage heatmap</string>
+    <string name="heatmap_entry">OCGO Token Activity</string>
+    <string name="heatmap_entry_subtitle">OCGO daily Token usage heatmap</string>
+    <string name="heatmap_quick_entry">Token Activity</string>
     <string name="heatmap_no_data">No data yet</string>
     <string name="heatmap_legend_less">Less</string>
     <string name="heatmap_legend_more">More</string>
@@ -517,4 +518,20 @@
         <item quantity="one">%1$d day</item>
         <item quantity="other">%1$d days</item>
     </plurals>
+    <string name="heatmap_day_used">%1$s used %2$s tokens</string>
+    <string name="heatmap_week_used">%1$s used %2$s tokens</string>
+    <string name="month_1">Jan</string>
+    <string name="month_2">Feb</string>
+    <string name="month_3">Mar</string>
+    <string name="month_4">Apr</string>
+    <string name="month_5">May</string>
+    <string name="month_6">Jun</string>
+    <string name="month_7">Jul</string>
+    <string name="month_8">Aug</string>
+    <string name="month_9">Sep</string>
+    <string name="month_10">Oct</string>
+    <string name="month_11">Nov</string>
+    <string name="month_12">Dec</string>
+    <string name="field_api_key">API Key</string>
+    <string name="field_workspace_id">Workspace ID</string>
 </resources>

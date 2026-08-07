@@ -498,8 +498,9 @@
     <string name="heatmap_view_daily">每日</string>
     <string name="heatmap_view_weekly">每周</string>
     <string name="heatmap_view_cumulative">累计</string>
-    <string name="heatmap_entry">Token 活动</string>
-    <string name="heatmap_entry_subtitle">每日 Token 使用热力图</string>
+    <string name="heatmap_entry">OCGO Token 活动</string>
+    <string name="heatmap_entry_subtitle">OCGO 每日 Token 使用热力图</string>
+    <string name="heatmap_quick_entry">Token 活动</string>
     <string name="heatmap_no_data">暂无数据</string>
     <string name="heatmap_legend_less">少</string>
     <string name="heatmap_legend_more">多</string>
@@ -513,4 +514,20 @@
     <plurals name="heatmap_stats_days">
         <item quantity="other">%1$d 天</item>
     </plurals>
+    <string name="heatmap_day_used">%1$s使用了%2$s token</string>
+    <string name="heatmap_week_used">%1$s使用了%2$s token</string>
+    <string name="month_1">一月</string>
+    <string name="month_2">二月</string>
+    <string name="month_3">三月</string>
+    <string name="month_4">四月</string>
+    <string name="month_5">五月</string>
+    <string name="month_6">六月</string>
+    <string name="month_7">七月</string>
+    <string name="month_8">八月</string>
+    <string name="month_9">九月</string>
+    <string name="month_10">十月</string>
+    <string name="month_11">十一月</string>
+    <string name="month_12">十二月</string>
+    <string name="field_api_key">API Key</string>
+    <string name="field_workspace_id">Workspace ID</string>
 </resources>

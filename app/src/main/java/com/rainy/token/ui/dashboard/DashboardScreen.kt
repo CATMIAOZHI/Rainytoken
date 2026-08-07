@@ -70,6 +70,7 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -368,7 +369,7 @@ private fun rememberDashboardItems(
 ): List<DashboardHomeItem> {
     val defaultItems = buildList {
         add(DashboardHomeItem(USAGE_OCGO_CARD_ID) {
-            UsageStatsCard(onOpenDetail = onOpenUsageDetail, refreshTrigger = refreshTrigger)
+            UsageStatsCard(onOpenDetail = onOpenUsageDetail, onOpenHeatmap = onOpenHeatmap, refreshTrigger = refreshTrigger)
         })
         add(DashboardHomeItem(USAGE_CCGO_CARD_ID) {
             CommandCodeUsageStatsCard(onOpenDetail = onOpenCcgoUsageDetail, refreshTrigger = refreshTrigger)
@@ -385,7 +386,9 @@ private fun rememberDashboardItems(
                         ServiceType.OPENCODE_GO -> onOpenUsageDetail
                         ServiceType.COMMANDCODE_GO -> onOpenCcgoUsageDetail
                         else -> null
-                    }
+                    },
+                    // Token 活动热力图入口仅 OCGO 服务卡片显示（数据只统计 OCGO）
+                    onOpenHeatmap = if (card.service == ServiceType.OPENCODE_GO) onOpenHeatmap else null,
                 )
             })
         }
@@ -630,7 +633,12 @@ private fun DraggableDashboardCards(
 }
 
 @Composable
-private fun DashboardCard(card: DashboardCardUi, onClick: () -> Unit, onOpenUsageDetail: (() -> Unit)? = null) {
+private fun DashboardCard(
+    card: DashboardCardUi,
+    onClick: () -> Unit,
+    onOpenUsageDetail: (() -> Unit)? = null,
+    onOpenHeatmap: (() -> Unit)? = null,
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -664,18 +672,45 @@ private fun DashboardCard(card: DashboardCardUi, onClick: () -> Unit, onOpenUsag
             // ─── 主体：服务特定的主信息 ───
             BalanceMainArea(card)
 
-            // 用量服务卡片底部：用量详情入口（仅当有凭证时显示）
+            // 用量服务卡片底部：用量详情入口 + Token 活动快捷入口（仅当有凭证时显示）
             if (onOpenUsageDetail != null && card.credentialState != com.rainy.token.domain.model.CredentialStatus.State.NOT_CONFIGURED) {
                 Spacer(modifier = Modifier.height(8.dp))
-                TextButton(onClick = onOpenUsageDetail) {
-                    Text(stringResource(R.string.action_view_usage_detail), color = StrawberryPink)
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Icon(
-                        imageVector = Icons.Filled.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = StrawberryPink,
-                        modifier = Modifier.padding(top = 1.dp)
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onOpenUsageDetail) {
+                        Text(
+                            stringResource(R.string.action_view_usage_detail),
+                            color = StrawberryPink,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Icon(
+                            imageVector = Icons.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = StrawberryPink,
+                            modifier = Modifier.padding(top = 1.dp)
+                        )
+                    }
+                    // 弹性间距：窄屏/英文长文案时优先压缩间距，避免按钮折行变形
+                    Spacer(modifier = Modifier.weight(1f))
+                    if (onOpenHeatmap != null) {
+                        // OCGO Token 活动热力图快捷入口（与"查看用量详情"并列，右对齐）
+                        TextButton(onClick = onOpenHeatmap) {
+                            Text(
+                                stringResource(R.string.heatmap_quick_entry),
+                                color = StrawberryPink,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Icon(
+                                imageVector = Icons.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = StrawberryPink,
+                                modifier = Modifier.padding(top = 1.dp)
+                            )
+                        }
+                    }
                 }
             }
 
