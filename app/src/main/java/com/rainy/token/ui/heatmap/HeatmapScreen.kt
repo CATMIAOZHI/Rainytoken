@@ -26,12 +26,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -64,6 +66,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -174,25 +177,63 @@ fun HeatmapScreen(
                         Text(stringResource(R.string.heatmap_title))
                         if (state.availableYears.isNotEmpty()) {
                             Spacer(Modifier.width(12.dp))
-                            // 年份下拉选择器
+                            // 年份下拉选择器：默认"最近 365 天"（置顶），下方为具体年份
+                            val selectRangeLabel = if (state.selectedYear == RECENT_YEAR) {
+                                stringResource(R.string.heatmap_select_recent)
+                            } else {
+                                "${state.selectedYear}"
+                            }
                             Text(
-                                text = "${state.selectedYear} ▾",
+                                text = "$selectRangeLabel ▾",
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
                                     .clickable { yearMenuExpanded = true }
                                     .padding(horizontal = 6.dp, vertical = 4.dp)
-                                    .semantics { contentDescription = "$selectYearDesc: ${state.selectedYear}" }
+                                    .semantics { contentDescription = "$selectYearDesc: $selectRangeLabel" }
                             )
                             DropdownMenu(
                                 expanded = yearMenuExpanded,
                                 onDismissRequest = { yearMenuExpanded = false }
                             ) {
+                                // "最近 365 天"（默认选项，与具体年份区分：置顶 + 分隔线）
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.heatmap_select_recent)) },
+                                    trailingIcon = {
+                                        if (state.selectedYear == RECENT_YEAR) {
+                                            Icon(
+                                                Icons.Filled.Check,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp).semantics { selected = true },
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        yearMenuExpanded = false
+                                        viewModel.setYear(RECENT_YEAR)
+                                        // 切换范围时关闭浮层
+                                        selectedDay = null
+                                        selectedWeek = null
+                                        popupAnchor = null
+                                    }
+                                )
+                                HorizontalDivider()
                                 state.availableYears.sortedDescending().forEach { year ->
                                     DropdownMenuItem(
                                         text = { Text("$year") },
+                                        trailingIcon = {
+                                            if (state.selectedYear == year) {
+                                                Icon(
+                                                    Icons.Filled.Check,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(18.dp).semantics { selected = true },
+                                                )
+                                            }
+                                        },
                                         onClick = {
                                             yearMenuExpanded = false
                                             viewModel.setYear(year)

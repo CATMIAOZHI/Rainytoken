@@ -507,6 +507,7 @@
     <string name="heatmap_accessibility_desc">Token 活动热力图，%1$d 天数据</string>
     <string name="heatmap_accessibility_desc_weekly">Token 活动热力图，%1$d 周数据</string>
     <string name="heatmap_select_year">选择年份</string>
+    <string name="heatmap_select_recent">最近 365 天</string>
     <string name="heatmap_stats_total">累计 token</string>
     <string name="heatmap_stats_peak">峰值 token</string>
     <string name="heatmap_stats_current_streak">当前连续</string>

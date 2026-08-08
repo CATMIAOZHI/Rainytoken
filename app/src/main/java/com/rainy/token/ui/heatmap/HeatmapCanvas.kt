@@ -165,9 +165,11 @@ internal fun formatDateChinese(ts: Long, useUtc8: Boolean, yearContext: Int, loc
  * 将周数据格式化为范围文本："12月28日-12月31日"（不含"使用了X token"，
  * 句子由调用方用 stringResource 按语言拼接）。
  *
- * - 末周只显示到该周落在所选年内的有效日期（[dataEndTs]，数据最后一天），
+ * - 末周只显示到该周落在所选窗口内的有效日期（[dataEndTs]，数据最后一天），
  *   避免出现未绘制的未来/次年空位日期；数据同源，不依赖实时时钟
  * - 首列跨年（start 在上一年）时，end 与 start 不同年 → end 强制带年份前缀，避免范围倒挂
+ * - [RECENT_YEAR]（最近 365 天窗口）时按周自身年份判断：start 不带前缀，
+ *   end 仅在与 start 跨年时带前缀（窗口可能跨年，如 "1月5日-2026年1月3日"）
  */
 internal fun formatWeekRangeText(
     week: HeatmapWeekData,
@@ -177,20 +179,22 @@ internal fun formatWeekRangeText(
     locale: Locale = Locale.getDefault(),
 ): String {
     val zone = if (useUtc8) ZoneOffset.ofHours(8) else ZoneOffset.UTC
-    val start = formatDateChinese(week.weekStartTs, useUtc8, selectedYear, locale)
+    val startDate = Instant.ofEpochMilli(week.weekStartTs).atOffset(zone).toLocalDate()
+    // 最近模式按周自身年份判断前缀；年份模式用所选年作上下文（与既有行为一致）
+    val startContext = if (selectedYear == RECENT_YEAR) startDate.year else selectedYear
+    val start = formatDateChinese(week.weekStartTs, useUtc8, startContext, locale)
     val endTs = minOf(week.weekStartTs + 6L * 86_400_000L, dataEndTs ?: (week.weekStartTs + 6L * 86_400_000L))
     if (locale.language == "zh") {
-        val startDate = Instant.ofEpochMilli(week.weekStartTs).atOffset(zone).toLocalDate()
         val endDate = Instant.ofEpochMilli(endTs).atOffset(zone).toLocalDate()
         val end = if (endDate.year != startDate.year) {
             "${endDate.year}年${endDate.monthValue}月${endDate.dayOfMonth}日"
         } else {
-            formatDateChinese(endTs, useUtc8, selectedYear, locale)
+            formatDateChinese(endTs, useUtc8, startContext, locale)
         }
         return "$start-$end"
     }
-    // 非中文：formatDateChinese 已按 yearContext 决定是否带年份
-    return "$start-${formatDateChinese(endTs, useUtc8, selectedYear, locale)}"
+    // 非中文：end 用 start 的年份作上下文（同 startDate.year 时无前缀；跨年时带年份）
+    return "$start-${formatDateChinese(endTs, useUtc8, startContext, locale)}"
 }
 
 // ── 辅助类型与函数 ──────────────────────────────────────────

@@ -28,6 +28,9 @@ import javax.inject.Provider
 /** 热力图视图模式 */
 enum class HeatmapViewMode { DAILY, WEEKLY, CUMULATIVE }
 
+/** 年份选择器中的"最近"窗口（最近 365 天）sentinel：selectedYear == RECENT_YEAR 表示最近模式 */
+internal const val RECENT_YEAR = -1
+
 /** 每日 / 累计视图的单格数据 */
 data class HeatmapDayData(
     val dayTs: Long,   // UTC 日期时间戳（即天分桶的时间戳）
@@ -67,7 +70,7 @@ data class HeatmapInsights(
 data class HeatmapUiState(
     val loading: Boolean = true,
     val viewMode: HeatmapViewMode = HeatmapViewMode.DAILY,
-    val selectedYear: Int = 0,  // 当前选中年份（0=尚未加载）
+    val selectedYear: Int = 0,  // 当前选中范围：0=尚未加载，RECENT_YEAR(-1)=最近365天，>0=具体年份
     val currentYear: Int = 0,   // 今年（浮层日期判断是否显示年份用）
     val availableYears: List<Int> = emptyList(),  // 可选年份（最早数据年份..今年，降序展示）
     val dailyData: List<HeatmapDayData> = emptyList(),
@@ -192,15 +195,24 @@ class HeatmapViewModel @Inject constructor(
         _uiState.update { it.copy(viewMode = mode, colorLevels = levels?.toIntArray() ?: it.colorLevels) }
     }
 
-    /** 切换年份：用缓存的记录按所选自然年重新聚合三视图 */
+    /** 切换窗口范围（年份或最近365天）：用缓存的记录按所选范围重新聚合三视图 */
     fun setYear(year: Int) {
-        if (year == _uiState.value.selectedYear || records.isEmpty()) return
+        // guard 用 latestRequestedYear（最后一次请求意图）而非已提交的 selectedYear：
+        // 避免"在途切换未提交时重复点击导致最后一次意图被丢弃"的竞态
+        if (year == latestRequestedYear || records.isEmpty()) return
         latestRequestedYear = year
         viewModelScope.launch {
-            val result = yearResults[year] ?: withContext(Dispatchers.Default) {
-                computeAllViews(records, useUtc8, year).also { yearResults[year] = it }
+            val cached = yearResults[year]
+            // 最近 365 天窗口以计算时刻的 todayTs 为锚：页面跨天常驻时缓存已过期（窗口末日在昨天），需重算
+            val stale = cached != null && year == RECENT_YEAR && cached.dailyData.lastOrNull()?.dayTs != todayTsOf()
+            val result = if (cached == null || stale) {
+                withContext(Dispatchers.Default) {
+                    computeAllViews(records, useUtc8, year).also { yearResults[year] = it }
+                }
+            } else {
+                cached
             }
-            // 期间用户又切了别的年份：丢弃过期结果，避免旧协程覆盖新选择
+            // 期间用户又切了别的范围：丢弃过期结果，避免旧协程覆盖新选择
             if (year != latestRequestedYear) return@launch
             val mode = _uiState.value.viewMode
             val levels = when (mode) {
@@ -219,6 +231,12 @@ class HeatmapViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    /** 当前时区下的今天自然日零点（缓存新鲜度校验用） */
+    private fun todayTsOf(): Long {
+        val zone = if (useUtc8) ZoneOffset.ofHours(8) else ZoneOffset.UTC
+        return startOfDayTs(System.currentTimeMillis(), zone)
     }
 
     // ── 内部逻辑 ────────────────────────────────────────────
@@ -246,14 +264,14 @@ class HeatmapViewModel @Inject constructor(
                 all to computeAvailableYears(all, zone, currentYear)
             }
             records = fetched
-            latestRequestedYear = currentYear
+            latestRequestedYear = RECENT_YEAR
 
             // 活动洞察基于全量历史记录（不随年份变化），在后台线程计算（万级记录仅数 ms）
             val insights = withContext(Dispatchers.Default) { computeInsights(fetched, useUtc8) }
 
-            // 所有重操作放在 Dispatchers.Default 上
+            // 所有重操作放在 Dispatchers.Default 上；默认窗口 = 最近 365 天（RECENT_YEAR）
             val result = withContext(Dispatchers.Default) {
-                computeAllViews(fetched, useUtc8, currentYear).also { yearResults[currentYear] = it }
+                computeAllViews(fetched, useUtc8, RECENT_YEAR).also { yearResults[RECENT_YEAR] = it }
             }
 
             // 重操作完成后按当前视图模式写入对应的分位阈值（加载期间可能已切换视图）
@@ -266,7 +284,7 @@ class HeatmapViewModel @Inject constructor(
             _uiState.update {
                 it.copy(
                     loading = false,
-                    selectedYear = currentYear,
+                    selectedYear = RECENT_YEAR,
                     currentYear = currentYear,
                     availableYears = availableYears,
                     useUtc8 = useUtc8,
@@ -296,17 +314,19 @@ class HeatmapViewModel @Inject constructor(
         private const val DAY_MS = 86_400_000L
 
         /**
-         * 按指定自然年从全部记录计算三种视图数据 + 颜色等级阈值。
+         * 按指定窗口从全部记录计算三种视图数据 + 颜色等级阈值。
          *
-         * - 今年：范围 = 1月1日 ～ 今天（滚动 365 天窗口被年份选择器取代）
-         * - 往年：范围 = 1月1日 ～ 12月31日（完整自然年）
-         * - 周视图：周日对齐，第一列为该年 1月1日 所在周（可能含去年 12 月空位），
-         *   最后一列为结束日所在周（今年=今天所在周；往年可能跨到次年 1 月初），
-         *   列数按年份浮动（约 52~54 列），不丢数据
-         * - 三种视图的分位数均按所选年份独立计算（颜色随年份数据变化是预期行为）
+         * 窗口类型由 [year] 决定：
+         * - [RECENT_YEAR]（-1）：最近 365 天（今天往前 364 天 ～ 今天，含今天共 365 天），默认窗口
+         * - 今年（year == 当前自然年）：1月1日 ～ 今天
+         * - 往年：1月1日 ～ 12月31日（完整自然年）
+         * - 周视图：周日对齐，第一列为窗口首日所在周（可能含窗口前空位），
+         *   最后一列为结束日所在周（最近/今年=今天所在周；往年可能跨到次年 1 月初），
+         *   列数按窗口浮动（约 52~54 列），不丢数据
+         * - 三种视图的分位数均按所选窗口独立计算（颜色随窗口数据变化是预期行为）
          *
          * @param useUtc8 true=按 UTC+8 零点分桶（与全局图表设置一致），false=按 UTC 零点分桶
-         * @param year 目标自然年
+         * @param year 目标自然年，或 [RECENT_YEAR] 表示最近 365 天
          */
         internal fun computeAllViews(records: List<UsageRecord>, useUtc8: Boolean = false, year: Int): AllViewsResult {
             val zone = if (useUtc8) ZoneOffset.ofHours(8) else ZoneOffset.UTC
@@ -314,31 +334,36 @@ class HeatmapViewModel @Inject constructor(
             val todayTs = startOfDayTs(now, zone)
             val currentYear = Instant.ofEpochMilli(now).atOffset(zone).year
             val isCurrentYear = year == currentYear
+            val isRecent = year == RECENT_YEAR
 
-            // 1. 年份边界（该时区下的自然年）
-            val yearStartTs = Instant.parse("${year}-01-01T00:00:00Z")
-                .atOffset(zone).toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
-            val yearEndTs = if (isCurrentYear) {
+            // 1. 窗口边界（该时区下的自然日零点）
+            val windowStartTs = if (isRecent) {
+                todayTs - 364 * DAY_MS
+            } else {
+                Instant.parse("${year}-01-01T00:00:00Z")
+                    .atOffset(zone).toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
+            }
+            val windowEndTs = if (isRecent || isCurrentYear) {
                 todayTs
             } else {
                 Instant.parse("${year}-12-31T00:00:00Z")
                     .atOffset(zone).toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
             }
-            val totalDays = ((yearEndTs - yearStartTs) / DAY_MS).toInt() + 1
+            val totalDays = ((windowEndTs - windowStartTs) / DAY_MS).toInt() + 1
 
             // 2. 按天分桶聚合 token 数（按所选时区的自然日零点切日）
             val dayTokenMap = HashMap<Long, Long>()
             for (r in records) {
                 val dayTs = startOfDayTs(r.timeCreated, zone)
-                if (dayTs < yearStartTs || dayTs > yearEndTs) continue
+                if (dayTs < windowStartTs || dayTs > windowEndTs) continue
                 val tokens = r.inputTokens + r.cacheReadTokens + r.reasoningTokens + r.outputTokens
                 dayTokenMap.merge(dayTs, tokens, Long::plus)
             }
 
-            // 3. 构建完整的每日数据列表（1月1日 ～ 结束日）
+            // 3. 构建完整的每日数据列表（窗口首日 ～ 结束日）
             val dailyRaw = ArrayList<HeatmapDayData>(totalDays)
             for (i in 0 until totalDays) {
-                val ts = yearStartTs + i * DAY_MS
+                val ts = windowStartTs + i * DAY_MS
                 val tokens = dayTokenMap[ts] ?: 0L
                 dailyRaw.add(HeatmapDayData(dayTs = ts, tokens = tokens, level = 0))
             }
@@ -347,12 +372,12 @@ class HeatmapViewModel @Inject constructor(
             val dailyLevels = computeQuantileLevels(dailyRaw.map { it.tokens })
             val dailyData = dailyRaw.map { it.copy(level = dailyLevels.getColorLevel(it.tokens)) }
 
-            // 5. 每周视图：周日对齐，第一列=1月1日所在周，最后一列=结束日所在周
-            val firstWeekStart = startOfWeekTs(yearStartTs, zone)
-            val lastWeekStart = startOfWeekTs(yearEndTs, zone)
+            // 5. 每周视图：周日对齐，第一列=窗口首日所在周，最后一列=结束日所在周
+            val firstWeekStart = startOfWeekTs(windowStartTs, zone)
+            val lastWeekStart = startOfWeekTs(windowEndTs, zone)
             val (weeklyData, weeklyLevels) = buildWeeklyData(dailyRaw, firstWeekStart, lastWeekStart)
 
-            // 6. 累计视图：从 1月1日 到结束日的累计总和
+            // 6. 累计视图：从窗口首日到结束日的累计总和
             var cumulativeSum = 0L
             val cumulativeRaw = ArrayList<HeatmapDayData>(totalDays)
             for (d in dailyRaw) {

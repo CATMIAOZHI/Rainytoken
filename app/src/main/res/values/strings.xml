@@ -510,6 +510,7 @@
     <string name="heatmap_accessibility_desc">Token activity heatmap, %1$d days</string>
     <string name="heatmap_accessibility_desc_weekly">Token activity heatmap, %1$d weeks</string>
     <string name="heatmap_select_year">Select year</string>
+    <string name="heatmap_select_recent">Recent 365 days</string>
     <string name="heatmap_stats_total">Total tokens</string>
     <string name="heatmap_stats_peak">Peak tokens</string>
     <string name="heatmap_stats_current_streak">Current streak</string>
