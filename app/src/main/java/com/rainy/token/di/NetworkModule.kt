@@ -155,7 +155,7 @@ object NetworkModule {
     ): DeepSeekRepository = DeepSeekRepository(deepSeekApi, credentialRepository, balanceCache)
 
     /**
-     * Codex / ChatGPT Plus 额度仓库：用 OkHttp 调 chatgpt.com 后台 API。
+     * Codex / ChatGPT 额度仓库：用 OkHttp 调 chatgpt.com 后台 API。
      */
     @Provides
     @Singleton
@@ -166,7 +166,7 @@ object NetworkModule {
     ): CodexRepository = CodexRepository(okHttpClient, credentialRepository, balanceCache)
 
     /**
-     * Ollama Pro Cloud 用量仓库：Cookie 认证 + OkHttp 抓 settings HTML 解析。
+     * Ollama Cloud 用量仓库：Cookie 认证 + OkHttp 抓 settings HTML 解析。
      */
     @Provides
     @Singleton

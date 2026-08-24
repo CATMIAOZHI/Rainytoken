@@ -18,7 +18,7 @@ enum class ServiceType(
     COMMANDCODE_GO("CommandCode Go", "commandcode_go"),
     DEEPSEEK("DeepSeek", "deepseek"),
     CODEX("Codex / ChatGPT", "codex"),
-    OLLAMA("Ollama Pro", "ollama");
+    OLLAMA("Ollama", "ollama");
 
     companion object {
         fun fromStorageKey(key: String): ServiceType? =

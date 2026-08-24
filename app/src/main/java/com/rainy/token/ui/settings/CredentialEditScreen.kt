@@ -146,7 +146,7 @@ fun CredentialEditScreen(
                     )
                 }
                 } else {
-                    // Ollama Pro：用户粘贴完整 Cookie 字符串
+                    // Ollama：用户粘贴完整 Cookie 字符串
                         if (service == ServiceType.OLLAMA) {
                             OllamaCookieForm(
                                 cookie = uiState.ollamaCookie,

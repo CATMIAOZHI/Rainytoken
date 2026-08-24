@@ -23,7 +23,7 @@ import java.util.TimeZone
 import javax.inject.Singleton
 
 /**
- * Ollama Pro Cloud 用量仓库。
+ * Ollama Cloud 用量仓库。
  *
  * Ollama 没有公开的 Usage API（见 ollama/ollama#12532），
  * 本 Repository 通过 OkHttp 搓 Cookie 请求 https://ollama.com/settings，

@@ -112,7 +112,7 @@ fun ServiceIcon(
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.ic_ollama_logo),
-                    contentDescription = "Ollama Pro",
+                    contentDescription = "Ollama",
                     modifier = Modifier.fillMaxSize()
                 )
             }

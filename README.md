@@ -5,7 +5,7 @@
 [![CI](https://github.com/CATMIAOZHI/Rainytoken/actions/workflows/ci.yml/badge.svg)](https://github.com/CATMIAOZHI/Rainytoken/actions/workflows/ci.yml)
 [![Release](https://github.com/CATMIAOZHI/Rainytoken/actions/workflows/release.yml/badge.svg)](https://github.com/CATMIAOZHI/Rainytoken/actions)
 [![Version](https://img.shields.io/github/v/release/CATMIAOZHI/Rainytoken?color=ff85a2)](https://github.com/CATMIAOZHI/Rainytoken/releases)
-Android AI 余额与用量查询 APP —— 统一查看 DeepSeek、OpenCode Go、CommandCode Go、Codex / ChatGPT Plus、Ollama Pro 的余额与用量配额。粉色调品牌 UI，配套桌面小组件。
+Android AI 余额与用量查询 APP —— 统一查看 DeepSeek、OpenCode Go、CommandCode Go、Codex / ChatGPT、Ollama 的余额与用量配额。粉色调品牌 UI，配套桌面小组件。
 RainyToken（雨晴Token）— AI Balance & Usage Quota Query · the Rainy Family tools.
 
 ---
@@ -16,20 +16,20 @@ RainyToken（雨晴Token）— AI Balance & Usage Quota Query · the Rainy Famil
   <img src="docs/screenshots/dashboard-light.jpg" width="200" alt="仪表盘（亮色）" />
   <img src="docs/screenshots/dashboard-dark.jpg" width="200" alt="仪表盘（深色）" />
   <img src="docs/screenshots/detail.jpg" width="200" alt="用量图表" />
-  <img src="docs/screenshots/ollama-detail.jpg" width="200" alt="Ollama Pro 模型调用次数" />
+  <img src="docs/screenshots/ollama-detail.jpg" width="200" alt="Ollama 模型调用次数" />
 </p>
 
 <p align="center">
-  <em>仪表盘（亮色） · 仪表盘（深色） · 用量图表 · Ollama Pro 模型调用次数</em>
+  <em>仪表盘（亮色） · 仪表盘（深色） · 用量图表 · Ollama 模型调用次数</em>
 </p>
 
 <p align="center">
   <img src="docs/screenshots/widget.jpg" width="300" alt="桌面小组件" />
-  <img src="docs/screenshots/ollama-card.jpg" width="200" alt="Ollama Pro 卡片" />
+  <img src="docs/screenshots/ollama-card.jpg" width="200" alt="Ollama 卡片" />
 </p>
 
 <p align="center">
-  <em>桌面小组件 · Ollama Pro 首页卡片</em>
+  <em>桌面小组件 · Ollama 首页卡片</em>
 </p>
 
 ---
@@ -63,7 +63,7 @@ RainyToken（雨晴Token）— AI Balance & Usage Quota Query · the Rainy Famil
 
 前往 [Releases](https://github.com/CATMIAOZHI/Rainytoken/releases) 下载最新 APK。
 
-> ⚠️ 需要配置 DeepSeek API Key、OpenCode Go 登录凭据、CommandCode Go API Key、Codex（OAuth 登录或粘贴 auth.json）或 Ollama Pro Cookie 才能拉取数据。
+> ⚠️ 需要配置 DeepSeek API Key、OpenCode Go 登录凭据、CommandCode Go API Key、Codex（OAuth 登录或粘贴 auth.json）或 Ollama Cookie 才能拉取数据。
 
 ---
 

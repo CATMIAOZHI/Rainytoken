@@ -5,7 +5,7 @@
 [![CI](https://github.com/CATMIAOZHI/Rainytoken/actions/workflows/ci.yml/badge.svg)](https://github.com/CATMIAOZHI/Rainytoken/actions/workflows/ci.yml)
 [![Release](https://github.com/CATMIAOZHI/Rainytoken/actions/workflows/release.yml/badge.svg)](https://github.com/CATMIAOZHI/Rainytoken/actions)
 [![Version](https://img.shields.io/github/v/release/CATMIAOZHI/Rainytoken?color=ff85a2)](https://github.com/CATMIAOZHI/Rainytoken/releases)
-Android app for checking AI balance & usage — unified view of DeepSeek, OpenCode Go, CommandCode Go, Codex / ChatGPT Plus, and Ollama Pro balances and usage quotas. Pink-toned brand UI, with companion home screen widgets.
+Android app for checking AI balance & usage — unified view of DeepSeek, OpenCode Go, CommandCode Go, Codex / ChatGPT, and Ollama balances and usage quotas. Pink-toned brand UI, with companion home screen widgets.
 RainyToken (雨晴Token) — AI Balance & Usage Quota Query · the Rainy Family tools.
 
 ---
@@ -16,20 +16,20 @@ RainyToken (雨晴Token) — AI Balance & Usage Quota Query · the Rainy Family 
   <img src="docs/screenshots/dashboard-light.jpg" width="200" alt="Dashboard (light)" />
   <img src="docs/screenshots/dashboard-dark.jpg" width="200" alt="Dashboard (dark)" />
   <img src="docs/screenshots/detail.jpg" width="200" alt="Usage charts" />
-  <img src="docs/screenshots/ollama-detail.jpg" width="200" alt="Ollama Pro model call counts" />
+  <img src="docs/screenshots/ollama-detail.jpg" width="200" alt="Ollama model call counts" />
 </p>
 
 <p align="center">
-  <em>Dashboard (light) · Dashboard (dark) · Usage charts · Ollama Pro model call counts</em>
+  <em>Dashboard (light) · Dashboard (dark) · Usage charts · Ollama model call counts</em>
 </p>
 
 <p align="center">
   <img src="docs/screenshots/widget.jpg" width="300" alt="Home screen widget" />
-  <img src="docs/screenshots/ollama-card.jpg" width="200" alt="Ollama Pro card" />
+  <img src="docs/screenshots/ollama-card.jpg" width="200" alt="Ollama card" />
 </p>
 
 <p align="center">
-  <em>Home screen widget · Ollama Pro home card</em>
+  <em>Home screen widget · Ollama home card</em>
 </p>
 
 ---
@@ -63,7 +63,7 @@ RainyToken (雨晴Token) — AI Balance & Usage Quota Query · the Rainy Family 
 
 Download the latest APK from [Releases](https://github.com/CATMIAOZHI/Rainytoken/releases).
 
-> ⚠️ You need a DeepSeek API Key, OpenCode Go login credentials, CommandCode Go API Key, Codex (OAuth sign-in or pasted auth.json), or an Ollama Pro Cookie to fetch data.
+> ⚠️ You need a DeepSeek API Key, OpenCode Go login credentials, CommandCode Go API Key, Codex (OAuth sign-in or pasted auth.json), or an Ollama Cookie to fetch data.
 
 ---
 

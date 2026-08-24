@@ -15,7 +15,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 
 /**
- * Codex / ChatGPT Plus OAuth PKCE 辅助工具。
+ * Codex / ChatGPT OAuth PKCE 辅助工具。
  *
  * 参考：7shi/codex-oauth 的 Python 实现，移植到 Kotlin/Android。
  * 流程：
