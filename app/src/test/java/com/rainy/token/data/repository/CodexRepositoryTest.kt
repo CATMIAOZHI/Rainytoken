@@ -227,6 +227,126 @@ class CodexRepositoryTest {
         assertTrue(windows.isEmpty())
     }
 
+    @Test
+    fun `parseUsageWindows groups spark windows by limit_name`() {
+        // 模拟真实 wham 返回：普通 rate_limit 只有 weekly，additional 带 GPT-5.3-Codex-Spark
+        val primaryWindow = JsonObject(mapOf(
+            "primary_window" to JsonObject(mapOf(
+                "used_percent" to JsonPrimitive(3.0),
+                "reset_at" to JsonPrimitive(1787813438L),
+                "limit_window_seconds" to JsonPrimitive(604800L)
+            ))
+        ))
+        val sparkRl = JsonObject(mapOf(
+            "primary_window" to JsonObject(mapOf(
+                "used_percent" to JsonPrimitive(0.0),
+                "reset_at" to JsonPrimitive(1787294974L),
+                "limit_window_seconds" to JsonPrimitive(18000L)
+            )),
+            "secondary_window" to JsonObject(mapOf(
+                "used_percent" to JsonPrimitive(0.0),
+                "reset_at" to JsonPrimitive(1787354555L),
+                "limit_window_seconds" to JsonPrimitive(604800L)
+            ))
+        ))
+        val data = JsonObject(mapOf(
+            "rate_limit" to primaryWindow,
+            "additional_rate_limits" to kotlinx.serialization.json.JsonArray(
+                listOf(JsonObject(mapOf(
+                    "limit_name" to JsonPrimitive("GPT-5.3-Codex-Spark"),
+                    "metered_feature" to JsonPrimitive("codex_bengalfox"),
+                    "rate_limit" to sparkRl
+                )))
+            )
+        ))
+        val windows = CodexRepository.parseUsageWindows(data)
+        assertEquals(3, windows.size)
+        // 普通组：weekly
+        assertEquals(CodexRepository.WindowGroup.CODEX, windows[0].group)
+        assertEquals("weekly", windows[0].label)
+        assertEquals(97, windows[0].remainingPct)
+        // Spark 组：5h + weekly
+        assertEquals(CodexRepository.WindowGroup.SPARK, windows[1].group)
+        assertEquals("5h", windows[1].label)
+        assertEquals(CodexRepository.WindowGroup.SPARK, windows[2].group)
+        assertEquals("weekly", windows[2].label)
+    }
+
+    @Test
+    fun `parseUsageWindows treats additional without spark name as codex`() {
+        val primaryWindow = JsonObject(mapOf(
+            "primary_window" to JsonObject(mapOf(
+                "used_percent" to JsonPrimitive(10.0),
+                "reset_at" to JsonPrimitive(1719500400L),
+                "limit_window_seconds" to JsonPrimitive(18000L)
+            ))
+        ))
+        val additionalRl = JsonObject(mapOf(
+            "primary_window" to JsonObject(mapOf(
+                "used_percent" to JsonPrimitive(20.0),
+                "reset_at" to JsonPrimitive(1719932400L),
+                "limit_window_seconds" to JsonPrimitive(604800L)
+            ))
+        ))
+        val data = JsonObject(mapOf(
+            "rate_limit" to primaryWindow,
+            "additional_rate_limits" to kotlinx.serialization.json.JsonArray(
+                listOf(JsonObject(mapOf("limit_name" to JsonPrimitive("Other-Limit"), "rate_limit" to additionalRl)))
+            )
+        ))
+        val windows = CodexRepository.parseUsageWindows(data)
+        assertEquals(2, windows.size)
+        assertTrue(windows.all { it.group == CodexRepository.WindowGroup.CODEX })
+    }
+
+    // ── selectPrimaryWindow ──
+
+    @Test
+    fun `selectPrimaryWindow prefers codex 5h over spark`() {
+        // 普通组只有 weekly + Spark 5h：primary 必须是普通 weekly，不能是 Spark 5h
+        val windows = listOf(
+            CodexRepository.UsageWindow("weekly", 97, null, CodexRepository.WindowGroup.CODEX),
+            CodexRepository.UsageWindow("5h", 100, null, CodexRepository.WindowGroup.SPARK),
+            CodexRepository.UsageWindow("weekly", 100, null, CodexRepository.WindowGroup.SPARK)
+        )
+        val primary = CodexRepository.selectPrimaryWindow(windows)
+        assertEquals("weekly", primary.label)
+        assertEquals(CodexRepository.WindowGroup.CODEX, primary.group)
+    }
+
+    @Test
+    fun `selectPrimaryWindow prefers codex 5h when both have 5h`() {
+        val windows = listOf(
+            CodexRepository.UsageWindow("5h", 42, null, CodexRepository.WindowGroup.CODEX),
+            CodexRepository.UsageWindow("weekly", 15, null, CodexRepository.WindowGroup.CODEX),
+            CodexRepository.UsageWindow("5h", 0, null, CodexRepository.WindowGroup.SPARK)
+        )
+        val primary = CodexRepository.selectPrimaryWindow(windows)
+        assertEquals("5h", primary.label)
+        assertEquals(CodexRepository.WindowGroup.CODEX, primary.group)
+    }
+
+    @Test
+    fun `selectPrimaryWindow falls back to codex first when no codex 5h`() {
+        // 只有普通 weekly（无 5h）+ Spark 5h：primary 取普通 weekly
+        val windows = listOf(
+            CodexRepository.UsageWindow("weekly", 97, null, CodexRepository.WindowGroup.CODEX),
+            CodexRepository.UsageWindow("5h", 100, null, CodexRepository.WindowGroup.SPARK)
+        )
+        val primary = CodexRepository.selectPrimaryWindow(windows)
+        assertEquals("weekly", primary.label)
+        assertEquals(CodexRepository.WindowGroup.CODEX, primary.group)
+    }
+
+    @Test
+    fun `selectPrimaryWindow falls back to any when codex empty`() {
+        val windows = listOf(
+            CodexRepository.UsageWindow("5h", 100, null, CodexRepository.WindowGroup.SPARK)
+        )
+        val primary = CodexRepository.selectPrimaryWindow(windows)
+        assertEquals(CodexRepository.WindowGroup.SPARK, primary.group)
+    }
+
     // ── parseSseResponse ──
 
     @Test

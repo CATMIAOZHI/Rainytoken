@@ -34,6 +34,16 @@ class CodexRepository(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
+    /** 用量窗口来源分组：CODEX = 普通 Codex 限额，SPARK = GPT-5.3-Codex-Spark 独立限额 */
+    internal enum class WindowGroup { CODEX, SPARK }
+
+    internal data class UsageWindow(
+        val label: String,
+        val remainingPct: Int,
+        val resetAt: Long?,
+        val group: WindowGroup = WindowGroup.CODEX
+    )
+
     companion object {
         private const val WHAM_USAGE = "https://chatgpt.com/backend-api/wham/usage"
         private const val RESPONSES_URL = "https://chatgpt.com/backend-api/codex/responses"
@@ -43,25 +53,40 @@ class CodexRepository(
         private const val REFRESH_BUFFER_MS = 60L * 60 * 1000
         private const val TAG = "Codex"
 
-        internal data class UsageWindow(val label: String, val remainingPct: Int, val resetAt: Long?)
-
         internal fun parseUsageWindows(data: JsonObject): List<UsageWindow> {
             val result = mutableListOf<UsageWindow>()
-            fun addWindows(rl: JsonObject?) {
+            fun addWindows(rl: JsonObject?, group: WindowGroup) {
                 if (rl == null) return
                 for (key in listOf("primary_window", "secondary_window")) {
                     val w = rl[key] as? JsonObject ?: continue
                     val usedPct = (w["used_percent"] as? JsonPrimitive)?.floatOrNull ?: continue
                     val remaining = (100 - usedPct).toInt().coerceIn(0, 100)
-                    result.add(UsageWindow(durationLabel((w["limit_window_seconds"] as? JsonPrimitive)?.longOrNull), remaining, (w["reset_at"] as? JsonPrimitive)?.longOrNull?.times(1000L)))
+                    result.add(UsageWindow(durationLabel((w["limit_window_seconds"] as? JsonPrimitive)?.longOrNull), remaining, (w["reset_at"] as? JsonPrimitive)?.longOrNull?.times(1000L), group))
                 }
             }
-            addWindows(data["rate_limit"] as? JsonObject)
+            // 顶层 rate_limit 始终属于普通 Codex 限额
+            addWindows(data["rate_limit"] as? JsonObject, WindowGroup.CODEX)
+            // additional_rate_limits 每项可携带 limit_name，含 "spark" 的归入 Spark 独立限额组
             (data["additional_rate_limits"] as? kotlinx.serialization.json.JsonArray)?.forEach { item ->
-                if (item is JsonObject) addWindows(item["rate_limit"] as? JsonObject)
+                if (item is JsonObject) {
+                    val name = (item["limit_name"] as? JsonPrimitive)?.contentOrNull.orEmpty()
+                    val group = if (name.contains("spark", ignoreCase = true)) WindowGroup.SPARK else WindowGroup.CODEX
+                    addWindows(item["rate_limit"] as? JsonObject, group)
+                }
             }
             return result
         }
+
+        /**
+         * 选择主余额窗口：
+         * 优先普通 Codex 组的 5h 窗口（与旧逻辑一致）；
+         * 普通组没有 5h 时取普通组第一个（如仅 weekly 的 prolite 账号）；
+         * 普通组为空才 fallback 到任意第一个（避免 Spark 5h 抢走主余额）。
+         */
+        internal fun selectPrimaryWindow(windows: List<UsageWindow>): UsageWindow =
+            windows.firstOrNull { it.group == WindowGroup.CODEX && it.label.contains("h") }
+                ?: windows.firstOrNull { it.group == WindowGroup.CODEX }
+                ?: windows.first()
 
         /** 窗口时长 → 中性标识（weekly/monthly/usage/数字标签），由 UI 层按语言本地化 */
         internal fun durationLabel(seconds: Long?): String = when {
@@ -127,12 +152,13 @@ class CodexRepository(
         if (windows.isEmpty()) return@withContext Result.failure(RepositoryError.ParseError(RepositoryError.ParseErrorReason.NO_WINDOWS, "未找到 Codex 用量窗口数据"))
 
         val config = ServiceConfigProvider.get(ServiceType.CODEX)
-        val primary = windows.firstOrNull { it.label.contains("h") } ?: windows.first()
+        val primary = selectPrimaryWindow(windows)
         val extras = buildMap {
             windows.forEachIndexed { i, w ->
                 put("window_$i.label", w.label)
                 put("window_$i.remainingPct", w.remainingPct.toString())
                 put("window_$i.resetAt", w.resetAt?.toString() ?: "")
+                put("window_$i.group", w.group.name)
             }
             put("primary.label", primary.label)
             (usageResult["plan_type"] as? JsonPrimitive)?.contentOrNull?.let { put("plan", it) }
