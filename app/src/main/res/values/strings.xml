@@ -109,7 +109,7 @@
     <string name="service_desc_deepseek">REST API · ¥</string>
     <string name="service_desc_opencode_go">WebView fetch · 5h quota</string>
     <string name="service_desc_commandcode_go">JSON API · $</string>
-    <string name="service_desc_codex">ChatGPT Plus · Codex quota</string>
+    <string name="service_desc_codex">ChatGPT · Codex quota</string>
     <string name="service_desc_ollama">Cookie fetch · Cloud quota</string>
 
     <!-- ══════════ 时长标签（DurationText 注入用） ══════════ -->
@@ -388,7 +388,7 @@
     <string name="help_codex_12">   }}</string>
     <string name="help_codex_note">Tip: the app auto-refreshes the token after import,</string>
     <string name="help_codex_note2">no manual updates needed.</string>
-    <string name="credential_title_ollama">Ollama Pro credentials</string>
+    <string name="credential_title_ollama">Ollama credentials</string>
     <string name="credential_hint_ollama">Copy the full cookie from your browser. After logging into ollama.com/settings, find the Cookie header in DevTools → Network and copy it.</string>
     <string name="credential_update">Update credentials</string>
     <string name="credential_save">Save credentials</string>
@@ -417,7 +417,7 @@
     <string name="api_key_form_title">Enter API Key</string>
     <string name="api_key_form_hint">Credentials are encrypted with Android Keystore (AES-256 GCM) and stored in local DataStore.</string>
     <string name="action_update">Update</string>
-    <string name="credential_title_codex">Codex / ChatGPT Plus credentials</string>
+    <string name="credential_title_codex">Codex / ChatGPT credentials</string>
     <string name="credential_hint_codex">OAuth login fetches credentials automatically. You can also paste auth.json manually.</string>
     <string name="action_oauth_login">🔐 OAuth login (recommended)</string>
     <string name="or_manual_import">── or import manually ──</string>
@@ -438,6 +438,7 @@
     <string name="error_parse_models_empty">Model list is empty</string>
     <string name="error_parse_malformed">Response format is abnormal</string>
     <string name="window_every_week">Weekly</string>
+    <string name="window_spark">Spark</string>
     <string name="msg_model_call_count">Model call count</string>
     <string name="msg_stale_cache">Cached data · %1$s</string>
     <string name="msg_showing_last_balance">Showing the last successfully fetched balance</string>

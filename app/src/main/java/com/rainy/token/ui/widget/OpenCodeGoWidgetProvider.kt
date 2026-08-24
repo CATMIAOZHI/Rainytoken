@@ -205,26 +205,27 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                 val weeklyLabel = context.getString(R.string.window_every_week)
                 val monthlyLabel = context.getString(R.string.window_every_month)
                 val usageLabel = context.getString(R.string.window_usage)
-                val windows = (0 until windowCount).map { index ->
+                // 仅主模型窗口进入桌面组件；Spark 独立限额为次要通道，不占用组件行位
+                val normal = mutableListOf<Triple<String, Int?, Long?>>()
+                for (index in 0 until windowCount) {
+                    if (extras["window_$index.group"] == "SPARK") continue
+                    val rawLabel = extras["window_$index.label"] ?: "usage"
                     val label = normalizeWindowLabel(
-                        extras["window_$index.label"] ?: "usage",
+                        rawLabel,
                         weeklyLabel = weeklyLabel,
                         monthlyLabel = monthlyLabel,
                         usageLabel = usageLabel
                     )
                     val remaining = extras["window_$index.remainingPct"]?.toIntOrNull()
                     val resetAt = extras["window_$index.resetAt"]?.toLongOrNull()?.takeIf { it > 0 }
-                    Triple(label, remaining?.let { (100 - it).coerceIn(0, 100) }, resetAt?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 })
+                    normal.add(Triple(label, remaining?.let { (100 - it).coerceIn(0, 100) }, resetAt?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 }))
                 }
                 // 判断是否有 5h 窗口
-                val has5h = windows.any { it.first.contains("5") }
-                // 始终保留 5h 槽位在第一行
-                val row1 = if (!has5h) {
-                    Triple("5h", null, null)
-                } else {
-                    windows.firstOrNull { it.first.contains("5") } ?: windows.getOrNull(0) ?: Triple("5h", null, null)
-                }
-                val otherWindows = windows.filter { it != row1 }
+                val has5h = normal.any { it.first.contains("5") }
+                // 始终保留 5h 槽位在第一行（按索引取行，避免内容相同的窗口被误过滤）
+                val row1Idx = if (has5h) (normal.indexOfFirst { it.first.contains("5") }.takeIf { it >= 0 } ?: 0) else -1
+                val row1 = if (row1Idx >= 0) normal[row1Idx] else Triple("5h", null, null)
+                val otherWindows = normal.filterIndexed { idx, _ -> idx != row1Idx }
                 val row2 = otherWindows.getOrNull(0) ?: Triple(weeklyLabel, null, null)
                 val row3 = otherWindows.getOrNull(1) ?: Triple(monthlyLabel, null, null)
                 setRowLabel(views, row1.first, row2.first, row3.first)

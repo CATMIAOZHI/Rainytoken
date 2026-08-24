@@ -485,10 +485,13 @@ private fun CodexUsageCard(state: State) {
     }
     val extras = balance?.extras ?: return
     val plan = extras["plan"].orEmpty()
-    val windows = remember(extras) { extractCodexWindows(extras) }
-    if (windows.isEmpty()) return
+    val allWindows = remember(extras) { extractCodexWindows(extras) }
+    if (allWindows.isEmpty()) return
+    // 主模型窗口占据主视觉；Spark 独立限额收进底部次要小节
+    val windows = allWindows.filter { it.group == CodexWindowGroup.CODEX }
+    val sparkWindows = allWindows.filter { it.group == CodexWindowGroup.SPARK }
 
-    // 判断是否有 5h 窗口（与语言无关：匹配 "5h"/"5H" 或本地化标签）
+    // 判断是否有 5h 窗口（与语言无关：匹配 "5h"/"5H" 或本地化标签；仅看主模型窗口）
     val has5h = windows.any {
         isFiveHourLabel(it.rawLabel, stringResource(R.string.window_5h), stringResource(R.string.window_5h_short))
     }
@@ -547,14 +550,100 @@ private fun CodexUsageCard(state: State) {
                     decimals = 2
                 )
             }
+
+            // Spark 独立限额（次要通道）：分隔线 + 小标题 + 紧凑细条，视觉权重远低于主模型
+            if (sparkWindows.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = stringResource(R.string.window_spark),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = inkMuted()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                sparkWindows.forEach { window ->
+                    val resetInSec = window.resetAt?.let {
+                        (it - System.currentTimeMillis()) / 1000
+                    }?.takeIf { it > 0 }
+                    SparkUsageRow(
+                        label = codexWindowLabel(window.rawLabel),
+                        pct = window.usedPct,
+                        resetInSec = resetInSec
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
         }
     }
 }
 
+/**
+ * Spark 次要限额的紧凑行：小字号 + 细进度条，视觉权重明显低于主模型的 [UsageWindowRow]。
+ */
+@Composable
+private fun SparkUsageRow(label: String, pct: Float, resetInSec: Long?) {
+    val durationText = DurationText(
+        day = stringResource(R.string.format_day),
+        hour = stringResource(R.string.format_hour),
+        minute = stringResource(R.string.format_minute)
+    )
+    val pctValue = pct.coerceIn(0f, 100f)
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = String.format(Locale.US, "%.1f", pctValue),
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "%",
+                style = MaterialTheme.typography.labelSmall,
+                color = inkMuted(),
+                modifier = Modifier.padding(start = 1.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        LinearProgressIndicator(
+            progress = { pctValue / 100f },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(2.5.dp)
+                .clip(RoundedCornerShape(1.25.dp)),
+            color = when {
+                pctValue >= 80f -> MaterialTheme.colorScheme.error.copy(alpha = 0.75f)
+                else -> StrawberryPink.copy(alpha = 0.55f)
+            },
+            trackColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+        if (resetInSec != null && resetInSec > 0) {
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = stringResource(R.string.service_reset_in, formatResetInSec(resetInSec, durationText)),
+                style = MaterialTheme.typography.labelSmall,
+                color = inkMuted()
+            )
+        }
+    }
+}
+
+private enum class CodexWindowGroup { CODEX, SPARK }
+
 private data class CodexWindow(
     val rawLabel: String,
     val usedPct: Float,
-    val resetAt: Long?
+    val resetAt: Long?,
+    val group: CodexWindowGroup = CodexWindowGroup.CODEX
 )
 
 private fun extractCodexWindows(extras: Map<String, String>): List<CodexWindow> {
@@ -565,7 +654,8 @@ private fun extractCodexWindows(extras: Map<String, String>): List<CodexWindow> 
         val remaining = extras["window_${i}.remainingPct"]?.toFloatOrNull() ?: 0f
         val resetAt = extras["window_${i}.resetAt"]?.toLongOrNull()?.takeIf { it > 0 }
         val usedPct = (100f - remaining).coerceIn(0f, 100f)
-        result.add(CodexWindow(rawLabel, usedPct, resetAt))
+        val group = if (extras["window_${i}.group"] == "SPARK") CodexWindowGroup.SPARK else CodexWindowGroup.CODEX
+        result.add(CodexWindow(rawLabel, usedPct, resetAt, group))
         i++
     }
     return result
@@ -574,14 +664,14 @@ private fun extractCodexWindows(extras: Map<String, String>): List<CodexWindow> 
 @Composable
 private fun codexWindowLabel(raw: String): String = when (raw.lowercase()) {
     "5h" -> stringResource(R.string.window_5h)
-    "7d", "weekly", "每周" -> stringResource(R.string.window_weekly)
+    "7d", "weekly", "每周", "每週" -> stringResource(R.string.window_weekly)
     "30d", "monthly", "每月" -> stringResource(R.string.window_monthly)
     "usage" -> stringResource(R.string.window_usage)
     else -> raw
 }
 
 /**
- * Ollama Pro 专属：5h + 每周用量窗口卡 + 模型级调用次数。
+ * Ollama 专属：5h + 每周用量窗口卡 + 模型级调用次数。
  */
 @Composable
 private fun OllamaUsageCard(state: State) {

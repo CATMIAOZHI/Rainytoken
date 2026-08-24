@@ -297,21 +297,34 @@ internal fun CodexUsageWindows(balance: ServiceBalance) {
 
     val weeklyLabel = stringResource(R.string.window_every_week)
     val monthlyLabel = stringResource(R.string.window_every_month)
+    val usageLabel = stringResource(R.string.window_usage)
+    val sparkTitle = stringResource(R.string.window_spark)
+
+    data class UiWindow(val label: String, val isSpark: Boolean, val remainingPct: Int?, val resetAt: Long?)
+
     val windows = (0 until windowCount).map { i ->
+        val rawLabel = extras["window_$i.label"] ?: "usage"
         val label = normalizeWindowLabel(
-            extras["window_$i.label"] ?: "usage",
+            rawLabel,
             weeklyLabel = weeklyLabel,
             monthlyLabel = monthlyLabel,
-            usageLabel = stringResource(R.string.window_usage)
+            usageLabel = usageLabel
         )
-        val remainingPct = extras["window_$i.remainingPct"]?.toIntOrNull()
-        val resetAt = extras["window_$i.resetAt"]?.toLongOrNull()?.takeIf { it > 0 }
-        Triple(label, remainingPct, resetAt)
+        UiWindow(
+            label = label,
+            isSpark = extras["window_$i.group"] == "SPARK",
+            remainingPct = extras["window_$i.remainingPct"]?.toIntOrNull(),
+            resetAt = extras["window_$i.resetAt"]?.toLongOrNull()?.takeIf { it > 0 }
+        )
     }
 
-    // 判断是否有 5h 窗口（与语言无关：匹配 "5h"/"5H" 或本地化标签，用于保留空槽位）
+    // 主模型（普通 Codex）窗口独占全部进度行；Spark 独立限额是次要通道，只留一行小字摘要
+    val mainWindows = windows.filter { !it.isSpark }
+    val sparkWindows = windows.filter { it.isSpark }
+
+    // 判断是否有 5h 窗口（与语言无关：匹配 "5h"/"5H" 或本地化标签，仅看主模型窗口）
     val fiveHourLabel = stringResource(R.string.window_5h)
-    val has5h = windows.any { isFiveHourLabel(it.first, fiveHourLabel, stringResource(R.string.window_5h_short)) }
+    val has5h = mainWindows.any { isFiveHourLabel(it.label, fiveHourLabel, stringResource(R.string.window_5h_short)) }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (windows.isEmpty()) {
@@ -321,13 +334,25 @@ internal fun CodexUsageWindows(balance: ServiceBalance) {
             if (!has5h) {
                 CompactUsageRowEmpty(label = fiveHourLabel, resetInSec = null)
             }
-            windows.forEach { (label, remainingPct, resetAt) ->
-                if (remainingPct != null) {
-                    val usedPct = (100 - remainingPct).coerceIn(0, 100)
-                    CompactUsageRow(label = label, pct = usedPct, resetInSec = resetAt?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 })
+            mainWindows.forEach { w ->
+                val resetSec = w.resetAt?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 }
+                if (w.remainingPct != null) {
+                    CompactUsageRow(label = w.label, pct = (100 - w.remainingPct).coerceIn(0, 100), resetInSec = resetSec)
                 } else {
-                    CompactUsageRowEmpty(label = label, resetInSec = resetAt?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 })
+                    CompactUsageRowEmpty(label = w.label, resetInSec = resetSec)
                 }
+            }
+            // Spark 次要限额：单行摘要，不与主模型争夺视觉焦点
+            if (sparkWindows.isNotEmpty()) {
+                val summary = sparkWindows.joinToString(" · ") { w ->
+                    val used = w.remainingPct?.let { (100 - it).coerceIn(0, 100) }
+                    if (used != null) "${w.label} $used%" else "${w.label} —"
+                }
+                Text(
+                    text = "$sparkTitle · $summary",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = inkMuted()
+                )
             }
         }
     }

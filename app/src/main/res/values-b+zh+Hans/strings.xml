@@ -106,7 +106,7 @@
     <string name="service_desc_deepseek">REST API · ¥</string>
     <string name="service_desc_opencode_go">WebView 抓取 · 5h 配额</string>
     <string name="service_desc_commandcode_go">JSON API · $</string>
-    <string name="service_desc_codex">ChatGPT Plus · Codex 额度</string>
+    <string name="service_desc_codex">ChatGPT · Codex 额度</string>
     <string name="service_desc_ollama">Cookie 抓取 · Cloud 配额</string>
 
     <!-- ══════════ 时长标签（DurationText 注入用） ══════════ -->
@@ -385,7 +385,7 @@
     <string name="help_codex_12">   }}</string>
     <string name="help_codex_note">提示：导入后 APP 会自动刷新 token，</string>
     <string name="help_codex_note2">不需要手动更新。</string>
-    <string name="credential_title_ollama">Ollama Pro 凭据</string>
+    <string name="credential_title_ollama">Ollama 凭据</string>
     <string name="credential_hint_ollama">需要从浏览器复制完整 Cookie。登录 ollama.com/settings 后，在 DevTools → Network → 请求头里找到 Cookie 行复制。</string>
     <string name="credential_update">更新凭据</string>
     <string name="credential_save">保存凭据</string>
@@ -414,7 +414,7 @@
     <string name="api_key_form_title">请输入 API Key</string>
     <string name="api_key_form_hint">凭据会使用 Android Keystore (AES-256 GCM) 加密后存储到本机 DataStore。</string>
     <string name="action_update">更新</string>
-    <string name="credential_title_codex">Codex / ChatGPT Plus 凭据</string>
+    <string name="credential_title_codex">Codex / ChatGPT 凭据</string>
     <string name="credential_hint_codex">推荐使用 OAuth 登录自动获取凭据。也可手动粘贴 auth.json 内容。</string>
     <string name="action_oauth_login">🔐 OAuth 登录（推荐）</string>
     <string name="or_manual_import">── 或手动导入 ──</string>
@@ -435,6 +435,7 @@
     <string name="error_parse_models_empty">模型列表为空</string>
     <string name="error_parse_malformed">响应格式异常</string>
     <string name="window_every_week">每周</string>
+    <string name="window_spark">Spark</string>
     <string name="msg_model_call_count">模型调用次数</string>
     <string name="msg_stale_cache">缓存数据 · %1$s</string>
     <string name="msg_showing_last_balance">显示的是上次成功获取的余额</string>

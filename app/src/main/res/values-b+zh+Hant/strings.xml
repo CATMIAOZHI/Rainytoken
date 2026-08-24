@@ -106,7 +106,7 @@
     <string name="service_desc_deepseek">REST API · ¥</string>
     <string name="service_desc_opencode_go">WebView 抓取 · 5h 配額</string>
     <string name="service_desc_commandcode_go">JSON API · $</string>
-    <string name="service_desc_codex">ChatGPT Plus · Codex 額度</string>
+    <string name="service_desc_codex">ChatGPT · Codex 額度</string>
     <string name="service_desc_ollama">Cookie 抓取 · Cloud 配額</string>
 
     <!-- ══════════ 时长标签（DurationText 注入用） ══════════ -->
@@ -385,7 +385,7 @@
     <string name="help_codex_12">   }}</string>
     <string name="help_codex_note">提示：匯入後 APP 會自動重新整理 token，</string>
     <string name="help_codex_note2">不需要手動更新。</string>
-    <string name="credential_title_ollama">Ollama Pro 憑據</string>
+    <string name="credential_title_ollama">Ollama 憑據</string>
     <string name="credential_hint_ollama">需要從瀏覽器複製完整 Cookie。登入 ollama.com/settings 後，在 DevTools → Network → 請求頭裡找到 Cookie 行複製。</string>
     <string name="credential_update">更新憑據</string>
     <string name="credential_save">儲存憑據</string>
@@ -414,7 +414,7 @@
     <string name="api_key_form_title">請輸入 API Key</string>
     <string name="api_key_form_hint">憑據會使用 Android Keystore (AES-256 GCM) 加密後儲存到本機 DataStore。</string>
     <string name="action_update">更新</string>
-    <string name="credential_title_codex">Codex / ChatGPT Plus 憑據</string>
+    <string name="credential_title_codex">Codex / ChatGPT 憑據</string>
     <string name="credential_hint_codex">推薦使用 OAuth 登入自動獲取憑據。也可手動貼上 auth.json 內容。</string>
     <string name="action_oauth_login">🔐 OAuth 登入（推薦）</string>
     <string name="or_manual_import">── 或手動匯入 ──</string>
@@ -435,6 +435,7 @@
     <string name="error_parse_models_empty">模型清單為空</string>
     <string name="error_parse_malformed">回應格式異常</string>
     <string name="window_every_week">每週</string>
+    <string name="window_spark">Spark</string>
     <string name="msg_model_call_count">模型呼叫次數</string>
     <string name="msg_stale_cache">快取數據 · %1$s</string>
     <string name="msg_showing_last_balance">顯示的是上次成功獲取的餘額</string>
