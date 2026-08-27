@@ -20,6 +20,7 @@ import kotlinx.coroutines.runBlocking
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
 /**
  * OpenCode Go 桌面小组件（MIUI Widget）。
@@ -173,13 +174,13 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
             ServiceType.OPENCODE_GO -> {
                 setRowLabel(views, context.getString(R.string.window_5h_short), context.getString(R.string.window_weekly), context.getString(R.string.window_monthly))
                 populateRow(views, R.id.row1_pct, R.id.row1_bar, R.id.row1_reset,
-                    pct = extras["rolling.pct"]?.toIntOrNull(),
+                    pct = extras["rolling.pct"]?.toFloatOrNull()?.roundToInt(),
                     resetSec = extras["rolling.resetInSec"]?.toLongOrNull())
                 populateRow(views, R.id.row2_pct, R.id.row2_bar, R.id.row2_reset,
-                    pct = extras["weekly.pct"]?.toIntOrNull(),
+                    pct = extras["weekly.pct"]?.toFloatOrNull()?.roundToInt(),
                     resetSec = extras["weekly.resetInSec"]?.toLongOrNull())
                 populateRow(views, R.id.row3_pct, R.id.row3_bar, R.id.row3_reset,
-                    pct = extras["monthly.pct"]?.toIntOrNull(),
+                    pct = extras["monthly.pct"]?.toFloatOrNull()?.roundToInt(),
                     resetSec = extras["monthly.resetInSec"]?.toLongOrNull())
             }
             ServiceType.COMMANDCODE_GO -> {

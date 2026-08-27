@@ -38,6 +38,7 @@ import com.rainy.token.ui.theme.StatusOrange
 import com.rainy.token.ui.theme.inkMuted
 import java.text.SimpleDateFormat
 import java.util.Date
+import kotlin.math.roundToInt
 import java.util.Locale
 
 // ── Service-specific balance Composables ──
@@ -153,9 +154,9 @@ internal fun OpenCodeGoMainBalance(balance: ServiceBalance) {
 @Composable
 internal fun OpenCodeGoUsageWindows(balance: ServiceBalance) {
     val windows = listOf(
-        Triple(stringResource(R.string.window_5h), balance.extras["rolling.pct"]?.toIntOrNull(), balance.extras["rolling.resetInSec"]?.toLongOrNull()),
-        Triple(stringResource(R.string.window_weekly),   balance.extras["weekly.pct"]?.toIntOrNull(),   balance.extras["weekly.resetInSec"]?.toLongOrNull()),
-        Triple(stringResource(R.string.window_monthly),   balance.extras["monthly.pct"]?.toIntOrNull(),  balance.extras["monthly.resetInSec"]?.toLongOrNull())
+        Triple(stringResource(R.string.window_5h), balance.extras["rolling.pct"]?.toFloatOrNull()?.roundToInt(), balance.extras["rolling.resetInSec"]?.toLongOrNull()),
+        Triple(stringResource(R.string.window_weekly),   balance.extras["weekly.pct"]?.toFloatOrNull()?.roundToInt(),   balance.extras["weekly.resetInSec"]?.toLongOrNull()),
+        Triple(stringResource(R.string.window_monthly),   balance.extras["monthly.pct"]?.toFloatOrNull()?.roundToInt(),  balance.extras["monthly.resetInSec"]?.toLongOrNull())
     )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         windows.forEach { (label, pct, resetSec) ->

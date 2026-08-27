@@ -104,18 +104,25 @@ class OpenCodeGoRepository(
             val config = ServiceConfigProvider.get(ServiceType.OPENCODE_GO)
 
             // 把 3 个窗口的用量百分比 + 重置时间全部塞进 extras（详情页按窗口渲染）
+            // usage/limit 为页面新增的用量与限额字段（单位以服务端定义为准，保留供详情页展示，UI 兼容缺失场景）
             val extras = buildMap {
                 windows["rollingUsage"]?.let { w ->
                     put("rolling.pct", w.usagePercent.toString())
                     put("rolling.resetInSec", w.resetInSec.toString())
+                    w.usage?.let { put("rolling.usage", it.toString()) }
+                    w.limit?.let { put("rolling.limit", it.toString()) }
                 }
                 windows["weeklyUsage"]?.let { w ->
                     put("weekly.pct", w.usagePercent.toString())
                     put("weekly.resetInSec", w.resetInSec.toString())
+                    w.usage?.let { put("weekly.usage", it.toString()) }
+                    w.limit?.let { put("weekly.limit", it.toString()) }
                 }
                 windows["monthlyUsage"]?.let { w ->
                     put("monthly.pct", w.usagePercent.toString())
                     put("monthly.resetInSec", w.resetInSec.toString())
+                    w.usage?.let { put("monthly.usage", it.toString()) }
+                    w.limit?.let { put("monthly.limit", it.toString()) }
                 }
             }
 
@@ -257,10 +264,14 @@ class OpenCodeGoRepository(
                 val braceEnd = findMatchingBrace(html, braceStart) ?: continue
                 val body = html.substring(braceStart, braceEnd + 1)
 
-                val pct = extractNumberAfterKey(body, "usagePercent")?.toIntOrNull()
+                val pct = extractNumberAfterKey(body, "usagePercent")?.toFloatOrNull()
                 val reset = extractNumberAfterKey(body, "resetInSec")?.toLongOrNull()
+                // usage/limit 是页面新增的用量与限额字段（单位以服务端定义为准，缺失不影响窗口识别）
+                // exactKey=true：避免 "usage" 误命中 "usagePercent" 前缀
+                val usage = extractNumberAfterKey(body, "usage", exactKey = true)?.toLongOrNull()
+                val limit = extractNumberAfterKey(body, "limit", exactKey = true)?.toLongOrNull()
                 if (pct != null && reset != null) {
-                    result[field] = ScrapedWindow(pct, reset)
+                    result[field] = ScrapedWindow(pct, reset, usage, limit)
                 }
             }
 
@@ -288,9 +299,23 @@ class OpenCodeGoRepository(
         /**
          * 在 body 字符串中找 "key:" 后面紧跟的数字（含可选小数）。返回数字字符串，未找到返回 null。
          * 跳过 status 字符串值（"ok" 之类）。
+         *
+         * @param exactKey 为 true 时要求 key 后紧跟 ':'（精确字段匹配），
+         *                 避免 "usage" 误命中 "usagePercent" 这类前缀字段。
          */
-        private fun extractNumberAfterKey(body: String, key: String): String? {
-            val keyIdx = body.indexOf(key)
+        private fun extractNumberAfterKey(body: String, key: String, exactKey: Boolean = false): String? {
+            val keyIdx = if (exactKey) {
+                // 精确匹配：key 后必须紧跟 ':'（如 "usage:"），不能是 "usagePercent"
+                var idx = body.indexOf(key)
+                while (idx >= 0) {
+                    val after = idx + key.length
+                    if (after < body.length && body[after] == ':') break
+                    idx = body.indexOf(key, idx + 1)
+                }
+                idx
+            } else {
+                body.indexOf(key)
+            }
             if (keyIdx < 0) return null
             var i = keyIdx + key.length
             // 跳过 ":" 后面所有非数字、非负号、非小数点字符
@@ -313,7 +338,12 @@ class OpenCodeGoRepository(
             return body.substring(start, i).ifEmpty { null }
         }
 
-        internal data class ScrapedWindow(val usagePercent: Int, val resetInSec: Long)
+        internal data class ScrapedWindow(
+            val usagePercent: Float,
+            val resetInSec: Long,
+            val usage: Long? = null,
+            val limit: Long? = null
+        )
     }
 }
 
