@@ -60,6 +60,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rainy.token.R
+import com.rainy.token.data.repository.ModelUsageRow
+import com.rainy.token.data.repository.OpenCodeGoRepository
+import com.rainy.token.data.repository.WindowModelUsage
 import com.rainy.token.domain.model.ServiceBalance
 import com.rainy.token.domain.model.TriggerSummary
 import com.rainy.token.domain.service.FetchMethod
@@ -76,6 +79,7 @@ import com.rainy.token.ui.components.formatResetInSec
 import com.rainy.token.ui.components.isFiveHourLabel
 import com.rainy.token.ui.theme.inkMuted
 import com.rainy.token.ui.theme.StrawberryPink
+import kotlinx.serialization.json.Json
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -363,6 +367,7 @@ private fun parseIsoDuration(isoStr: String): Long? {
  *
  * 数据从 balance.extras["rolling.pct"] / ["weekly.pct"] / ["monthly.pct"] 取，
  * 进度条颜色按 % 自动切换：< 50% 草莓粉，50-80% 暖橙，> 80% 玫红。
+ * 每个窗口下方展示模型级用量（_server 接口，像 Ollama 一样按模型列出）。
  */
 @Composable
 private fun OpenCodeGoWindowsCard(state: State) {
@@ -392,6 +397,11 @@ private fun OpenCodeGoWindowsCard(state: State) {
                 pct = extras["rolling.pct"]?.toFloatOrNull(),
                 resetInSec = extras["rolling.resetInSec"]?.toLongOrNull()
             )
+            val rollingWin = parseModelUsage(extras["rolling.models"])
+            if (!rollingWin.rows.isNullOrEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                ModelUsageList(rows = rollingWin.rows.orEmpty(), windowLimit = rollingWin.limit)
+            }
             Spacer(modifier = Modifier.height(14.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(modifier = Modifier.height(14.dp))
@@ -400,6 +410,11 @@ private fun OpenCodeGoWindowsCard(state: State) {
                 pct = extras["weekly.pct"]?.toFloatOrNull(),
                 resetInSec = extras["weekly.resetInSec"]?.toLongOrNull()
             )
+            val weeklyWin = parseModelUsage(extras["weekly.models"])
+            if (!weeklyWin.rows.isNullOrEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                ModelUsageList(rows = weeklyWin.rows.orEmpty(), windowLimit = weeklyWin.limit)
+            }
             Spacer(modifier = Modifier.height(14.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(modifier = Modifier.height(14.dp))
@@ -408,7 +423,94 @@ private fun OpenCodeGoWindowsCard(state: State) {
                 pct = extras["monthly.pct"]?.toFloatOrNull(),
                 resetInSec = extras["monthly.resetInSec"]?.toLongOrNull()
             )
+            val monthlyWin = parseModelUsage(extras["monthly.models"])
+            if (!monthlyWin.rows.isNullOrEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                ModelUsageList(rows = monthlyWin.rows.orEmpty(), windowLimit = monthlyWin.limit)
+            }
         }
+    }
+}
+
+/**
+ * 解析 extras 中模型级用量 JSON（[OpenCodeGoRepository] 序列化的 WindowModelUsage）。
+ * 返回整个窗口对象（含 limit，供配额计算）；解析失败返回空对象（UI 隐藏列表）。
+ */
+private fun parseModelUsage(raw: String?): WindowModelUsage {
+    if (raw.isNullOrBlank()) return WindowModelUsage()
+    return try {
+        Json { ignoreUnknownKeys = true }
+            .decodeFromString<WindowModelUsage>(raw)
+    } catch (_: Exception) {
+        WindowModelUsage()
+    }
+}
+
+/**
+ * 模型级用量列表（Ollama 风格）：模型名 + 用量金额 + 占比 + 配额。
+ * 每行显示模型显示名、已用金额（$XX.XX）、占窗口百分比与窗口配额（limit ÷ multiplier）。
+ * estimated 行（用量为估算值）在模型名后加 "~" 标识。
+ * windowLimit 缺失时隐藏配额列（用量与占比照常显示）。
+ */
+@Composable
+private fun ModelUsageList(rows: List<ModelUsageRow>, windowLimit: Long?) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = stringResource(R.string.msg_model_usage),
+            style = MaterialTheme.typography.labelSmall,
+            color = inkMuted()
+        )
+        rows.sortedByDescending { it.contributionPercent }.forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = row.name.ifBlank { row.model } + if (row.estimated) " ~" else "",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f)
+                )
+                if (windowLimit != null && windowLimit > 0) {
+                    Text(
+                        text = stringResource(
+                            R.string.msg_model_quota,
+                            formatUsd(OpenCodeGoRepository.windowQuotaRaw(windowLimit, row.multiplier))
+                        ),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = inkMuted(),
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                }
+                Text(
+                    text = "$" + formatUsd(row.cost),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = StrawberryPink,
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                Text(
+                    text = String.format(Locale.US, "%.1f%%", row.contributionPercent),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 把 1e-8 美元整数（cost/quotaCost）格式化为美元字符串。
+ * 例：52650887 → "0.53"；1002607535 → "10.03"。
+ * 小额（<$0.01）自动提升精度避免显示 "$0.00"：11310 → "0.0001"。
+ */
+private fun formatUsd(rawCost: Long): String {
+    val dollars = rawCost / 100_000_000.0
+    return if (dollars > 0.0 && dollars < 0.01) {
+        String.format(Locale.US, "%.4f", dollars)
+    } else {
+        String.format(Locale.US, "%.2f", dollars)
     }
 }
 

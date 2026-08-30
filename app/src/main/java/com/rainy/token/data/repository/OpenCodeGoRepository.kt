@@ -8,7 +8,12 @@ import com.rainy.token.domain.model.TriggerSummary
 import com.rainy.token.domain.service.ServiceConfigProvider
 import com.rainy.token.domain.service.ServiceType
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -21,6 +26,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.net.URLEncoder
+import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
 /**
@@ -126,6 +132,7 @@ class OpenCodeGoRepository(
                 }
             }
 
+            // 主窗口数据先落缓存并返回（关键路径只依赖 HTML 解析一次请求）
             val balance = ServiceBalance(
                 service = ServiceType.OPENCODE_GO,
                 amount = primary.usagePercent.toDouble(),
@@ -136,11 +143,22 @@ class OpenCodeGoRepository(
                 nextResetAt = System.currentTimeMillis() + primary.resetInSec * 1000L,
                 extras = extras
             )
-
             balanceCache.put(ServiceType.OPENCODE_GO, balance)
             credentialRepository.save(credential.copy(lastVerifiedAt = System.currentTimeMillis()))
 
-            Result.success(balance)
+            // 模型级用量作为增量增强：并行拉取 + 短超时，失败/超时不影响主窗口数据与缓存
+            val modelUsage = fetchModelWindows(workspaceId, authCookie)
+            if (modelUsage.isEmpty()) {
+                return@withContext Result.success(balance)
+            }
+            val enriched = balance.copy(
+                extras = buildMap {
+                    putAll(extras)
+                    modelUsage.forEach { (window, usage) -> put("$window.models", json.encodeToString(usage)) }
+                }
+            )
+            balanceCache.put(ServiceType.OPENCODE_GO, enriched)
+            Result.success(enriched)
         }
     }
 
@@ -235,6 +253,12 @@ class OpenCodeGoRepository(
         private const val TAG = "OCGO"
         private const val MODELS_API = "https://models.dev/api.json"
         private const val CHAT_API = "https://opencode.ai/zen/go/v1/chat/completions"
+        /** _server 端点：模型级用量接口（f:31 + 窗口参数，需 x-server-id / x-server-instance 头） */
+        private const val SERVER_ENDPOINT = "https://opencode.ai/_server"
+        /** 窗口模型用量的 server function id（与请求头 x-server-id 一致，取自网页端实测） */
+        private const val MODEL_USAGE_SERVER_ID = "ba154d05c4028a885b8c753f9def7e45d87eb982e65fa8b14254cbe636168914"
+        /** 模型级用量单请求超时（毫秒）：只影响增强数据，避免拖慢主窗口刷新 */
+        private const val MODEL_REQUEST_TIMEOUT_MS = 5_000L
         private val SCRAPED_FIELDS = listOf("rollingUsage", "weeklyUsage", "monthlyUsage")
 
         /**
@@ -344,8 +368,172 @@ class OpenCodeGoRepository(
             val usage: Long? = null,
             val limit: Long? = null
         )
+
+        /**
+         * 解析 _server 返回的模型级用量 flight 响应。
+         *
+         * 实际响应形如：
+         * ```
+         * ;0x000003bc;((self.$R=self.$R||{})["server-fn:2"]=[],($R=>$R[0]={
+         *   usage:1889462439,limit:6000000000,usagePercent:31.5,
+         *   rows:$R[1]=[$R[2]={model:"deepseek-v4-flash",name:"DeepSeek V4 Flash",
+         *                     cost:1002607535,quotaCost:2005215070,multiplier:2,
+         *                     estimated:!0,contributionPercent:30.5},...]
+         * })($R["server-fn:2"]))
+         * ```
+         *
+         * 返回窗口模型用量（usage/limit/usagePercent + 每模型行），解析失败返回 null。
+         * cost/quotaCost 单位为 1e-8 美元（cost × 10⁻⁸ = 美元）。
+         */
+        internal fun parseModelRows(flight: String): WindowModelUsage? {
+            // 定位 "$R[0]={" 数据块（窗口模型用量的固定 hydration 格式）
+            val rootIdx = flight.indexOf("\$R[0]={")
+            if (rootIdx < 0) return null
+            val braceStart = rootIdx + "\$R[0]=".length
+            val braceEnd = findMatchingBrace(flight, braceStart) ?: return null
+            val body = flight.substring(braceStart, braceEnd + 1)
+
+            val usage = extractNumberAfterKey(body, "usage", exactKey = true)?.toLongOrNull()
+            val limit = extractNumberAfterKey(body, "limit", exactKey = true)?.toLongOrNull()
+            val usagePercent = extractNumberAfterKey(body, "usagePercent")?.toFloatOrNull()
+
+            return WindowModelUsage(
+                usage = usage,
+                limit = limit,
+                usagePercent = usagePercent,
+                rows = extractModelRows(body)
+            )
+        }
+
+        /** 从外层对象 body 中提取所有 {model:"..."} 模型行对象。 */
+        private fun extractModelRows(body: String): List<ModelUsageRow> {
+            val rows = mutableListOf<ModelUsageRow>()
+            var idx = body.indexOf("{model:")
+            while (idx >= 0) {
+                val braceEnd = findMatchingBrace(body, idx) ?: break
+                val obj = body.substring(idx, braceEnd + 1)
+                val model = extractQuoted(obj, "model") ?: ""
+                val name = extractQuoted(obj, "name") ?: ""
+                val cost = extractNumberAfterKey(obj, "cost")?.toLongOrNull() ?: 0L
+                val quotaCost = extractNumberAfterKey(obj, "quotaCost")?.toLongOrNull() ?: 0L
+                val multiplier = extractNumberAfterKey(obj, "multiplier")?.toDoubleOrNull() ?: 1.0
+                val estimated = obj.contains("estimated:!0")
+                val contributionPercent = extractNumberAfterKey(obj, "contributionPercent")?.toDoubleOrNull() ?: 0.0
+                rows += ModelUsageRow(
+                    model = model,
+                    name = name,
+                    cost = cost,
+                    quotaCost = quotaCost,
+                    multiplier = multiplier,
+                    estimated = estimated,
+                    contributionPercent = contributionPercent
+                )
+                idx = body.indexOf("{model:", braceEnd + 1)
+            }
+            return rows
+        }
+
+        /** 提取 "key:" 后面紧跟的 "..." 引号字符串值。 */
+        private fun extractQuoted(body: String, key: String): String? {
+            val keyIdx = body.indexOf("$key:\"")
+            if (keyIdx < 0) return null
+            val start = keyIdx + key.length + 2
+            val end = body.indexOf('"', start)
+            if (end < 0) return null
+            return body.substring(start, end)
+        }
+
+        /**
+         * 窗口配额（1e-8 美元整数）：窗口 limit（token 数）÷ multiplier。
+         * 与网页端各窗口"配额"列口径一致（实测：5h=12 亿÷2=$6、周=30 亿÷2=$15、月=60 亿÷2=$30；hy3 月=60 亿÷0.125=$480）。
+         * multiplier 缺失或非正时安全降级为月度基础 $60（与网页默认一致）。
+         */
+        internal fun windowQuotaRaw(windowLimit: Long, multiplier: Double): Long {
+            if (multiplier <= 0.0) return 60L * 100_000_000L
+            return (windowLimit.toDouble() / multiplier).toLong()
+        }
+    }
+
+    /**
+     * 拉取三个窗口（rolling/weekly/monthly）的模型级用量。
+     * 并行发起 + 每个请求独立短超时（MODEL_REQUEST_TIMEOUT_MS），
+     * 任一窗口失败不影响其他窗口；整体失败返回空 Map（主窗口数据不受影响）。
+     */
+    private suspend fun fetchModelWindows(workspaceId: String, authCookie: String): Map<String, WindowModelUsage> =
+        coroutineScope {
+            listOf("rolling", "weekly", "monthly").map { window ->
+                async {
+                    try {
+                        requestModelWindow(workspaceId, authCookie, window)?.let { parseModelRows(it) }
+                    } catch (e: Exception) {
+                        DebugLog.e(TAG, "fetchModelWindows($window) 异常: ${e.message}")
+                        null
+                    }
+                }
+            }.awaitAll().let { results ->
+                listOf("rolling", "weekly", "monthly").zip(results).mapNotNull { (window, usage) ->
+                    usage?.let { window to it }
+                }.toMap()
+            }
+        }
+
+    /** 请求 _server 的窗口模型用量接口，返回 flight 文本；HTTP 失败/超时返回 null。 */
+    private fun requestModelWindow(workspaceId: String, authCookie: String, window: String): String? {
+        val args = """{"t":{"t":9,"i":0,"l":2,"a":[{"t":1,"s":"$workspaceId"},{"t":1,"s":"$window"}],"o":0},"f":31,"m":[]}"""
+        val url = "$SERVER_ENDPOINT?id=$MODEL_USAGE_SERVER_ID&args=${URLEncoder.encode(args, "UTF-8")}"
+        val request = Request.Builder()
+            .url(url)
+            .header("Accept", "*/*")
+            .header("Cookie", "auth=$authCookie")
+            .header("x-server-id", MODEL_USAGE_SERVER_ID)
+            .header("x-server-instance", "server-fn:2")
+            .header("Referer", "https://opencode.ai/workspace/$workspaceId/go")
+            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/152.0.0.0 Safari/537.36")
+            .get().build()
+        val call = okHttpClient.newCall(request)
+        call.timeout().timeout(MODEL_REQUEST_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        return try {
+            call.execute().use { resp ->
+                if (!resp.isSuccessful) {
+                    DebugLog.e(TAG, "requestModelWindow($window): HTTP ${resp.code}")
+                    null
+                } else {
+                    resp.body?.string()
+                }
+            }
+        } catch (e: IOException) {
+            DebugLog.e(TAG, "requestModelWindow($window) 网络异常: ${e.message}")
+            null
+        } catch (e: Throwable) {
+            DebugLog.e(TAG, "requestModelWindow($window) 异常: ${e.message}")
+            null
+        }
     }
 }
+
+/**
+ * 窗口模型级用量（_server 接口 payload）。
+ * cost/quotaCost 单位为 1e-8 美元；multiplier 为计费倍率（quotaCost = cost × multiplier）。
+ */
+@Serializable
+internal data class WindowModelUsage(
+    val usage: Long? = null,
+    val limit: Long? = null,
+    val usagePercent: Float? = null,
+    val rows: List<ModelUsageRow> = emptyList()
+)
+
+/** 单模型用量行。contributionPercent 为该模型占窗口用量的百分比（如 30.5 = 30.5%）。 */
+@Serializable
+internal data class ModelUsageRow(
+    val model: String = "",
+    val name: String = "",
+    val cost: Long = 0L,
+    val quotaCost: Long = 0L,
+    val multiplier: Double = 1.0,
+    val estimated: Boolean = false,
+    val contributionPercent: Double = 0.0
+)
 
 /**
  * 解析 OpenAI 兼容的 chat completions 响应，提取回复文本和用量统计。
