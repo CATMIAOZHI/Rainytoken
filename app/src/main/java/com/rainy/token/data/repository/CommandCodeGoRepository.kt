@@ -65,7 +65,7 @@ class CommandCodeGoRepository(
 
         // 从订阅信息拿计划名称，查 plan catalog 拿总量
         val monthlyTotal = subResult.getOrNull()?.let { sub ->
-            PLANS[sub.planId.lowercase()]
+            planMonthlyQuota(sub.planId)
         }
         val billingPeriodEndMillis = subResult.getOrNull()?.let { parseIsoToEpoch(it.currentPeriodEnd) }
 
@@ -187,23 +187,34 @@ class CommandCodeGoRepository(
         } catch (_: Exception) { null }
     }
 
-    private fun planDisplayName(planId: String): String =
-        PLAN_NAMES[planId.lowercase()] ?: planId
-
     companion object {
+        /** 计划 → 月度额度（美元）。2026-08 起官网新计划体系：
+         *  Go $1 → $10、GOAT $10 → $70、Pro $20 → $80、Max 10× $100 → $150、Max 20× $200 → $300。
+         *  旧值 individual-go=10 与 individual-goat=70 并存（goat 是当前主流计划）。
+         */
         private val PLANS = mapOf(
             "individual-go" to 10.0,
-            "individual-pro" to 30.0,
+            "individual-goat" to 70.0,
+            "individual-pro" to 80.0,
             "individual-max" to 150.0,
             "individual-ultra" to 300.0
         )
 
         private val PLAN_NAMES = mapOf(
             "individual-go" to "Go",
+            "individual-goat" to "GOAT",
             "individual-pro" to "Pro",
             "individual-max" to "Max",
             "individual-ultra" to "Ultra"
         )
+
+        /** 按 planId 查月度额度（美元）；未知计划返回 null（调用方安全降级）。 */
+        internal fun planMonthlyQuota(planId: String?): Double? =
+            planId?.lowercase()?.let { PLANS[it] }
+
+        /** 按 planId 查展示名；未知计划原样返回。 */
+        internal fun planDisplayName(planId: String?): String =
+            planId?.lowercase()?.let { PLAN_NAMES[it] } ?: planId ?: ""
 
         /** API 返回的是 epoch millis，转为距现在的剩余秒数 */
         private fun epochToRemainingSec(epochMillis: Long): Long =

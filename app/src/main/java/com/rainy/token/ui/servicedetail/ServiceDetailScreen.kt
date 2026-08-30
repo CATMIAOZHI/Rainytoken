@@ -314,7 +314,8 @@ private fun CommandCodeGoUsageCard(state: State) {
                 UsageWindowRow(
                     label = stringResource(R.string.window_monthly),
                     pct = pct,
-                    resetInSec = extras["billingPeriodEnd"]?.let { parseIsoDuration(it) }
+                    // 仓库已把账单周期结束转成剩余秒写入 monthly.resetInSec（billingPeriodEnd 是 epoch 毫秒，不能按 ISO 解析）
+                    resetInSec = extras["monthly.resetInSec"]?.toLongOrNull()
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
