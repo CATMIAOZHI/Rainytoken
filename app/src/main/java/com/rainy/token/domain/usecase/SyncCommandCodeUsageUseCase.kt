@@ -23,12 +23,18 @@ class SyncCommandCodeUsageUseCase @Inject constructor(
     private val usageRepoProvider: Provider<CommandCodeUsageRepository>,
     private val cacheProvider: Provider<UsageCache>
 ) {
+    /** 防御性页数上限：正常窗口（1 天 ≤ 数十页）远不会触及，防止游标异常导致死循环 */
+    private companion object {
+        const val MAX_PAGES = 500
+    }
+
     suspend fun fullSync(): Result<SyncResult> {
         val repo = usageRepoProvider.get()
         val cache = cacheProvider.get()
         var cursor: String? = null
         var totalInserted = 0
         val errors = mutableListOf<String>()
+        var pages = 0
 
         while (true) {
             val pageResult = repo.fetchPage(cursor)
@@ -38,6 +44,7 @@ class SyncCommandCodeUsageUseCase @Inject constructor(
             }
             val (records, nextCursor) = pageResult.getOrThrow()
             if (records.isEmpty()) break
+            if (nextCursor == cursor) break // 游标未前进，防死循环
 
             val before = cache.count()
             cache.insertAll(records)
@@ -45,6 +52,7 @@ class SyncCommandCodeUsageUseCase @Inject constructor(
 
             if (records.size < CommandCodeUsageRepository.PAGE_SIZE) break
             cursor = nextCursor
+            if (++pages >= MAX_PAGES) break // 防御性上限，正常窗口不会触及
         }
 
         return if (errors.isEmpty()) Result.success(SyncResult(inserted = totalInserted))
@@ -56,6 +64,7 @@ class SyncCommandCodeUsageUseCase @Inject constructor(
         val cache = cacheProvider.get()
         var cursor: String? = null
         var totalInserted = 0
+        var pages = 0
 
         while (true) {
             val pageResult = repo.fetchPage(cursor)
@@ -63,6 +72,7 @@ class SyncCommandCodeUsageUseCase @Inject constructor(
 
             val (records, nextCursor) = pageResult.getOrThrow()
             if (records.isEmpty()) break
+            if (nextCursor == cursor) break // 游标未前进，防死循环
 
             // 按 workspace 过滤本地已有 ID，避免跨 workspace 碰撞
             val workspaceId = records.firstOrNull()?.workspaceId ?: CommandCodeUsageRepository.CCGO_WORKSPACE_ID
@@ -76,6 +86,7 @@ class SyncCommandCodeUsageUseCase @Inject constructor(
 
             if (records.size < CommandCodeUsageRepository.PAGE_SIZE) break
             cursor = nextCursor
+            if (++pages >= MAX_PAGES) break // 防御性上限
         }
 
         return Result.success(SyncResult(inserted = totalInserted))
