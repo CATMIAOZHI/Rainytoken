@@ -32,6 +32,14 @@ RainyToken (雨晴Token) — AI Balance & Usage Quota Query · the Rainy Family 
   <em>Home screen widget · Ollama home card</em>
 </p>
 
+<p align="center">
+  <img src="docs/screenshots/heatmap.jpg" width="200" alt="Token Activity" />
+</p>
+
+<p align="center">
+  <em>Token Activity</em>
+</p>
+
 ---
 
 ## ✨ Features
@@ -40,6 +48,7 @@ RainyToken (雨晴Token) — AI Balance & Usage Quota Query · the Rainy Family 
 |------|------|
 | 📊 **Dashboard** | DeepSeek balance (¥) + usage/balance cards for each service; OCGO/CCGO cards link directly to usage details; long-press & drag to reorder (persisted); pull-to-refresh globally · tablet-adaptive two-pane layout |
 | 📈 **Usage charts** | 3 Canvas-drawn charts — amount spent / API request count / token consumption (dual data sources: OCGO & CCGO); UTC+0/UTC+8 timezone switching and custom day/month/range; automatic fallback (no data in last 5h → 12h → 7 days → current month); side-by-side on tablets |
+| 🗓️ **Token Activity** | OCGO daily token heatmap (GitHub contribution-graph style): daily / weekly / cumulative views + year switching (last 365 days by default, or a calendar year); personal profile + activity insights (total requests / top 3 request hours) + yearly stats (total / peak / streaks); 6-level pink quantile scale, tap / slide to inspect |
 | 📱 **Tablet adaptation** | Global `BoxWithConstraints` adaptive container width; ≥600dp dual-column cards, ≥700dp side-by-side charts; two-pane 35/65 split (Expanded mode); supports Android 13+ predictive back gestures |
 | 📋 **Detailed data** | Paginated browsing of raw records with time + model filtering; tap to view full fields |
 | 🔍 **Multi-granularity filters** | 5 hours / 12 hours (10-minute buckets) / 24 hours / today / yesterday / last 7 days / last 30 days / current month / custom day · month · range |
@@ -75,7 +84,8 @@ Download the latest APK from [Releases](https://github.com/CATMIAOZHI/Rainytoken
 │                                                                  │
 │  ┌────────────────────────────────────────────────────────────┐  │
 │  │ Compose UI (3-layer screens)                               │  │
-│  │ Dashboard · Usage Charts · Totals · Detail · Settings      │  │
+│  │ Dashboard · Usage Charts · Totals                          │  │
+│  │ Detail · Token Activity · Settings                         │  │
 │  └──────────────────────────────┬─────────────────────────────┘  │
 │                                 │                                │
 │  ┌──────────────────────────────▼─────────────────────────────┐  │
@@ -124,6 +134,10 @@ Rainytoken/
 │   │   └── usecase/        # RefreshBalanceUseCase / SyncUsageUseCase / SyncCommandCodeUsageUseCase
 │   ├── ui/
 │   │   ├── dashboard/      # DashboardScreen / UsageDetailScreen / UsageOverviewScreen / UsageDataScreen
+│   │   ├── heatmap/        # Token Activity heatmap (HeatmapScreen / HeatmapCanvas / HeatmapViewModel)
+│   │   ├── servicedetail/  # Service detail (ServiceDetailScreen)
+│   │   ├── settings/       # Settings / credential editing (SettingsScreen / CredentialEditScreen)
+│   │   ├── webview/        # Web login / Codex OAuth (WebViewLoginScreen / CodexOAuthScreen)
 │   │   ├── widget/         # Home screen widget (OpenCodeGoWidgetProvider)
 │   │   ├── components/     # ServiceIcon / StatusChip, etc.
 │   │   ├── theme/          # Rainy pink theme (StrawberryPink / InkMuted)
