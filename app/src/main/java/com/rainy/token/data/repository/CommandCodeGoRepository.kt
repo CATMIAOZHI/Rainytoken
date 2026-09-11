@@ -19,7 +19,7 @@ import java.io.IOException
 import javax.inject.Singleton
 
 /**
- * CommandCode Go 余额仓库。
+ * CommandCode 余额仓库。
  *
  * 调 JSON API 获取月度配额余额 + 用量窗口信息：
  *   GET https://api.commandcode.ai/alpha/billing/credits

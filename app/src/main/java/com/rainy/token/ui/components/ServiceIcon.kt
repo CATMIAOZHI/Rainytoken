@@ -62,7 +62,7 @@ fun ServiceIcon(
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.ic_opencode_go_logo),
-                    contentDescription = "CommandCode Go",
+                    contentDescription = "CommandCode",
                     modifier = Modifier.size((size * 0.85).dp, ((size * 0.85f * 30f / 54f)).dp)
                 )
             }

@@ -5,7 +5,7 @@
 [![CI](https://github.com/CATMIAOZHI/Rainytoken/actions/workflows/ci.yml/badge.svg)](https://github.com/CATMIAOZHI/Rainytoken/actions/workflows/ci.yml)
 [![Release](https://github.com/CATMIAOZHI/Rainytoken/actions/workflows/release.yml/badge.svg)](https://github.com/CATMIAOZHI/Rainytoken/actions)
 [![Version](https://img.shields.io/github/v/release/CATMIAOZHI/Rainytoken?color=ff85a2)](https://github.com/CATMIAOZHI/Rainytoken/releases)
-Android AI 余额与用量查询 APP —— 统一查看 DeepSeek、OpenCode Go、CommandCode Go、Codex / ChatGPT、Ollama 的余额与用量配额。粉色调品牌 UI，配套桌面小组件。
+Android AI 余额与用量查询 APP —— 统一查看 DeepSeek、OpenCode Go、CommandCode、Codex / ChatGPT、Ollama 的余额与用量配额。粉色调品牌 UI，配套桌面小组件。
 RainyToken（雨晴Token）— AI Balance & Usage Quota Query · the Rainy Family tools.
 
 ---
@@ -72,7 +72,7 @@ RainyToken（雨晴Token）— AI Balance & Usage Quota Query · the Rainy Famil
 
 前往 [Releases](https://github.com/CATMIAOZHI/Rainytoken/releases) 下载最新 APK。
 
-> ⚠️ 需要配置 DeepSeek API Key、OpenCode Go 登录凭据、CommandCode Go API Key、Codex（OAuth 登录或粘贴 auth.json）或 Ollama Cookie 才能拉取数据。
+> ⚠️ 需要配置 DeepSeek API Key、OpenCode Go 登录凭据、CommandCode API Key、Codex（OAuth 登录或粘贴 auth.json）或 Ollama Cookie 才能拉取数据。
 
 ---
 

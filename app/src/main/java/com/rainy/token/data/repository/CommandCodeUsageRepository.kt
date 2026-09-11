@@ -22,7 +22,7 @@ import java.util.TimeZone
 import javax.inject.Singleton
 
 /**
- * CommandCode Go 用量记录仓库。
+ * CommandCode 用量记录仓库。
  *
  * 调 JSON API 分页抓取 usage 记录：
  *   GET https://api.commandcode.ai/internal/usage?limit=50

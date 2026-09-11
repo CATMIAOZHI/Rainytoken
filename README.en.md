@@ -5,7 +5,7 @@
 [![CI](https://github.com/CATMIAOZHI/Rainytoken/actions/workflows/ci.yml/badge.svg)](https://github.com/CATMIAOZHI/Rainytoken/actions/workflows/ci.yml)
 [![Release](https://github.com/CATMIAOZHI/Rainytoken/actions/workflows/release.yml/badge.svg)](https://github.com/CATMIAOZHI/Rainytoken/actions)
 [![Version](https://img.shields.io/github/v/release/CATMIAOZHI/Rainytoken?color=ff85a2)](https://github.com/CATMIAOZHI/Rainytoken/releases)
-Android app for checking AI balance & usage — unified view of DeepSeek, OpenCode Go, CommandCode Go, Codex / ChatGPT, and Ollama balances and usage quotas. Pink-toned brand UI, with companion home screen widgets.
+Android app for checking AI balance & usage — unified view of DeepSeek, OpenCode Go, CommandCode, Codex / ChatGPT, and Ollama balances and usage quotas. Pink-toned brand UI, with companion home screen widgets.
 RainyToken (雨晴Token) — AI Balance & Usage Quota Query · the Rainy Family tools.
 
 ---
@@ -72,7 +72,7 @@ RainyToken (雨晴Token) — AI Balance & Usage Quota Query · the Rainy Family 
 
 Download the latest APK from [Releases](https://github.com/CATMIAOZHI/Rainytoken/releases).
 
-> ⚠️ You need a DeepSeek API Key, OpenCode Go login credentials, CommandCode Go API Key, Codex (OAuth sign-in or pasted auth.json), or an Ollama Cookie to fetch data.
+> ⚠️ You need a DeepSeek API Key, OpenCode Go login credentials, CommandCode API Key, Codex (OAuth sign-in or pasted auth.json), or an Ollama Cookie to fetch data.
 
 ---
 

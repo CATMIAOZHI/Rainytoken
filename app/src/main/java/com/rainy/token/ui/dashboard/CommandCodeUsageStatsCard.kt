@@ -37,7 +37,7 @@ import com.rainy.token.ui.theme.StrawberryPink
 import java.util.Locale
 
 /**
- * CommandCode Go 用量统计主卡片 —— 风格与 UsageStatsCard（OCGO）完全一致。
+ * CommandCode 用量统计主卡片 —— 风格与 UsageStatsCard（OCGO）完全一致。
  * 仅展示核心指标：输入 Token（含 Cache）、输出 Token、总花费，
  * 外加同步按钮和"查看详情"入口。详细统计在 CCGO 专属详情页。
  */

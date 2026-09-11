@@ -15,7 +15,7 @@ enum class ServiceType(
     val storageKey: String
 ) {
     OPENCODE_GO("OpenCode Go", "opencode_go"),
-    COMMANDCODE_GO("CommandCode Go", "commandcode_go"),
+    COMMANDCODE_GO("CommandCode", "commandcode_go"),
     DEEPSEEK("DeepSeek", "deepseek"),
     CODEX("Codex / ChatGPT", "codex"),
     OLLAMA("Ollama", "ollama");

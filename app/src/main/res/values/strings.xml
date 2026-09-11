@@ -212,7 +212,7 @@
     <string name="help_ocgo_7">6. Find the cookie named auth under opencode.ai</string>
     <string name="help_ocgo_8">7. Copy its Value field → auth cookie</string>
     <string name="help_ocgo_note">Note: only the auth cookie is needed, not the whole cookie string</string>
-    <string name="help_ccgo_title">How to get CommandCode Go credentials?</string>
+    <string name="help_ccgo_title">How to get CommandCode credentials?</string>
     <string name="help_ccgo_1">1. Open https://commandcode.ai and sign in with GitHub</string>
     <string name="help_ccgo_2">▸ Get API Key (required):</string>
     <string name="help_ccgo_3">   Avatar (top right) → Settings → API Keys → Create a Key</string>
@@ -410,7 +410,7 @@
     <string name="action_how_get_two_values">How to get these two?</string>
     <string name="action_open_login_entry">Open login page in browser</string>
     <string name="hint_opencode_trigger_key">With an OpenCode Zen API Key, the details page can send one request to activate usage stats. Get it at opencode.ai/settings → API Keys.</string>
-    <string name="credential_title_ccgo">CommandCode Go credentials</string>
+    <string name="credential_title_ccgo">CommandCode credentials</string>
     <string name="credential_hint_ccgo">Needs an API Key (for balance). Session Cookie (optional) for usage records, copied from browser DevTools. Balance works without it.</string>
     <string name="placeholder_api_key_from_settings">Generate at Settings → API Keys</string>
     <string name="field_session_cookie_optional">Session Cookie (optional)</string>

@@ -209,7 +209,7 @@
     <string name="help_ocgo_7">6. 找到域名 opencode.ai 下名为 auth 的 Cookie</string>
     <string name="help_ocgo_8">7. 复制它的 Value 字段 → auth cookie</string>
     <string name="help_ocgo_note">注意：只填 auth 一个 Cookie 即可，不要整个 Cookie 字符串</string>
-    <string name="help_ccgo_title">如何获取 CommandCode Go 凭据？</string>
+    <string name="help_ccgo_title">如何获取 CommandCode 凭据？</string>
     <string name="help_ccgo_1">1. 打开 https://commandcode.ai 并登录 GitHub</string>
     <string name="help_ccgo_2">▸ 获取 API Key（必填）：</string>
     <string name="help_ccgo_3">   右上角头像 → Settings → API Keys → 创建一个 Key</string>
@@ -407,7 +407,7 @@
     <string name="action_how_get_two_values">如何获取这两个值？</string>
     <string name="action_open_login_entry">在浏览器中打开登录入口</string>
     <string name="hint_opencode_trigger_key">填入 OpenCode Zen API Key 后，可在详情页一键发送请求激活用量统计。从 opencode.ai/settings → API Keys 获取。</string>
-    <string name="credential_title_ccgo">CommandCode Go 凭据</string>
+    <string name="credential_title_ccgo">CommandCode 凭据</string>
     <string name="credential_hint_ccgo">需要 API Key（拉余额）。Session Cookie（可选）在浏览器 DevTools 复制，用于拉用量记录。不填也可正常查看余额。</string>
     <string name="placeholder_api_key_from_settings">从 Settings → API Keys 生成</string>
     <string name="field_session_cookie_optional">Session Cookie（可选）</string>

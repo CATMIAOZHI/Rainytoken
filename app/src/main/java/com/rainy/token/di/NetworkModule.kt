@@ -122,7 +122,7 @@ object NetworkModule {
     ): OpenCodeGoRepository = OpenCodeGoRepository(okHttpClient, credentialRepository, balanceCache)
 
     /**
-     * CommandCode Go 用量仓库。
+     * CommandCode 用量仓库。
      */
     @Provides
     @Singleton
@@ -132,7 +132,7 @@ object NetworkModule {
     ): CommandCodeUsageRepository = CommandCodeUsageRepository(okHttpClient, credentialRepository)
 
     /**
-     * CommandCode Go 仓库：API Key 认证，调 JSON API。
+     * CommandCode 仓库：API Key 认证，调 JSON API。
      */
     @Provides
     @Singleton

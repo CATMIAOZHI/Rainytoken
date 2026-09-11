@@ -244,7 +244,7 @@ fun ServiceDetailScreen(
 }
 
 /**
- * CommandCode Go 专属：月度用量卡 + 窗口进度条。
+ * CommandCode 专属：月度用量卡 + 窗口进度条。
  *
  * 数据从 balance.extras 中的 monthlyRemaining / monthlyTotal / fiveHour / weekly 取，
  * 展示月度已用/总量 + 5h + 每周窗口进度条。

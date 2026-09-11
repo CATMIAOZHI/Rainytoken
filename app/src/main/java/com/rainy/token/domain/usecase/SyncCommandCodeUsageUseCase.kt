@@ -6,7 +6,7 @@ import javax.inject.Inject
 import javax.inject.Provider
 
 /**
- * CommandCode Go 用量同步 UseCase。
+ * CommandCode 用量同步 UseCase。
  *
  * 游标协议：每页返回 (记录列表, 下一页游标)。
  * - cursor=null → 最新页
