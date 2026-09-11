@@ -167,20 +167,21 @@ class UsageChartViewModel @Inject constructor(
         }
     }
     fun setCustomDay(date: LocalDate) {
-        _state.update { it.copy(granularity = ChartGranularity.CUSTOM_DAY_HOURLY) }
+        _state.update { it.copy(granularity = ChartGranularity.CUSTOM_DAY_HOURLY, customDay = date) }
         _customDay = date
         load()
     }
 
     fun setCustomMonth(monthDate: LocalDate) {
-        _state.update { it.copy(granularity = ChartGranularity.CUSTOM_MONTH_DAILY) }
-        _customMonth = monthDate.withDayOfMonth(1)
+        val month = monthDate.withDayOfMonth(1)
+        _state.update { it.copy(granularity = ChartGranularity.CUSTOM_MONTH_DAILY, customMonth = month) }
+        _customMonth = month
         load()
     }
 
     fun setCustomRange(fromDate: LocalDate, toDate: LocalDate) {
         if (toDate.isBefore(fromDate)) return
-        _state.update { it.copy(granularity = ChartGranularity.CUSTOM_RANGE_DAILY) }
+        _state.update { it.copy(granularity = ChartGranularity.CUSTOM_RANGE_DAILY, customRange = fromDate to toDate) }
         _customRange = fromDate to toDate
         load()
     }
@@ -268,6 +269,10 @@ data class ChartUiState(
     val allModels: List<String> = emptyList(),
     /** 当前显示范围内实际出现过的模型（图例只显示这些） */
     val rangeModels: List<String> = emptyList(),
+    /** 自定义选择的回显值（选择器打开时预填用） */
+    val customDay: LocalDate? = null,
+    val customMonth: LocalDate? = null,
+    val customRange: Pair<LocalDate, LocalDate>? = null,
     val selectedModels: Set<String> = emptySet(), // empty = all
     val buckets: List<ChartBucket> = emptyList(),
     val useUtc8: Boolean = false,

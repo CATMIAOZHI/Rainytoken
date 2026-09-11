@@ -344,6 +344,7 @@
     <string name="count_times">%1$d calls</string>
     <string name="date_select_day">Pick a date</string>
     <string name="date_select_month">Pick a month (any day)</string>
+    <string name="date_pick_range">Date range</string>
     <string name="date_pick_start">Start date</string>
     <string name="date_pick_end">End date</string>
     <string name="chart_detail_cost">Spending breakdown</string>

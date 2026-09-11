@@ -52,6 +52,9 @@ import com.rainy.token.data.local.OverviewStats
 import com.rainy.token.ui.theme.inkMuted
 import com.rainy.token.ui.theme.StrawberryPink
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.Date
 import java.util.Locale
 
@@ -74,10 +77,7 @@ fun UsageOverviewScreen(
 
     var menuExpanded by remember { mutableStateOf(false) }
     var modelMenuExpanded by remember { mutableStateOf(false) }
-    var showStartPicker by remember { mutableStateOf(false) }
-    var showEndPicker by remember { mutableStateOf(false) }
-    var customStartMs by remember { mutableStateOf(0L) }
-    var customEndMs by remember { mutableStateOf(0L) }
+    var showRangePicker by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -115,16 +115,13 @@ fun UsageOverviewScreen(
                         }
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.time_custom)) },
-                            onClick = { menuExpanded = false; viewModel.setTimeFilter(TimeFilter.Custom(0L, 0L)) }
+                            onClick = { menuExpanded = false; showRangePicker = true }
                         )
                     }
                 }
             }
             if (uiState.timeFilter is TimeFilter.Custom) {
                 item {
-                    CustomTimeRangeRow(customStartMs, customEndMs,
-                        { showStartPicker = true }, { showEndPicker = true },
-                        { viewModel.setTimeFilter(TimeFilter.Custom(customStartMs, customEndMs)) })
                     Text(stringResource(R.string.usage_utc0_note), style = MaterialTheme.typography.bodySmall, color = inkMuted())
                 }
             }
@@ -179,8 +176,21 @@ fun UsageOverviewScreen(
             }
             item { Spacer(Modifier.height(24.dp)) }
         }
-        if (showStartPicker) DateTimePickerDialog(stringResource(R.string.date_start), { customStartMs = it; showStartPicker = false }, { showStartPicker = false })
-        if (showEndPicker) DateTimePickerDialog(stringResource(R.string.date_end), { customEndMs = it; showEndPicker = false }, { showEndPicker = false })
+        if (showRangePicker) {
+            val current = uiState.timeFilter as? TimeFilter.Custom
+            DateRangePickerDialog(
+                title = stringResource(R.string.date_pick_range),
+                initialStart = current?.from?.takeIf { it > 0 }?.toUtcLocalDate(),
+                initialEnd = current?.to?.takeIf { current.from > 0 }?.toUtcLocalDate(),
+                onConfirm = { from, to ->
+                    val fromMs = from.toUtcStartOfDayMillis()
+                    val toMs = to.toUtcStartOfDayMillis()
+                    viewModel.setTimeFilter(TimeFilter.Custom(fromMs, toMs + 86400_000L - 1))
+                    showRangePicker = false
+                },
+                onDismiss = { showRangePicker = false }
+            )
+        }
     }
 }
 
@@ -280,6 +290,12 @@ fun UsageOverviewScreen(
         Text(label, style = MaterialTheme.typography.bodySmall, color = inkMuted())
     }
 }
+
+private fun Long.toUtcLocalDate(): LocalDate =
+    Instant.ofEpochMilli(this).atOffset(ZoneOffset.UTC).toLocalDate()
+
+private fun LocalDate.toUtcStartOfDayMillis(): Long =
+    atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
 
 private fun formatTokenCount(tokens: Long): String = when {
     tokens >= 1_000_000 -> "${"%.1f".format(Locale.US, tokens / 1_000_000.0)}M"

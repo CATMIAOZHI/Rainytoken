@@ -97,9 +97,7 @@ fun UsageDetailScreen(
     var modelExpanded by remember { mutableStateOf(false) }
     var showCustomDayPicker by remember { mutableStateOf(false) }
     var showCustomMonthPicker by remember { mutableStateOf(false) }
-    var showCustomRangeStart by remember { mutableStateOf(false) }
-    var showCustomRangeEnd by remember { mutableStateOf(false) }
-    var customRangeStartDate by remember { mutableStateOf<LocalDate?>(null) }
+    var showCustomRangePicker by remember { mutableStateOf(false) }
     var showCostDetail by remember { mutableStateOf(false) }
     var showReqDetail by remember { mutableStateOf(false) }
     var showTokenDetail by remember { mutableStateOf(false) }
@@ -170,7 +168,7 @@ fun UsageDetailScreen(
                                             when (g) {
                                                 ChartGranularity.CUSTOM_DAY_HOURLY -> showCustomDayPicker = true
                                                 ChartGranularity.CUSTOM_MONTH_DAILY -> showCustomMonthPicker = true
-                                                ChartGranularity.CUSTOM_RANGE_DAILY -> showCustomRangeStart = true
+                                                ChartGranularity.CUSTOM_RANGE_DAILY -> showCustomRangePicker = true
                                                 else -> viewModel.setGranularity(g)
                                             }
                                         })
@@ -321,31 +319,35 @@ fun UsageDetailScreen(
             }
         }
         // 自定义日期选择器
-        if (showCustomDayPicker) DateOnlyPickerDialog(stringResource(R.string.date_select_day), { date ->
-            viewModel.setCustomDay(date)
-            showCustomDayPicker = false
-        }, { showCustomDayPicker = false })
-        if (showCustomMonthPicker) DateOnlyPickerDialog(stringResource(R.string.date_select_month), { date ->
-            viewModel.setCustomMonth(date)
-            showCustomMonthPicker = false
-        }, { showCustomMonthPicker = false })
-        if (showCustomRangeStart) DateOnlyPickerDialog(stringResource(R.string.date_pick_start), { date ->
-            customRangeStartDate = date
-            showCustomRangeStart = false
-            showCustomRangeEnd = true
-        }, { showCustomRangeStart = false })
-        if (showCustomRangeEnd) {
-            val startDate = customRangeStartDate
-            DateOnlyPickerDialog(
-                title = stringResource(R.string.date_pick_end),
-                onConfirm = { endDate ->
-                    if (startDate != null && !endDate.isBefore(startDate)) {
-                        viewModel.setCustomRange(startDate, endDate)
-                        showCustomRangeEnd = false
-                    }
+        if (showCustomDayPicker) DateOnlyPickerDialog(
+            title = stringResource(R.string.date_select_day),
+            initialDate = state.customDay,
+            onConfirm = { date ->
+                viewModel.setCustomDay(date)
+                showCustomDayPicker = false
+            },
+            onDismiss = { showCustomDayPicker = false }
+        )
+        if (showCustomMonthPicker) DateOnlyPickerDialog(
+            title = stringResource(R.string.date_select_month),
+            initialDate = state.customMonth,
+            onConfirm = { date ->
+                viewModel.setCustomMonth(date)
+                showCustomMonthPicker = false
+            },
+            onDismiss = { showCustomMonthPicker = false }
+        )
+        if (showCustomRangePicker) {
+            val currentRange = state.customRange
+            DateRangePickerDialog(
+                title = stringResource(R.string.date_pick_range),
+                initialStart = currentRange?.first,
+                initialEnd = currentRange?.second,
+                onConfirm = { from, to ->
+                    viewModel.setCustomRange(from, to)
+                    showCustomRangePicker = false
                 },
-                onDismiss = { showCustomRangeEnd = false },
-                minDate = startDate
+                onDismiss = { showCustomRangePicker = false }
             )
         }
         val models = state.rangeModels
@@ -465,8 +467,9 @@ internal fun CustomTimeRangeRow(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DateOnlyPickerDialog(
+internal fun DateOnlyPickerDialog(
     title: String,
+    initialDate: LocalDate? = null,
     onConfirm: (LocalDate) -> Unit,
     onDismiss: () -> Unit,
     minDate: LocalDate? = null
@@ -480,7 +483,10 @@ private fun DateOnlyPickerDialog(
             }
         }
     }
-    val dateState = rememberDatePickerState(selectableDates = selectableDates)
+    val dateState = rememberDatePickerState(
+        initialSelectedDateMillis = initialDate?.atStartOfDay(utc)?.toInstant()?.toEpochMilli(),
+        selectableDates = selectableDates
+    )
 
     DatePickerDialog(
         onDismissRequest = onDismiss,
@@ -512,7 +518,7 @@ private fun DateOnlyPickerDialog(
                     color = InkMuted
                 )
             }
-            DatePicker(state = dateState)
+            DatePicker(state = dateState, title = {})
         }
     }
 }

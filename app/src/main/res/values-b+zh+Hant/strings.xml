@@ -341,6 +341,7 @@
     <string name="count_times">%1$d次</string>
     <string name="date_select_day">選擇日期</string>
     <string name="date_select_month">選擇月份（任意一天）</string>
+    <string name="date_pick_range">日期範圍</string>
     <string name="date_pick_start">開始日期</string>
     <string name="date_pick_end">結束日期</string>
     <string name="chart_detail_cost">消費明細</string>

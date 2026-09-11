@@ -59,6 +59,7 @@ import com.rainy.token.ui.theme.inkMuted
 import com.rainy.token.ui.theme.StrawberryPink
 import java.text.SimpleDateFormat
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.Date
 import java.util.Locale
@@ -82,10 +83,7 @@ fun UsageDataScreen(
 
     var timeMenuExpanded by remember { mutableStateOf(false) }
     var modelMenuExpanded by remember { mutableStateOf(false) }
-    var showStartPicker by remember { mutableStateOf(false) }
-    var showEndPicker by remember { mutableStateOf(false) }
-    var customStartMs by remember { mutableStateOf(0L) }
-    var customEndMs by remember { mutableStateOf(0L) }
+    var showRangePicker by remember { mutableStateOf(false) }
     var showCustomDayPicker by remember { mutableStateOf(false) }
     var showCustomMonthPicker by remember { mutableStateOf(false) }
     var rawRecord by remember { mutableStateOf<UsageRecord?>(null) }
@@ -127,7 +125,7 @@ fun UsageDataScreen(
                             timeMenuExpanded = false; showCustomMonthPicker = true
                         })
                         DropdownMenuItem(text = { Text(stringResource(R.string.time_custom_range)) }, onClick = {
-                            timeMenuExpanded = false; viewModel.setTimeFilter(TimeFilter.Custom(0L, 0L))
+                            timeMenuExpanded = false; showRangePicker = true
                         })
                     }
                 }
@@ -155,11 +153,8 @@ fun UsageDataScreen(
                 }
             }
 
-            // 自定义时间范围
-            if (state.timeFilter is TimeFilter.Custom && (state.timeFilter as TimeFilter.Custom).from == 0L) {
-                CustomTimeRangeRow(customStartMs, customEndMs,
-                    { showStartPicker = true }, { showEndPicker = true },
-                    { viewModel.setTimeFilter(TimeFilter.Custom(customStartMs, customEndMs)) })
+            // 自定义时间范围：确认选择后显示 UTC 说明
+            if (state.timeFilter is TimeFilter.Custom) {
                 Text(stringResource(R.string.usage_utc0_note), style = MaterialTheme.typography.bodySmall, color = inkMuted())
             }
 
@@ -228,20 +223,43 @@ fun UsageDataScreen(
         }
 
         // 日期选择器
-        if (showCustomDayPicker) DateTimePickerDialog(stringResource(R.string.date_select_day), { ms ->
-            val utc = ZoneOffset.UTC; val ds = Instant.ofEpochMilli(ms).atOffset(utc).toLocalDate().atStartOfDay(utc).toInstant().toEpochMilli()
-            viewModel.setTimeFilter(TimeFilter.Custom(ds, ds + 86400_000L - 1)); showCustomDayPicker = false
-        }, { showCustomDayPicker = false })
-        if (showCustomMonthPicker) DateTimePickerDialog(stringResource(R.string.date_select_month), { ms ->
-            val utc = ZoneOffset.UTC; val ld = Instant.ofEpochMilli(ms).atOffset(utc).toLocalDate()
-            val msStart = ld.withDayOfMonth(1).atStartOfDay(utc).toInstant().toEpochMilli()
-            val msEnd = ld.withDayOfMonth(ld.lengthOfMonth()).plusDays(1).atStartOfDay(utc).toInstant().toEpochMilli() - 1
-            viewModel.setTimeFilter(TimeFilter.Custom(msStart, msEnd)); showCustomMonthPicker = false
-        }, { showCustomMonthPicker = false })
-        if (showStartPicker) DateTimePickerDialog(stringResource(R.string.date_start), { customStartMs = it; showStartPicker = false }, { showStartPicker = false })
-        if (showEndPicker) DateTimePickerDialog(stringResource(R.string.date_end), { ms ->
-            viewModel.setTimeFilter(TimeFilter.Custom(customStartMs, ms)); showEndPicker = false
-        }, { showEndPicker = false })
+        if (showCustomDayPicker) DateOnlyPickerDialog(
+            title = stringResource(R.string.date_select_day),
+            initialDate = (state.timeFilter as? TimeFilter.Custom)?.from?.takeIf { it > 0 }?.toUtcLocalDate(),
+            onConfirm = { date ->
+                val ds = date.toUtcStartOfDayMillis()
+                viewModel.setTimeFilter(TimeFilter.Custom(ds, ds + 86400_000L - 1))
+                showCustomDayPicker = false
+            },
+            onDismiss = { showCustomDayPicker = false }
+        )
+        if (showCustomMonthPicker) DateOnlyPickerDialog(
+            title = stringResource(R.string.date_select_month),
+            initialDate = (state.timeFilter as? TimeFilter.Custom)?.from?.takeIf { it > 0 }?.toUtcLocalDate(),
+            onConfirm = { date ->
+                val utc = ZoneOffset.UTC
+                val msStart = date.withDayOfMonth(1).atStartOfDay(utc).toInstant().toEpochMilli()
+                val msEnd = date.withDayOfMonth(date.lengthOfMonth()).plusDays(1).atStartOfDay(utc).toInstant().toEpochMilli() - 1
+                viewModel.setTimeFilter(TimeFilter.Custom(msStart, msEnd))
+                showCustomMonthPicker = false
+            },
+            onDismiss = { showCustomMonthPicker = false }
+        )
+        if (showRangePicker) {
+            val current = state.timeFilter as? TimeFilter.Custom
+            DateRangePickerDialog(
+                title = stringResource(R.string.date_pick_range),
+                initialStart = current?.from?.takeIf { it > 0 }?.toUtcLocalDate(),
+                initialEnd = current?.to?.takeIf { current.from > 0 }?.toUtcLocalDate(),
+                onConfirm = { from, to ->
+                    val fromMs = from.toUtcStartOfDayMillis()
+                    val toMs = to.toUtcStartOfDayMillis()
+                    viewModel.setTimeFilter(TimeFilter.Custom(fromMs, toMs + 86400_000L - 1))
+                    showRangePicker = false
+                },
+                onDismiss = { showRangePicker = false }
+            )
+        }
 
         // 原始数据弹窗
         rawRecord?.let { record ->
@@ -312,6 +330,12 @@ private fun RawField(label: String, value: String) {
         Text(value, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
     }
 }
+
+private fun Long.toUtcLocalDate(): LocalDate =
+    Instant.ofEpochMilli(this).atOffset(ZoneOffset.UTC).toLocalDate()
+
+private fun LocalDate.toUtcStartOfDayMillis(): Long =
+    atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
 
 private fun formatInputWithCache(record: UsageRecord): String {
     val input = record.inputTokens + record.cacheReadTokens
