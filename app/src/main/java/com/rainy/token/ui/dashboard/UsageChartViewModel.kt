@@ -153,10 +153,14 @@ class UsageChartViewModel @Inject constructor(
             // 降级后或用户手动选择 → 关闭降级，正常显示
             allowFallback = false
 
+            // 图例数据源：只保留当前显示范围内实际出现过的模型
+            val rangeModels = result.flatMap { it.byModel.keys }.distinct().sorted()
+
             _state.update {
                 it.copy(
                     buckets = result,
                     allModels = allModels,
+                    rangeModels = rangeModels,
                     loading = false
                 )
             }
@@ -262,6 +266,8 @@ data class ChartUiState(
     val loading: Boolean = true,
     val granularity: ChartGranularity = ChartGranularity.LAST_5H_HOURLY,
     val allModels: List<String> = emptyList(),
+    /** 当前显示范围内实际出现过的模型（图例只显示这些） */
+    val rangeModels: List<String> = emptyList(),
     val selectedModels: Set<String> = emptySet(), // empty = all
     val buckets: List<ChartBucket> = emptyList(),
     val useUtc8: Boolean = false,

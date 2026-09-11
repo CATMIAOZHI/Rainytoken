@@ -53,6 +53,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -110,7 +111,23 @@ fun UsageDetailScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.title_usage_detail)) },
+                title = {
+                    val serviceLabel = if (clearViewModel == null) "OCGO" else "CommandCode"
+                    Column {
+                        Text(
+                            stringResource(R.string.title_usage_detail),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            serviceLabel,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = InkMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, stringResource(R.string.action_back)) } },
                 actions = {
                     if (clearViewModel != null) {
@@ -209,7 +226,7 @@ fun UsageDetailScreen(
                     if (wideEnough) {
                         // 面板够宽：前两张图表并排
                         item {
-                            val models = state.selectedModels.ifEmpty { state.allModels.toSet() }
+                            val models = state.rangeModels
                             val costTotal = state.buckets.sumOf { it.totalCost.toDouble() / 100_000_000.0 }
                             val reqTotal = state.buckets.sumOf { it.totalRequests }
                             Row(
@@ -256,7 +273,7 @@ fun UsageDetailScreen(
                     } else {
                         // 窄面板：三张图表纵向堆叠
                         item {
-                            val models = state.selectedModels.ifEmpty { state.allModels.toSet() }
+                            val models = state.rangeModels
                             val costTotal = state.buckets.sumOf { it.totalCost.toDouble() / 100_000_000.0 }
                             ChartCard(stringResource(R.string.chart_cost), "$${String.format(Locale.US, "%.4f", costTotal)}", { showCostDetail = true }) {
                                 StackedBarChart(state.buckets,
@@ -331,7 +348,7 @@ fun UsageDetailScreen(
                 minDate = startDate
             )
         }
-        val models = state.selectedModels.ifEmpty { state.allModels.toSet() }
+        val models = state.rangeModels
         if (showCostDetail) ChartDetailDialog(stringResource(R.string.chart_detail_cost), { showCostDetail = false }) {
             models.forEach { model -> val t = state.buckets.sumOf { it.byModel[model]?.cost ?:0L }; if (t>0) DetailRow(model, "$${String.format(Locale.US, "%.4f", t/100_000_000.0)}") }
         }

@@ -551,7 +551,8 @@ internal fun StackedBarChart(
         Text(stringResource(R.string.common_no_data), color = InkMuted, style = MaterialTheme.typography.bodySmall)
         return
     }
-    var tooltipBucket by remember { mutableStateOf(buckets.lastOrNull()) }
+    // key = buckets：切换时间范围/筛选后重置 tooltip，避免残留旧数据
+    var tooltipBucket by remember(buckets) { mutableStateOf(buckets.lastOrNull()) }
     val density = LocalDensity.current
     val d = density.density
     val barCount = buckets.size
@@ -681,7 +682,8 @@ internal fun LineChart(
         Text(stringResource(R.string.common_no_data), color = InkMuted, style = MaterialTheme.typography.bodySmall)
         return
     }
-    var tooltipBucket by remember { mutableStateOf(buckets.lastOrNull()) }
+    // key = buckets：切换时间范围/筛选后重置 tooltip，避免残留旧数据
+    var tooltipBucket by remember(buckets) { mutableStateOf(buckets.lastOrNull()) }
     val density = LocalDensity.current
     val d = density.density
     val barCount = buckets.size
