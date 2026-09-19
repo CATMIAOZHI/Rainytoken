@@ -28,6 +28,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rainy.token.R
 import com.rainy.token.ui.components.asString
@@ -49,9 +51,14 @@ fun CommandCodeUsageStatsCard(
     val wid = com.rainy.token.data.repository.CommandCodeUsageRepository.CCGO_WORKSPACE_ID
     val key = "ccgo_$wid"
     val viewModel: UsageViewModel = hiltViewModel(key = key)
-    // 初始化 workspace，后续刷新自动走 CCGO 的 sync use case
-    LaunchedEffect(Unit) {
+    // 初始化 workspace（幂等），后续刷新自动走 CCGO 的 sync use case
+    LaunchedEffect(Unit) { viewModel.setWorkspace(wid) }
+
+    // 进入 / 回到前台时若距上次成功同步超过阈值，自动补一次（前台主力防线）。
+    // 用 ON_RESUME 而不是只靠首次组合：用户从后台切回来同样要能触发。
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.setWorkspace(wid)
+        viewModel.syncIfStale()
     }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -178,6 +185,16 @@ fun CommandCodeUsageStatsCard(
                     text = usageUpdatedAtText(uiState.lastSyncAt),
                     style = MaterialTheme.typography.bodySmall,
                     color = InkMuted
+                )
+            }
+
+            // ─── 窗口守护提示：服务端明细只保留约 24h，超过 12h 未成功同步就有永久丢失风险 ───
+            if (uiState.syncStale) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "⚠︎ " + stringResource(R.string.usage_sync_stale),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
                 )
             }
 

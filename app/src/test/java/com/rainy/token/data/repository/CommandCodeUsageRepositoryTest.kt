@@ -144,6 +144,27 @@ class CommandCodeUsageRepositoryTest {
     }
 
     @Test
+    fun `full page with one unparsable record still yields next cursor`() {
+        // 回归：旧实现用「解析后条数 < PAGE_SIZE」判定到底，
+        // 一条记录缺少 createdAt 就会让整次同步被当成已完成，本地永久留下空洞。
+        val body = buildString {
+            append("""{"usages":[""")
+            for (i in 0 until CommandCodeUsageRepository.PAGE_SIZE - 1) {
+                if (i > 0) append(",")
+                append(usageJson("rec-$i", 100L + i, 10L, 0.001))
+            }
+            append(",{\"id\":\"broken-1\",\"tokensIn\":\"1\",\"tokensOut\":\"1\"}")  // 缺 createdAt → 该条解析失败
+            append("]}")
+        }
+        val page = CommandCodeUsageRepository.parseUsageResponse(body)
+        assertEquals(CommandCodeUsageRepository.PAGE_SIZE - 1, page.records.size)
+        assertEquals(CommandCodeUsageRepository.PAGE_SIZE, page.rawCount)
+        assertEquals(1, page.droppedCount)
+        // 满页 → 必须继续翻页，而不是判定「到底」
+        assertNotNull(page.nextCursor)
+    }
+
+    @Test
     fun `legacy format stays compatible`() {
         val body = """
             {"usages":[{"id":"old-1","createdAt":"2026-08-20T10:00:00.000Z",

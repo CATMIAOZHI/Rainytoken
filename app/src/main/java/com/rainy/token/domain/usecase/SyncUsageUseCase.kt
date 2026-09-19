@@ -79,16 +79,41 @@ class SyncUsageUseCase @Inject constructor(
     }
 }
 
+/** 同步停止原因：把「真追平」与「被截断 / 遇到异常」区分开（旧实现不可区分，空洞因此无法诊断）。 */
+enum class SyncStopReason {
+    /** 服务端已经没有更多记录（真追平服务端窗口） */
+    BOTTOM,
+
+    /** 增量同步：整页记录本地都已存在（已接到已知数据），按启发式停在这里 */
+    HIT_EXISTING,
+
+    CURSOR_STUCK,
+    MAX_PAGES,
+    PAGE_ERROR,
+    PARSE_ANOMALY
+}
+
 data class SyncResult(
     val inserted: Int,
-    val totalCount: Int = 0
+    val totalCount: Int = 0,
+    /** 本次扫过的服务端记录数（含已存在的） */
+    val scanned: Int = 0,
+    /** 解析失败被丢弃的条数，>0 表示服务端有本地解析不了的数据 */
+    val dropped: Int = 0,
+    val pages: Int = 0,
+    val stopReason: SyncStopReason = SyncStopReason.BOTTOM
 )
 
 sealed class SyncError : Exception() {
-class PartialSync(val inserted: Int, val errors: List<String>) : SyncError() {
-override val message: String = buildString {
-append("部分同步完成：插入 ${inserted}条，${errors.size}页失败")
-if (errors.isNotEmpty()) append("。${errors.first().take(200)}")
-}
-}
+    /** 已有同步任务在跑（进程级互斥），本次请求被跳过。 */
+    class AlreadyRunning : SyncError() {
+        override val message: String = "同步正在进行中"
+    }
+
+    class PartialSync(val inserted: Int, val errors: List<String>) : SyncError() {
+        override val message: String = buildString {
+            append("部分同步完成：插入 ${inserted}条，${errors.size}页失败")
+            if (errors.isNotEmpty()) append("。${errors.first().take(200)}")
+        }
+    }
 }

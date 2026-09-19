@@ -141,7 +141,7 @@
     <string name="usage_cache_write">缓存写入 %1$s</string>
     <string name="usage_no_data_sync">暂无数据，点击 🔄 同步</string>
     <string name="usage_new_records">✓ 新增 %1$d 条</string>
-    <string name="sync_partial">部分同步完成：插入 %1$d条，%2$d页失败</string>
+    <string name="sync_partial">部分同步：新增 %1$d 条，%2$d 项异常，可再次同步</string>
     <string name="usage_click_to_switch"> 点击切换</string>
     <string name="usage_utc0_note">所有时间按 UTC+0 计算</string>
     <string name="msg_utc8_on">已切换到 UTC+8，图表按北京时间显示</string>
@@ -347,12 +347,12 @@
     <string name="chart_detail_cost">消费明细</string>
     <string name="chart_detail_requests">调用次数明细</string>
     <string name="chart_detail_tokens">Token 明细</string>
-    <string name="dialog_clear_title">清除数据</string>
-    <string name="dialog_clear_body">此操作将清除所有 CommandCode 用量本地缓存并重新同步，需要几秒钟完成。</string>
-    <string name="dialog_clear_confirm_question">是否继续？</string>
-    <string name="action_confirm_countdown">确认（%1$ds）</string>
-    <string name="action_confirm_clear">确认清除</string>
     <string name="action_close">关闭</string>
+
+    <!-- ══════════ 同步与后台同步 ══════════ -->
+    <string name="usage_sync_stale">数据可能已过期，建议立即同步</string>
+    <string name="settings_background_sync_title">后台同步</string>
+    <string name="settings_background_sync_desc">有网络时每 8 小时自动同步一次 CommandCode 用量；系统省电策略可能使其延后。</string>
     <string name="range_from">从 %1$s</string>
     <string name="range_to">至 %1$s</string>
     <string name="action_apply_custom_range">应用自定义范围</string>

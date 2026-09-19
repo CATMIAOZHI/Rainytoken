@@ -144,7 +144,7 @@
     <string name="usage_cache_write">Cache write %1$s</string>
     <string name="usage_no_data_sync">No data yet · tap 🔄 to sync</string>
     <string name="usage_new_records">✓ %1$d new records</string>
-    <string name="sync_partial">Partial sync: %1$d records inserted, %2$d pages failed</string>
+    <string name="sync_partial">Partial sync: %1$d new, %2$d issue(s) — try again</string>
     <string name="usage_click_to_switch"> tap to switch</string>
     <string name="usage_utc0_note">All times in UTC+0</string>
     <string name="msg_utc8_on">Switched to UTC+8, charts shown in Beijing time</string>
@@ -350,12 +350,12 @@
     <string name="chart_detail_cost">Spending breakdown</string>
     <string name="chart_detail_requests">Request breakdown</string>
     <string name="chart_detail_tokens">Token breakdown</string>
-    <string name="dialog_clear_title">Clear data</string>
-    <string name="dialog_clear_body">This clears all cached CommandCode usage and re-syncs. It takes a few seconds.</string>
-    <string name="dialog_clear_confirm_question">Continue?</string>
-    <string name="action_confirm_countdown">Confirm (%1$ds)</string>
-    <string name="action_confirm_clear">Yes, clear</string>
     <string name="action_close">Close</string>
+
+    <!-- ══════════ 同步与后台同步 ══════════ -->
+    <string name="usage_sync_stale">Data may be out of date — tap sync now</string>
+    <string name="settings_background_sync_title">Background sync</string>
+    <string name="settings_background_sync_desc">Sync CommandCode usage every 8 hours when network is available. System power saving may delay it.</string>
     <string name="range_from">From %1$s</string>
     <string name="range_to">To %1$s</string>
     <string name="action_apply_custom_range">Apply custom range</string>

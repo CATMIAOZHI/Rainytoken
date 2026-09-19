@@ -45,11 +45,17 @@ class UsageCache(
         emit(dao.getAll().map { it.toDomain() })
     }
 
-    suspend fun insertAll(newRecords: List<UsageRecord>) {
+    /**
+     * 批量插入，返回**真正写入**的条数。
+     *
+     * DAO 使用 OnConflictStrategy.IGNORE：已存在的 id 会被忽略且返回 -1L，可据此精确计数。
+     * 旧实现用全表 count() 差值统计插入数，会被并发的其它服务同步污染。
+     */
+    suspend fun insertAll(newRecords: List<UsageRecord>): Int {
         ensureMigrated()
-        if (newRecords.isEmpty()) return
+        if (newRecords.isEmpty()) return 0
         val entities = newRecords.map { it.toEntity() }
-        dao.insertAll(entities)
+        return dao.insertAll(entities).count { it != -1L }
     }
 
     suspend fun getLatest(): UsageRecord? {

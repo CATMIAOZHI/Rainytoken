@@ -80,19 +80,18 @@ fun UsageDetailScreen(
     onBack: () -> Unit,
     onOpenOverview: () -> Unit,
     onOpenData: () -> Unit = {},
-    viewModel: UsageChartViewModel = hiltViewModel(),
-    clearViewModel: UsageViewModel? = null  // non-null = CCGO, 显示清除按钮
+    /** true = CCGO 详情（数据由 NavHost 的 setWorkspace 触发加载，不重复 load） */
+    isCcgo: Boolean = false,
+    viewModel: UsageChartViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     // OCGO 首次加载（CCGO 由 NavHost 的 setWorkspace 触发，不重复 load）
     LaunchedEffect(Unit) {
-        if (clearViewModel == null) viewModel.load()
+        if (!isCcgo) viewModel.load()
     }
 
-    var showClearDialog by remember { mutableStateOf(false) }
-    var clearCountdown by remember { mutableStateOf(0) }
     var granularityExpanded by remember { mutableStateOf(false) }
     var modelExpanded by remember { mutableStateOf(false) }
     var showCustomDayPicker by remember { mutableStateOf(false) }
@@ -110,7 +109,7 @@ fun UsageDetailScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    val serviceLabel = if (clearViewModel == null) "OCGO" else "CommandCode"
+                    val serviceLabel = if (isCcgo) "CommandCode" else "OCGO"
                     Column {
                         Text(
                             stringResource(R.string.title_usage_detail),
@@ -128,11 +127,6 @@ fun UsageDetailScreen(
                 },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, stringResource(R.string.action_back)) } },
                 actions = {
-                    if (clearViewModel != null) {
-                        TextButton(onClick = { showClearDialog = true }) {
-                            Text(stringResource(R.string.action_clear), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        }
-                    }
                     TextButton(onClick = onOpenData) {
                         Text(stringResource(R.string.action_view_raw_data), color = StrawberryPink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                     }
@@ -362,49 +356,7 @@ fun UsageDetailScreen(
             DetailRow(stringResource(R.string.chart_stack_input), formatTokenComma(state.buckets.sumOf { it.inputTokens }))
             DetailRow(stringResource(R.string.chart_stack_output), formatTokenComma(state.buckets.sumOf { it.outputTokens }))
         }
-        if (showClearDialog && clearViewModel != null) {
-            val cd = clearCountdown
-            androidx.compose.material3.AlertDialog(
-                onDismissRequest = { showClearDialog = false; clearCountdown = 0 },
-                title = { Text("⚠️ " + stringResource(R.string.dialog_clear_title), fontWeight = FontWeight.Bold) },
-                text = {
-                    Column {
-                        Text(stringResource(R.string.dialog_clear_body))
-                        Spacer(Modifier.height(12.dp))
-                        Text(stringResource(R.string.dialog_clear_confirm_question), fontWeight = FontWeight.SemiBold)
-                    }
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            showClearDialog = false
-                            clearCountdown = 0
-                            clearViewModel?.clearAndResync()
-                            onBack()
-                        },
-                        enabled = cd == 0
-                    ) {
-                        Text(
-                            if (cd > 0) stringResource(R.string.action_confirm_countdown, cd) else stringResource(R.string.action_confirm_clear),
-                            color = if (cd == 0) MaterialTheme.colorScheme.error else InkMuted
-                        )
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showClearDialog = false; clearCountdown = 0 }) {
-                        Text(stringResource(R.string.action_cancel))
-                    }
-                }
-            )
-            LaunchedEffect(showClearDialog) {
-                if (!showClearDialog) return@LaunchedEffect
-                clearCountdown = 3
-                for (i in 3 downTo 1) {
-                    kotlinx.coroutines.delay(1000)
-                    clearCountdown = i - 1
-                }
-            }
-        }
+        // 「清除」入口已移除：服务端明细只保留约 24h，清空本地缓存无法补回历史，只会永久丢失现有记录
     }
 }
 

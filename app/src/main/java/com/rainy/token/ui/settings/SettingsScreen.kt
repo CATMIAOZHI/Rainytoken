@@ -28,6 +28,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -147,6 +149,12 @@ fun SettingsScreen(
                     LanguageCard(onClick = { showLanguageDialog = true })
                 }
                 item {
+                    BackgroundSyncCard(
+                        enabled = uiState.backgroundSyncEnabled,
+                        onToggle = { viewModel.setBackgroundSyncEnabled(it) }
+                    )
+                }
+                item {
                     TipsCard(onClick = { onOpenTips() })
                 }
                 item {
@@ -205,6 +213,51 @@ private fun LanguageCard(onClick: () -> Unit) {
                     modifier = Modifier.padding(top = 2.dp)
                 )
             }
+        }
+    }
+}
+
+/**
+ * 后台同步开关卡片。
+ *
+ * 后台任务由 WorkManager 每 8 小时执行一次（不保证准时，系统省电策略可能使其延后），
+ * 关闭后仍有「进入页面自动同步」兜底，只是丢了「忘记打开 app」这层保险。
+ */
+@Composable
+private fun BackgroundSyncCard(enabled: Boolean, onToggle: (Boolean) -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "🔄",
+                style = MaterialTheme.typography.titleLarge
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.settings_background_sync_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = stringResource(R.string.settings_background_sync_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkMuted,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+            Switch(
+                checked = enabled,
+                onCheckedChange = onToggle,
+                colors = SwitchDefaults.colors(checkedTrackColor = StrawberryPink)
+            )
         }
     }
 }

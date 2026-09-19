@@ -22,14 +22,31 @@ import java.util.TimeZone
 import javax.inject.Singleton
 
 /**
+ * 单页抓取结果。
+ *
+ * 前两个字段保持 (records, nextCursor) 顺序，兼容既有 `val (records, next) = parse(...)` 解构。
+ *
+ * @param rawCount 服务端原始返回条数（解析前），用于判断「是否满页」——不能用 records.size，
+ *                 否则个别记录解析失败会被误判为「到底」并静默截断同步。
+ * @param droppedCount 解析失败被丢弃的条数，用于把解析异常暴露成同步结果而不是静默吞掉。
+ */
+data class UsagePage(
+    val records: List<UsageRecord>,
+    val nextCursor: String?,
+    val rawCount: Int = 0,
+    val droppedCount: Int = 0
+)
+
+/**
  * CommandCode 用量记录仓库。
  *
  * 调 JSON API 分页抓取 usage 记录：
- *   GET https://api.commandcode.ai/internal/usage?limit=50
- *   GET https://api.commandcode.ai/internal/usage?limit=50&cursor=<base64>
+ *   GET https://api.commandcode.ai/internal/usage?limit=100
+ *   GET https://api.commandcode.ai/internal/usage?limit=100&cursor=<base64>
  *
- * cursor 是末条记录的 { createdAt, id } 的 base64 编码。
- * 第一页不用 cursor。
+ * cursor 是末条记录的 { createdAt, id } 的 base64 编码（服务端 nextCursor 目前恒为 null，
+ * 因此由客户端按末条自编码回退）。第一页不用 cursor。
+ * 注意：服务端只保留最近约 24 小时的明细（滚动窗口），超过窗口的历史无法通过该接口取回。
  */
 @Singleton
 class CommandCodeUsageRepository(
@@ -60,25 +77,30 @@ class CommandCodeUsageRepository(
          *   - meta 新增 totalCost / inputCost / outputCost / cacheCost / traceId；
          *     provider / cacheReadInputTokens 已移除。
          */
-        internal fun parseUsageResponse(body: String): Pair<List<UsageRecord>, String?> {
+        internal fun parseUsageResponse(body: String): UsagePage {
             val root = json.parseToJsonElement(body).jsonObject
-            val usages = root["usages"]?.jsonArray ?: return emptyList<UsageRecord>() to null
+            val usages = root["usages"]?.jsonArray
+                ?: return UsagePage(emptyList(), null, 0, 0)
 
             val records = usages.mapNotNull { elem ->
                 parseUsageObject(elem.jsonObject)
             }
+            val rawCount = usages.size
+            val dropped = rawCount - records.size
 
             // 新格式：优先用服务端游标；缺失或显式 null 时回退按末条自编码（兼容旧格式）
             // 注意：JSON null 的 jsonPrimitive.content 是字符串 "null"，必须用 is JsonNull 拦截，
             // 否则会把 "null" 当游标传给服务端（被忽略→返回第一页），导致 fullSync 死循环。
             val serverCursor = root["nextCursor"]?.takeIf { it !is JsonNull }
                 ?.jsonPrimitive?.content?.takeIf { it.isNotEmpty() }
-            val nextCursor = serverCursor ?: if (records.size >= PAGE_SIZE) {
-                val last = records.last()
-                encodeCursor(last.id, last.timeCreated)
+            // ★ 满页判定必须用服务端原始条数 rawCount，不能用解析后的 records.size：
+            //   任意一条记录解析失败就会让解析后条数少 1，旧实现据此判定「到底」并静默中断整次同步，
+            //   本地因此永久留下空洞（2026-09 实测确认的成因之一）。
+            val nextCursor = serverCursor ?: if (rawCount >= PAGE_SIZE) {
+                records.lastOrNull()?.let { encodeCursor(it.id, it.timeCreated) }
             } else null
 
-            return records to nextCursor
+            return UsagePage(records, nextCursor, rawCount, dropped)
         }
 
         /**
@@ -178,9 +200,10 @@ class CommandCodeUsageRepository(
     /**
      * 获取指定游标页的用量记录。
      * cursor=null 为最新页。
-     * 返回 (记录列表, 下一页游标)。如果返回的列表长度 < PAGE_SIZE，表示到底。
+     * 返回 [UsagePage]：是否到底由服务端原始条数（rawCount）判定，
+     * 不能用解析后条数 —— 个别记录解析失败会让解析后条数变少而被误判为「到底」。
      */
-    suspend fun fetchPage(cursor: String?): Result<Pair<List<UsageRecord>, String?>> =
+    suspend fun fetchPage(cursor: String?): Result<UsagePage> =
         withContext(Dispatchers.IO) {
             val cookieHeader = try {
                 getCookieHeader()
@@ -209,7 +232,13 @@ class CommandCodeUsageRepository(
             }
 
             response.use { resp ->
-                val body = resp.body?.string()
+                val body = try {
+                    resp.body?.string()
+                } catch (e: IOException) {
+                    // 连接中途断开时 string() 会抛 IOException：不能让异常穿出 fetchPage
+                    //（前台同步挂在 viewModelScope 上，未捕获会直接崩主线程）
+                    return@withContext Result.failure(RepositoryError.Network(e))
+                }
                 if (!resp.isSuccessful) {
                     if (resp.code == 401 || resp.code == 403) {
                         val detail = if (body != null && body.length < 200) "：$body" else ""
@@ -224,8 +253,19 @@ class CommandCodeUsageRepository(
                     RepositoryError.ParseError(RepositoryError.ParseErrorReason.EMPTY_BODY, "响应体为空")
                 )
 
-                val records = parseUsageResponse(body)
-                Result.success(records)
+                val page = try {
+                    parseUsageResponse(body)
+                } catch (e: Exception) {
+                    // 200 但响应不是预期 JSON（网关 HTML / 维护页等）：降级为解析错误，
+                    // 不能让异常穿出 fetchPage —— 前台同步挂在 viewModelScope 上，会直接崩主线程。
+                    return@withContext Result.failure(
+                        RepositoryError.ParseError(
+                            RepositoryError.ParseErrorReason.MALFORMED_RESPONSE,
+                            e.message ?: "unparsable usage response"
+                        )
+                    )
+                }
+                Result.success(page)
             }
         }
 }

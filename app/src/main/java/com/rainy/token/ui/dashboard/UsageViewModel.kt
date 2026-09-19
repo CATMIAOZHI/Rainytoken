@@ -12,9 +12,10 @@ import com.rainy.token.data.repository.CredentialRepository
 import com.rainy.token.data.repository.RepositoryError
 import com.rainy.token.domain.model.Credential
 import com.rainy.token.domain.service.ServiceType
-import com.rainy.token.domain.usecase.SyncCommandCodeUsageUseCase
 import com.rainy.token.domain.usecase.SyncError
+import com.rainy.token.domain.usecase.SyncResult
 import com.rainy.token.domain.usecase.SyncUsageUseCase
+import com.rainy.token.domain.usecase.UsageSyncCoordinator
 import com.rainy.token.ui.components.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -78,8 +79,8 @@ sealed class TimeFilter(@StringRes val labelRes: Int) {
 class UsageViewModel @Inject constructor(
     private val cacheProvider: Provider<UsageCache>,
     private val syncUseCaseProvider: Provider<SyncUsageUseCase>,
-    private val syncCommandCodeUseCaseProvider: Provider<SyncCommandCodeUsageUseCase>,
-    private val credentialRepository: CredentialRepository
+    private val credentialRepository: CredentialRepository,
+    private val syncCoordinator: UsageSyncCoordinator
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(UsageUiState())
@@ -88,24 +89,29 @@ class UsageViewModel @Inject constructor(
     private var workspaceIdOverride: String? = null
     private var loadGeneration = 0  // 递增：过时的 loadStatsInternal 结果自动丢弃
 
-    /** 用量同步时间持久化（按 workspace 区分 OCGO / CCGO），重启后卡片仍能显示刷新时间。 */
-    private fun syncAtPrefs(): android.content.SharedPreferences =
-        com.rainy.token.RainyTokenApplication.appContext.getSharedPreferences(
-            "usage_sync_at",
-            android.content.Context.MODE_PRIVATE
-        )
-
-    private fun syncAtKey(wid: String): String = "sync_at_$wid"
-
-    private fun loadLastSyncAt(wid: String): Long =
-        syncAtPrefs().getLong(syncAtKey(wid), 0L)
-
-    private fun saveLastSyncAt(wid: String, ts: Long) {
-        syncAtPrefs().edit().putLong(syncAtKey(wid), ts).apply()
+    init {
+        // 跨页面共享的同步状态（进程级单飞）：协调器在跑时，CCGO 各页面的刷新按钮一起转圈；
+        // 后台 Worker 完成同步（busy 由真→假）时补一次数据重载，否则界面会停在旧数字上。
+        viewModelScope.launch {
+            var wasBusy = false
+            syncCoordinator.busy.collect { busy ->
+                if (workspaceIdOverride == com.rainy.token.data.repository
+                        .CommandCodeUsageRepository.CCGO_WORKSPACE_ID
+                ) {
+                    _uiState.update { it.copy(syncing = busy) }
+                    if (wasBusy && !busy) loadStats()
+                }
+                wasBusy = busy
+            }
+        }
     }
+
+    // 同步时间与后台同步开关统一由 [UsageSyncCoordinator] 持久化（沿用原 prefs：usage_sync_at / sync_at_<wid>）
 
     /** 覆盖 workspaceId，用于 CCGO 等非 OCGO 服务。必须在 loadStats() 前调用。 */
     fun setWorkspace(wid: String) {
+        // 幂等：进入 / 回到前台会重复调用，同值不重置状态，避免卡片闪一下空数据
+        if (workspaceIdOverride == wid) return
         workspaceIdOverride = wid
         loadGeneration++
         // 先清空数据防止 init 自动加载的 OCGO 数据闪一下
@@ -175,7 +181,8 @@ class UsageViewModel @Inject constructor(
                 recordCount = totalCount,
                 loading = false,
                 dailyPage = 1,
-                lastSyncAt = loadLastSyncAt(wid)
+                lastSyncAt = syncCoordinator.lastSyncAt(wid),
+                syncStale = syncCoordinator.isSyncStale(wid)
             )
         }
     }
@@ -203,64 +210,79 @@ class UsageViewModel @Inject constructor(
         _uiState.update { it.copy(dailyPage = (it.dailyPage + 1).coerceAtMost(totalPages)) }
     }
 
-    fun sync() {
+    /**
+     * 手动同步（刷新按钮 / 下拉刷新）：默认把服务端窗口拉满，能把窗口内的空洞补齐。
+     *
+     * 自动路径（[syncIfStale]、后台 Worker）传 [incremental] = true 走增量（整页命中即停），省请求。
+     */
+    fun sync(incremental: Boolean = false) {
         viewModelScope.launch {
             _uiState.update { it.copy(syncing = true) }
             val wid = workspaceIdOverride ?: workspaceId()
+            val isCcgo = workspaceIdOverride == com.rainy.token.data.repository
+                .CommandCodeUsageRepository.CCGO_WORKSPACE_ID
+
             val result = withContext(Dispatchers.Default) {
-                val cache = cacheProvider.get()
-                if (workspaceIdOverride == com.rainy.token.data.repository.CommandCodeUsageRepository.CCGO_WORKSPACE_ID) {
-                    val useCase = syncCommandCodeUseCaseProvider.get()
-                    val count = cache.count(com.rainy.token.data.repository.CommandCodeUsageRepository.CCGO_WORKSPACE_ID)
-                    if (count == 0) useCase.fullSync() else useCase.incrementalSync()
+                if (isCcgo) {
+                    syncCoordinator.syncCcgoUsage(incremental = incremental)
                 } else {
+                    // OCGO：保持既有分页同步（服务端窗口与游标语义不同，本次不动）
                     val useCase = syncUseCaseProvider.get()
-                    val count = cache.count()
-                    if (count == 0) useCase.fullSync() else useCase.incrementalSync()
+                    val cache = cacheProvider.get()
+                    if (cache.count() == 0) useCase.fullSync() else useCase.incrementalSync()
                 }
             }
-            val syncedAt = System.currentTimeMillis()
-            if (result.isSuccess && wid != null) saveLastSyncAt(wid, syncedAt)
-            result.onSuccess { loadStats() }
+
+            val error = result.exceptionOrNull()
+            // 已有同步在跑（其它页面 / 后台 Worker）：不清空上次结果，按钮状态交给协调器的 busy 驱动。
+            if (error is SyncError.AlreadyRunning) {
+                // 极小概率竞态：busy 刚转 false 又被判定为「正在跑」，此时不会有人再复位 syncing
+                _uiState.update { it.copy(syncing = syncCoordinator.busy.value) }
+                return@launch
+            }
+
+            // OCGO 不走协调器，成功时间要在这里补写（否则卡片的「更新于 X」会永远停在旧值）
+            if (result.isSuccess && !isCcgo && wid != null) {
+                syncCoordinator.saveLastSyncAt(wid, System.currentTimeMillis())
+            }
+
+            // 失败（尤其 PartialSync）时通常也已经写入了一部分记录：必须重新加载，
+            // 否则界面停在旧数据上，用户会以为「刷新没生效」。
+            // 这里无条件刷新（多一次全表统计读，代价很小）；不依赖 busy 跳变，避免 StateFlow 合并导致漏刷新。
+            loadStats()
+
             _uiState.update {
                 it.copy(
                     syncing = false,
-                    lastSyncResult = result.getOrNull()?.inserted ?: 0,
-                    lastSyncError = result.exceptionOrNull()?.let { syncErrorToUiText(it) },
-                    lastSyncAt = if (result.isSuccess && wid != null) syncedAt else it.lastSyncAt
+                    lastSyncResult = syncInsertedCount(result),
+                    lastSyncError = error?.let { syncErrorToUiText(it) },
+                    lastSyncAt = if (result.isSuccess && wid != null) syncCoordinator.lastSyncAt(wid)
+                    else it.lastSyncAt
                 )
             }
         }
     }
 
-    /** 清除当前 workspace 的缓存数据并全量重新同步。 */
-    fun clearAndResync() {
-        viewModelScope.launch {
-            val wid = workspaceIdOverride ?: return@launch
-            _uiState.update { it.copy(syncing = true) }
-            val cache = cacheProvider.get()
-            cache.deleteByWorkspaceId(wid)
-            invalidateData()
-            val useCase = syncCommandCodeUseCaseProvider.get()
-            val result = useCase.fullSync()
-            val syncedAt = System.currentTimeMillis()
-            if (result.isSuccess) saveLastSyncAt(wid, syncedAt)
-            result.onSuccess { loadStats() }
-            _uiState.update {
-                it.copy(
-                    syncing = false,
-                    lastSyncResult = result.getOrNull()?.inserted ?: 0,
-                    lastSyncError = result.exceptionOrNull()?.let { syncErrorToUiText(it) },
-                    lastSyncAt = if (result.isSuccess) syncedAt else it.lastSyncAt
-                )
-            }
+    /**
+     * 进入 / 回到前台时的自动同步（主力防线）。
+     *
+     * 距上次成功同步超过 [UsageSyncCoordinator.FOREGROUND_MIN_INTERVAL_MS]（8 小时）才真正发起，
+     * 避免每次切页面都打网络；服务端明细窗口约 24h，这一层保证「每天打开过就不会丢」。
+     * 走增量同步（整页命中即停），省请求；补洞交给用户主动点的「立即同步」。
+     */
+    fun syncIfStale() {
+        val wid = workspaceIdOverride ?: return
+        if (syncCoordinator.isSyncStale(wid, UsageSyncCoordinator.FOREGROUND_MIN_INTERVAL_MS)) {
+            sync(incremental = true)
         }
-    }
-
-    private fun invalidateData() {
-        _uiState.value = UsageUiState()
     }
 }
+
+/** 同步结果里的新增条数：成功取 result，部分失败时从 PartialSync 异常里取（旧实现失败一律显示 0）。 */
+private fun syncInsertedCount(result: Result<SyncResult>): Int =
+    result.getOrNull()?.inserted
+        ?: (result.exceptionOrNull() as? SyncError.PartialSync)?.inserted
+        ?: 0
 
 data class UsageUiState(
     val loading: Boolean = true,
@@ -272,6 +294,8 @@ data class UsageUiState(
     val lastSyncResult: Int = 0,
     val lastSyncError: UiText? = null,
     val lastSyncAt: Long = 0,  // 最近一次成功同步的 epoch ms（0 = 从未同步）
+    /** 距上次成功同步已超过窗口守护阈值：数据可能过期，UI 给出提示 */
+    val syncStale: Boolean = false,
     val timeFilter: TimeFilter = TimeFilter.All,
     val dailyPage: Int = 1,
     val modelFilter: String? = null  // null = 全部模型

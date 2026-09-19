@@ -228,7 +228,7 @@ private fun CompactNavHost() {
                 onOpenOverview = { navController.navigate(Routes.CCGO_USAGE_OVERVIEW) },
                 onOpenData = { navController.navigate(Routes.CCGO_USAGE_DATA) },
                 viewModel = chartVm,
-                clearViewModel = usageVm
+                isCcgo = true
             )
         }
         composable(Routes.CCGO_USAGE_OVERVIEW) {
@@ -433,7 +433,7 @@ private fun ExpandedDetailPane(
                         onOpenOverview = { navController.navigate("overview") },
                         onOpenData = { navController.navigate("data") },
                         viewModel = chartVm,
-                        clearViewModel = usageVm
+                        isCcgo = true
                     )
                 }
                 composable("overview") {

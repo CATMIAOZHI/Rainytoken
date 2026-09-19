@@ -141,7 +141,7 @@
     <string name="usage_cache_write">快取寫入 %1$s</string>
     <string name="usage_no_data_sync">暫無數據，點選 🔄 同步</string>
     <string name="usage_new_records">✓ 新增 %1$d 條</string>
-    <string name="sync_partial">部分同步完成：插入 %1$d條，%2$d頁失敗</string>
+    <string name="sync_partial">部分同步：新增 %1$d 條，%2$d 項異常，可再次同步</string>
     <string name="usage_click_to_switch"> 點選切換</string>
     <string name="usage_utc0_note">所有時間按 UTC+0 計算</string>
     <string name="msg_utc8_on">已切換到 UTC+8，圖表按北京時間顯示</string>
@@ -347,11 +347,10 @@
     <string name="chart_detail_cost">消費明細</string>
     <string name="chart_detail_requests">呼叫次數明細</string>
     <string name="chart_detail_tokens">Token 明細</string>
-    <string name="dialog_clear_title">清除數據</string>
-    <string name="dialog_clear_body">此操作將清除所有 CommandCode 用量本地快取並重新同步，需要幾秒鐘完成。</string>
-    <string name="dialog_clear_confirm_question">是否繼續？</string>
-    <string name="action_confirm_countdown">確認（%1$ds）</string>
-    <string name="action_confirm_clear">確認清除</string>
+    <!-- ══════════ 同步與後台同步 ══════════ -->
+    <string name="usage_sync_stale">資料可能已過期，建議立即同步</string>
+    <string name="settings_background_sync_title">後台同步</string>
+    <string name="settings_background_sync_desc">有網路時每 8 小時自動同步一次 CommandCode 用量；系統省電策略可能使其延後。</string>
     <string name="action_close">關閉</string>
     <string name="range_from">從 %1$s</string>
     <string name="range_to">至 %1$s</string>
