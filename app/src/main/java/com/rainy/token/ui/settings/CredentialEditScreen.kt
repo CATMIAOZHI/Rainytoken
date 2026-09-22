@@ -428,6 +428,40 @@ private fun OpenCodeGoForm(
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.outline
     )
+    // ── API Key（查余额，必填）──
+    Text(
+        text = stringResource(R.string.opencode_api_key_title),
+        style = MaterialTheme.typography.titleSmall
+    )
+    Text(
+        text = stringResource(R.string.hint_opencode_trigger_key),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline
+    )
+    OutlinedTextField(
+        value = triggerApiKey,
+        onValueChange = onApiKeyChange,
+        label = { Text(stringResource(R.string.field_api_key)) },
+        placeholder = { Text("opencode-xxx") },
+        singleLine = true,
+        visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        modifier = Modifier.fillMaxWidth()
+    )
+    OutlinedButton(
+        onClick = onSaveApiKey,
+        modifier = Modifier.fillMaxWidth(),
+        enabled = triggerApiKey.isNotBlank()
+    ) {
+        Text(stringResource(R.string.action_save_api_key))
+    }
+
+    // ── 用量记录 + 模型级明细（选填）：auth cookie + workspaceId ──
+    androidx.compose.material3.HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+    Text(
+        text = stringResource(R.string.opencode_session_optional_title),
+        style = MaterialTheme.typography.titleSmall
+    )
     OutlinedButton(onClick = onImportFromClipboard, modifier = Modifier.fillMaxWidth()) {
         Text(text = stringResource(R.string.action_import_from_clipboard))
     }
@@ -459,7 +493,7 @@ private fun OpenCodeGoForm(
     OutlinedButton(
         onClick = onTestAndSave,
         modifier = Modifier.fillMaxWidth(),
-        enabled = authCookie.isNotBlank() && workspaceId.isNotBlank()
+        enabled = triggerApiKey.isNotBlank() && (authCookie.isBlank() == workspaceId.isBlank())
     ) {
         Text(text = stringResource(R.string.action_test_and_save))
     }
@@ -474,35 +508,6 @@ private fun OpenCodeGoForm(
     }
     TextButton(onClick = onCopyLoginUrl, modifier = Modifier.fillMaxWidth()) {
         Text(text = stringResource(R.string.action_copy_login_url))
-    }
-
-    // ── 一键激活用量 API Key ──
-    androidx.compose.material3.HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-    Text(
-        text = stringResource(R.string.activate_api_key_optional),
-        style = MaterialTheme.typography.titleSmall
-    )
-    Text(
-        text = stringResource(R.string.hint_opencode_trigger_key),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.outline
-    )
-    OutlinedTextField(
-        value = triggerApiKey,
-        onValueChange = onApiKeyChange,
-        label = { Text(stringResource(R.string.field_api_key)) },
-        placeholder = { Text("opencode-xxx") },
-        singleLine = true,
-        visualTransformation = PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-        modifier = Modifier.fillMaxWidth()
-    )
-    OutlinedButton(
-        onClick = onSaveApiKey,
-        modifier = Modifier.fillMaxWidth(),
-        enabled = triggerApiKey.isNotBlank()
-    ) {
-        Text(stringResource(R.string.action_save_api_key))
     }
 }
 

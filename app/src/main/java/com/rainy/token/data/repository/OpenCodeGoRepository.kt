@@ -5,7 +5,6 @@ import com.rainy.token.data.debug.DebugLog
 import com.rainy.token.domain.model.Credential
 import com.rainy.token.domain.model.ServiceBalance
 import com.rainy.token.domain.model.TriggerSummary
-import com.rainy.token.domain.service.ServiceConfigProvider
 import com.rainy.token.domain.service.ServiceType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -13,31 +12,32 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.net.URLEncoder
+import java.time.Instant
+import java.time.OffsetDateTime
+import java.time.format.DateTimeParseException
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
-
 /**
- * OpenCode Go 配额仓库。计划阶段 5.3（已根据 [slkiser/opencode-quota](https://github.com/slkiser/opencode-quota)
- * 调整实现）：
+ * OpenCode Go 配额仓库。
  *
- * - 用户在浏览器登录 https://opencode.ai/auth（GitHub / Google）
- * - 登录后访问 dashboard，URL 形如 `https://opencode.ai/workspace/{workspaceId}/go`
- * - 用户从 dashboard URL 中复制 `workspaceId` + 浏览器 DevTools 的 `auth` cookie 值
- * - 粘贴到 APP，APP 用 OkHttp 携带 Cookie 抓取该 URL
- * - 解析 HTML 中 SolidJS SSR hydration 字段 `rollingUsage` / `weeklyUsage` / `monthlyUsage`
+ * 余额（5h/周/月 三档窗口）通过 **API Key** 直查官方接口：
+ * `GET https://opencode.ai/zen/go/v1/usage`（Bearer 鉴权），不再抓取 dashboard HTML。
+ *
+ * - API Key：设置页填写（opencode.ai/settings → API Keys），查询余额必填
+ * - auth cookie + workspaceId：**选填**，仅用于模型级明细增强（`_server` 接口）
+ *   与 [OpenCodeUsageRepository] 用量记录页；缺失时余额仍正常返回
  *
  * 不在类上加 @Inject constructor —— 在 [com.rainy.token.di.NetworkModule] 里 @Provides 显式提供。
  * 规避 KSP 2.x 多文件 @Inject 跨依赖的"could not be resolved"误报。
@@ -50,7 +50,12 @@ class OpenCodeGoRepository(
 ) {
 
     private val json = Json { ignoreUnknownKeys = true }
-
+    /**
+     * 拉取余额：`GET /zen/go/v1/usage`（Bearer API Key）。
+     *
+     * 响应形如 `{"usage":{"rolling":{"percent":42,"resetsAt":"…"},"weekly":{…},"monthly":{…}}}`。
+     * auth cookie + workspaceId 仅作模型级明细增强，缺失不影响余额主数据。
+     */
     suspend fun fetchBalance(): Result<ServiceBalance> = withContext(Dispatchers.IO) {
         val credential = credentialRepository.get(ServiceType.OPENCODE_GO)
             ?: return@withContext Result.failure(RepositoryError.InvalidCredential())
@@ -58,20 +63,15 @@ class OpenCodeGoRepository(
         if (credential !is Credential.SessionCredential) {
             return@withContext Result.failure(RepositoryError.InvalidCredential())
         }
-
-        val authCookie = credential.authCookie
-        val workspaceId = credential.workspaceId
-        if (authCookie.isNullOrBlank() || workspaceId.isNullOrBlank()) {
-            return@withContext Result.failure(RepositoryError.InvalidCredential())
+        val apiKey = credential.apiKey?.trim()
+        if (apiKey.isNullOrEmpty()) {
+            return@withContext Result.failure(RepositoryError.InvalidCredential("未配置 API Key"))
         }
 
-        val url = "https://opencode.ai/workspace/${URLEncoder.encode(workspaceId, "UTF-8")}/go"
-
         val request = Request.Builder()
-            .url(url)
-            .header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Gecko/20100101 Firefox/148.0")
-            .header("Accept", "text/html")
-            .header("Cookie", "auth=$authCookie")
+            .url(USAGE_API)
+            .header("Accept", "application/json")
+            .header("Authorization", "Bearer $apiKey")
             .get()
             .build()
 
@@ -85,54 +85,48 @@ class OpenCodeGoRepository(
 
         response.use { resp ->
             if (!resp.isSuccessful) {
-                if (resp.code == 401 || resp.code == 403) {
-                    return@withContext Result.failure(RepositoryError.InvalidCredential())
+                DebugLog.e(TAG, "fetchBalance: HTTP ${resp.code}")
+                return@withContext when (resp.code) {
+                    401, 403 -> Result.failure(RepositoryError.InvalidCredential("HTTP ${resp.code}"))
+                    429 -> Result.failure(RepositoryError.RateLimited(resp.header("Retry-After")?.toLongOrNull()))
+                    else -> Result.failure(RepositoryError.ServerError(resp.code))
                 }
-                return@withContext Result.failure(RepositoryError.ServerError(resp.code))
             }
 
-            val html = resp.body?.string() ?: return@withContext Result.failure(
+            val body = resp.body?.string() ?: return@withContext Result.failure(
                 RepositoryError.ParseError(RepositoryError.ParseErrorReason.EMPTY_BODY, "响应体为空")
             )
 
-            val windows = parseWindows(html)
+            val now = System.currentTimeMillis()
+            val windows = parseUsageResponse(body, now)
             if (windows.isEmpty()) {
                 return@withContext Result.failure(
                     RepositoryError.ParseError(
                         RepositoryError.ParseErrorReason.NO_WINDOWS,
-                        "解析失败：未找到任何 OpenCode Go 配额窗口。HTML=${html.length} 字节。"
+                        "解析失败：未找到任何 OpenCode Go 配额窗口。body=${body.length} 字节。"
                     )
                 )
             }
 
             // 主体数据用 rollingUsage（5h 滚动窗口），这是用户最关心的"实时配额"
             val primary = windows["rollingUsage"] ?: windows.values.first()
-            val config = ServiceConfigProvider.get(ServiceType.OPENCODE_GO)
 
-            // 把 3 个窗口的用量百分比 + 重置时间全部塞进 extras（详情页按窗口渲染）
-            // usage/limit 为页面新增的用量与限额字段（单位以服务端定义为准，保留供详情页展示，UI 兼容缺失场景）
+            // 把 3 个窗口的用量百分比 + 重置倒计时塞进 extras（详情页/小组件按窗口渲染）
             val extras = buildMap {
                 windows["rollingUsage"]?.let { w ->
                     put("rolling.pct", w.usagePercent.toString())
-                    put("rolling.resetInSec", w.resetInSec.toString())
-                    w.usage?.let { put("rolling.usage", it.toString()) }
-                    w.limit?.let { put("rolling.limit", it.toString()) }
+                    w.resetInSec?.let { put("rolling.resetInSec", it.toString()) }
                 }
                 windows["weeklyUsage"]?.let { w ->
                     put("weekly.pct", w.usagePercent.toString())
-                    put("weekly.resetInSec", w.resetInSec.toString())
-                    w.usage?.let { put("weekly.usage", it.toString()) }
-                    w.limit?.let { put("weekly.limit", it.toString()) }
+                    w.resetInSec?.let { put("weekly.resetInSec", it.toString()) }
                 }
                 windows["monthlyUsage"]?.let { w ->
                     put("monthly.pct", w.usagePercent.toString())
-                    put("monthly.resetInSec", w.resetInSec.toString())
-                    w.usage?.let { put("monthly.usage", it.toString()) }
-                    w.limit?.let { put("monthly.limit", it.toString()) }
+                    w.resetInSec?.let { put("monthly.resetInSec", it.toString()) }
                 }
             }
 
-            // 主窗口数据先落缓存并返回（关键路径只依赖 HTML 解析一次请求）
             val balance = ServiceBalance(
                 service = ServiceType.OPENCODE_GO,
                 amount = primary.usagePercent.toDouble(),
@@ -140,13 +134,18 @@ class OpenCodeGoRepository(
                 isAvailable = true,
                 monthlySpent = windows["monthlyUsage"]?.usagePercent?.toDouble(),
                 totalQuota = null,
-                nextResetAt = System.currentTimeMillis() + primary.resetInSec * 1000L,
+                nextResetAt = primary.resetAtMillis,
                 extras = extras
             )
             balanceCache.put(ServiceType.OPENCODE_GO, balance)
             credentialRepository.save(credential.copy(lastVerifiedAt = System.currentTimeMillis()))
 
-            // 模型级用量作为增量增强：并行拉取 + 短超时，失败/超时不影响主窗口数据与缓存
+            // 模型级用量作为增量增强：需要 auth cookie + workspaceId；缺失或失败不影响主数据
+            val workspaceId = credential.workspaceId
+            val authCookie = credential.authCookie
+            if (workspaceId.isNullOrBlank() || authCookie.isNullOrBlank()) {
+                return@withContext Result.success(balance)
+            }
             val modelUsage = fetchModelWindows(workspaceId, authCookie)
             if (modelUsage.isEmpty()) {
                 return@withContext Result.success(balance)
@@ -253,53 +252,68 @@ class OpenCodeGoRepository(
         private const val TAG = "OCGO"
         private const val MODELS_API = "https://models.dev/api.json"
         private const val CHAT_API = "https://opencode.ai/zen/go/v1/chat/completions"
+        /** 余额/三档窗口用量查询（Bearer API Key） */
+        private const val USAGE_API = "https://opencode.ai/zen/go/v1/usage"
         /** _server 端点：模型级用量接口（f:31 + 窗口参数，需 x-server-id / x-server-instance 头） */
         private const val SERVER_ENDPOINT = "https://opencode.ai/_server"
         /** 窗口模型用量的 server function id（与请求头 x-server-id 一致，取自网页端实测） */
         private const val MODEL_USAGE_SERVER_ID = "ba154d05c4028a885b8c753f9def7e45d87eb982e65fa8b14254cbe636168914"
         /** 模型级用量单请求超时（毫秒）：只影响增强数据，避免拖慢主窗口刷新 */
         private const val MODEL_REQUEST_TIMEOUT_MS = 5_000L
-        private val SCRAPED_FIELDS = listOf("rollingUsage", "weeklyUsage", "monthlyUsage")
 
         /**
-         * 解析 SolidJS SSR hydration 输出。匹配模式形如：
-         *   `rollingUsage:$R[0]={usagePercent:42,resetInSec:12345}`
+         * 解析 `GET /zen/go/v1/usage` JSON 响应为三档窗口。
          *
-         * 用精确前缀 "field:$R[" 定位 hydration 数据中的字段声明，
-         * 避免命中 HTML 其他位置（如 JS 代码注释、模板字符串）的同名文本。
-         * 用括号计数匹配闭合 "}"，正确处理嵌套对象。
+         * - `percent` 缺失或非数字 → 跳过该窗口（不猜测数值）；有值则钳制到 0..100
+         * - `resetsAt` 支持 ISO-8601 与 epoch（秒/毫秒自动识别）；缺失时窗口仍保留（倒计时为 null）
+         * - 非 JSON / 缺 `usage` 节点 → 空 map（调用方映射 NO_WINDOWS 错误）
+         *
+         * @param nowMillis 计算重置倒计时的基准时间（测试可注入）
          */
-        internal fun parseWindows(html: String): Map<String, ScrapedWindow> {
-            val result = mutableMapOf<String, ScrapedWindow>()
-            val fields = listOf("rollingUsage", "weeklyUsage", "monthlyUsage")
+        internal fun parseUsageResponse(body: String, nowMillis: Long): Map<String, UsageWindow> {
+            val root = try {
+                Json.parseToJsonElement(body) as? JsonObject
+            } catch (_: SerializationException) {
+                null
+            } ?: return emptyMap()
+            val usage = root["usage"] as? JsonObject ?: return emptyMap()
 
-            for (field in fields) {
-                // 精确模式：找 "field:$R[N]={" —— 这是 hydration 数据块的独有格式
-                val keyIdx = html.indexOf("$field:\$R[")
-                if (keyIdx < 0) continue
+            val result = mutableMapOf<String, UsageWindow>()
+            for ((apiField, usageKey) in listOf(
+                "rolling" to "rollingUsage",
+                "weekly" to "weeklyUsage",
+                "monthly" to "monthlyUsage"
+            )) {
+                val node = usage[apiField] as? JsonObject ?: continue
+                val percent = (node["percent"] as? JsonPrimitive)?.content?.toDoubleOrNull()
+                if (percent == null || !percent.isFinite()) continue
+                val resetAt = parseResetEpochMillis((node["resetsAt"] as? JsonPrimitive)?.content)
+                result[usageKey] = UsageWindow(
+                    usagePercent = percent.coerceIn(0.0, 100.0).toFloat(),
+                    resetInSec = resetAt?.let { ((it - nowMillis) / 1000).coerceAtLeast(0L) },
+                    resetAtMillis = resetAt
+                )
+            }
+            return result
+        }
 
-                // 找 '=' 然后找 '{'
-                val eqIdx = html.indexOf('=', keyIdx)
-                if (eqIdx < 0 || eqIdx - keyIdx > 60) continue
-                val braceStart = html.indexOf('{', eqIdx)
-                if (braceStart < 0 || braceStart - eqIdx > 10) continue
-
-                // 括号计数找正确的闭合 "}"（处理嵌套对象）
-                val braceEnd = findMatchingBrace(html, braceStart) ?: continue
-                val body = html.substring(braceStart, braceEnd + 1)
-
-                val pct = extractNumberAfterKey(body, "usagePercent")?.toFloatOrNull()
-                val reset = extractNumberAfterKey(body, "resetInSec")?.toLongOrNull()
-                // usage/limit 是页面新增的用量与限额字段（单位以服务端定义为准，缺失不影响窗口识别）
-                // exactKey=true：避免 "usage" 误命中 "usagePercent" 前缀
-                val usage = extractNumberAfterKey(body, "usage", exactKey = true)?.toLongOrNull()
-                val limit = extractNumberAfterKey(body, "limit", exactKey = true)?.toLongOrNull()
-                if (pct != null && reset != null) {
-                    result[field] = ScrapedWindow(pct, reset, usage, limit)
+        /** `resetsAt` → epoch millis：数字（秒/毫秒）或 ISO-8601；无法解析返回 null。 */
+        private fun parseResetEpochMillis(raw: String?): Long? {
+            if (raw.isNullOrBlank()) return null
+            val trimmed = raw.trim()
+            val numeric = trimmed.toDoubleOrNull()
+            if (numeric != null && numeric.isFinite() && numeric > 0) {
+                return if (numeric >= 10_000_000_000.0) numeric.toLong() else (numeric * 1000).toLong()
+            }
+            return try {
+                Instant.parse(trimmed).toEpochMilli()
+            } catch (_: DateTimeParseException) {
+                try {
+                    OffsetDateTime.parse(trimmed).toInstant().toEpochMilli()
+                } catch (_: DateTimeParseException) {
+                    null
                 }
             }
-
-            return result
         }
 
         /**
@@ -458,6 +472,8 @@ class OpenCodeGoRepository(
      * 拉取三个窗口（rolling/weekly/monthly）的模型级用量。
      * 并行发起 + 每个请求独立短超时（MODEL_REQUEST_TIMEOUT_MS），
      * 任一窗口失败不影响其他窗口；整体失败返回空 Map（主窗口数据不受影响）。
+     *
+     * 依赖 auth cookie + workspaceId（选填凭据）；仅在两者齐备时由 [fetchBalance] 调用。
      */
     private suspend fun fetchModelWindows(workspaceId: String, authCookie: String): Map<String, WindowModelUsage> =
         coroutineScope {
@@ -510,6 +526,18 @@ class OpenCodeGoRepository(
         }
     }
 }
+
+/**
+ * 单个用量窗口（`GET /zen/go/v1/usage` 解析结果）。
+ * @param usagePercent 已用百分比（0..100）
+ * @param resetInSec 距离重置的倒计时秒数（相对 nowMillis，已钳制 ≥0；null = 接口未返回重置时间）
+ * @param resetAtMillis 重置时刻（epoch millis；null = 接口未返回）
+ */
+internal data class UsageWindow(
+    val usagePercent: Float,
+    val resetInSec: Long? = null,
+    val resetAtMillis: Long? = null
+)
 
 /**
  * 窗口模型级用量（_server 接口 payload）。

@@ -72,7 +72,7 @@ RainyToken（雨晴Token）— AI Balance & Usage Quota Query · the Rainy Famil
 
 前往 [Releases](https://github.com/CATMIAOZHI/Rainytoken/releases) 下载最新 APK。
 
-> ⚠️ 需要配置 DeepSeek API Key、OpenCode Go 登录凭据、CommandCode API Key、Codex（OAuth 登录或粘贴 auth.json）或 Ollama Cookie 才能拉取数据。
+> ⚠️ 需要配置 DeepSeek API Key、OpenCode Go API Key、CommandCode API Key、Codex（OAuth 登录或粘贴 auth.json）或 Ollama Cookie 才能拉取数据。OpenCode Go 的 auth cookie + workspaceId 选填，仅用于用量记录与模型级明细。
 
 ---
 

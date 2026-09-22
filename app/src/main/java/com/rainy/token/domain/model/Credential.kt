@@ -37,13 +37,13 @@ sealed class Credential {
         val token: String? = null,
         /** Token 过期时间（epoch millis），null 表示未知。 */
         val expiresAt: Long? = null,
-        /** OpenCode Go 专用：dashboard auth cookie 值（简化为单字段，便于用户粘贴） */
+        /** OpenCode Go（选填）：dashboard auth cookie 值，仅用于用量记录与模型级明细（简化为单字段，便于用户粘贴） */
         val authCookie: String? = null,
-        /** OpenCode Go 专用：workspace ID */
+        /** OpenCode Go（选填）：workspace ID，仅用于用量记录与模型级明细 */
         val workspaceId: String? = null,
         /** Ollama 专用：完整的 Cookie 字符串（用户从浏览器 DevTools 复制） */
         val ollamaCookie: String? = null,
-        /** OpenCode Go / Ollama 专用：API Key，用于一键激活用量 */
+        /** OpenCode Go 主凭据 / Ollama：API Key（OpenCode Go 用它查余额 + 一键激活；Ollama 用于一键激活） */
         val apiKey: String? = null,
         override val lastVerifiedAt: Long = 0L
     ) : Credential()

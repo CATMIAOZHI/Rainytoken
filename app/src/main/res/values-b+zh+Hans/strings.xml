@@ -199,7 +199,7 @@
     <string name="help_cookie_3">3. 登录后按 F12 → Application → Cookies</string>
     <string name="help_cookie_4">4. 复制该站点下的所有 Cookie 粘贴到上面输入框</string>
     <string name="help_cookie_5">格式：name1=value1; name2=value2</string>
-    <string name="help_ocgo_title">如何获取 OpenCode Go 凭据？</string>
+    <string name="help_ocgo_title">如何获取 auth cookie 与 workspaceId？</string>
     <string name="help_ocgo_1">1. 桌面 Chrome 打开 opencode.ai/auth</string>
     <string name="help_ocgo_2">2. 用 GitHub / Google 登录（Google 不会拦截 Chrome）</string>
     <string name="help_ocgo_3">3. 登录后跳转到 dashboard，URL 形如：</string>
@@ -400,14 +400,16 @@
     <string name="placeholder_ollama_api_key">ollama-xxx 或 sk-xxx</string>
     <string name="action_save_api_key">保存 API Key</string>
     <string name="credential_title_opencode_go">OpenCode Go 凭据</string>
-    <string name="credential_hint_opencode_go">需要 auth cookie + workspaceId 两个值。APP 会用 OkHttp 抓 dashboard 并自动解析 5h/周/月 三档用量。</string>
+    <string name="credential_hint_opencode_go">余额与 5h/周/月 三档用量通过 API Key 查询（opencode.ai/settings → API Keys 获取）。下方 auth cookie + workspaceId 为选填，仅用于用量记录页与模型级明细。</string>
     <string name="action_import_from_clipboard">从剪贴板自动导入</string>
     <string name="placeholder_workspace_id">dashboard URL 中的 {id} 段</string>
     <string name="field_auth_cookie_value">auth Cookie 值</string>
     <string name="placeholder_auth_cookie">F12 → Cookies → opencode.ai → auth 的 Value</string>
     <string name="action_how_get_two_values">如何获取这两个值？</string>
     <string name="action_open_login_entry">在浏览器中打开登录入口</string>
-    <string name="hint_opencode_trigger_key">填入 OpenCode Zen API Key 后，可在详情页一键发送请求激活用量统计。从 opencode.ai/settings → API Keys 获取。</string>
+    <string name="hint_opencode_trigger_key">API Key 用于查询余额，也可在详情页一键发送请求激活用量统计。从 opencode.ai/settings → API Keys 获取。</string>
+    <string name="opencode_api_key_title">API Key（查询余额）</string>
+    <string name="opencode_session_optional_title">用量记录与模型级明细（选填）</string>
     <string name="credential_title_ccgo">CommandCode 凭据</string>
     <string name="credential_hint_ccgo">需要 API Key（拉余额）。Session Cookie（可选）在浏览器 DevTools 复制，用于拉用量记录。不填也可正常查看余额。</string>
     <string name="placeholder_api_key_from_settings">从 Settings → API Keys 生成</string>

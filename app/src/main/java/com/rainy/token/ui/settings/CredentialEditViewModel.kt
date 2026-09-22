@@ -270,15 +270,22 @@ class CredentialEditViewModel @Inject constructor(
     fun testAndSaveOpenCodeGo() {
         val type = serviceType ?: return
         val current = _uiState.value
-        if (current.authCookie.isBlank() || current.workspaceId.isBlank()) {
-            _uiState.update {
-                it.copy(message = UiText.Resource(R.string.error_auth_cookie_workspace))
-            }
+        // 余额只认 API Key：必填；cookie 对可选，但只填一半视为填写错误
+        if (current.triggerApiKey.isBlank()) {
+            _uiState.update { it.copy(message = UiText.Resource(R.string.error_api_key_empty)) }
+            return
+        }
+        if (current.authCookie.isBlank() != current.workspaceId.isBlank()) {
+            _uiState.update { it.copy(message = UiText.Resource(R.string.error_auth_cookie_workspace)) }
             return
         }
         viewModelScope.launch {
             val previous = credentialRepository.get(type)
-            doSaveOpenCodeGo(current.workspaceId.trim(), current.authCookie.trim())
+            doSaveOpenCodeGo(
+                workspaceId = current.workspaceId.trim().ifBlank { null },
+                authCookie = current.authCookie.trim().ifBlank { null },
+                apiKey = current.triggerApiKey.trim()
+            )
             testAndRollback(
                 type = type,
                 saveAndPrep = { previous to { refreshBalanceUseCaseProvider.get().invoke(type) } },
@@ -288,15 +295,20 @@ class CredentialEditViewModel @Inject constructor(
         }
     }
 
-    private suspend fun doSaveOpenCodeGo(workspaceId: String, authCookie: String) {
+    /**
+     * 保存 OpenCode Go 凭据。参数为 `null` 表示该项不修改（保留已存值），
+     * 便于"仅更新 API Key"时不冲掉用户已配置的 cookie 对。
+     */
+    private suspend fun doSaveOpenCodeGo(workspaceId: String?, authCookie: String?, apiKey: String? = null) {
         val type = serviceType ?: return
         val existing = credentialRepository.get(type) as? Credential.SessionCredential
         val updated = (existing ?: Credential.SessionCredential(
             service = type,
             cookies = emptyList()
         )).copy(
-            authCookie = authCookie,
-            workspaceId = workspaceId,
+            authCookie = authCookie ?: existing?.authCookie,
+            workspaceId = workspaceId ?: existing?.workspaceId,
+            apiKey = apiKey ?: existing?.apiKey,
             lastVerifiedAt = System.currentTimeMillis()
         )
         credentialRepository.save(updated)

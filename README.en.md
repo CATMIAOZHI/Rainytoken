@@ -72,7 +72,7 @@ RainyToken (雨晴Token) — AI Balance & Usage Quota Query · the Rainy Family 
 
 Download the latest APK from [Releases](https://github.com/CATMIAOZHI/Rainytoken/releases).
 
-> ⚠️ You need a DeepSeek API Key, OpenCode Go login credentials, CommandCode API Key, Codex (OAuth sign-in or pasted auth.json), or an Ollama Cookie to fetch data.
+> ⚠️ You need a DeepSeek API Key, an OpenCode Go API Key, a CommandCode API Key, Codex (OAuth sign-in or pasted auth.json), or an Ollama Cookie to fetch data. The OpenCode Go auth cookie and workspaceId are optional — only for usage records and the per-model breakdown.
 
 ---
 
