@@ -4,7 +4,6 @@ import com.rainy.token.data.cache.BalanceCache
 import com.rainy.token.data.debug.DebugLog
 import com.rainy.token.domain.model.Credential
 import com.rainy.token.domain.model.ServiceBalance
-import com.rainy.token.domain.model.TriggerSummary
 import com.rainy.token.domain.service.ServiceConfigProvider
 import com.rainy.token.domain.service.ServiceType
 import kotlinx.coroutines.Dispatchers
@@ -14,13 +13,11 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonObject
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
-import java.security.MessageDigest
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.format.DateTimeParseException
@@ -37,9 +34,10 @@ import javax.inject.Singleton
  * 内含 `accessToken` + `refreshToken`，token 到期自动用 refresh_token 续期。
  *
  * 请求头指纹对齐 opencodex（`src/providers/quota/vendor-probes-oauth.ts`）：
- * usage 端点用 claude-cli User-Agent + anthropic-beta 列表；
- * 一键激活（messages 端点）额外补齐 Claude Code CLI 的完整头集合，
- * 并把 Claude Code 身份声明作为 system 首个 block。
+ * usage 端点用 claude-cli User-Agent + anthropic-beta 列表。
+ *
+ * 「一键激活用量」未实现：Claude 的订阅配额只能通过官方 messages 端点消耗额度来触发，
+ * 会真实扣减用户额度，故不提供该入口（模型列表接口随之也不需要）。
  *
  * 不在类上加 @Inject constructor —— 在 [com.rainy.token.di.NetworkModule] 里 @Provides 显式提供。
  */
@@ -165,125 +163,6 @@ class ClaudeRepository(
         Result.success(balance)
     }
 
-    /**
-     * 从 models.dev/api.json 获取 Claude 可用模型列表（provider key = "anthropic"）。
-     * 该 API 不需要认证。
-     */
-    suspend fun fetchModels(): Result<List<String>> = withContext(Dispatchers.IO) {
-        try {
-            val request = Request.Builder().url(MODELS_API)
-                .header("Accept", "application/json")
-                .header("User-Agent", "rainy-token/0.1")
-                .get().build()
-            val models = okHttpClient.newCall(request).execute().use { resp ->
-                if (!resp.isSuccessful) {
-                    DebugLog.e(TAG, "fetchModels: HTTP ${resp.code}")
-                    return@withContext Result.failure(RepositoryError.ServerError(resp.code))
-                }
-                val root = json.parseToJsonElement(
-                    resp.body?.string() ?: throw RepositoryError.ParseError(
-                        RepositoryError.ParseErrorReason.EMPTY_BODY, "响应体为空"
-                    )
-                ) as? JsonObject
-                    ?: throw RepositoryError.ParseError(
-                        RepositoryError.ParseErrorReason.NOT_JSON_OBJECT, "响应根节点不是 JSON 对象"
-                    )
-                val provider = root["anthropic"] as? JsonObject
-                val modelsObj = provider?.get("models") as? JsonObject
-                modelsObj?.keys?.toList()?.sorted()
-                    ?: throw RepositoryError.ParseError(
-                        RepositoryError.ParseErrorReason.NO_MODELS, "未找到 Claude 模型列表"
-                    )
-            }
-            if (models.isEmpty()) {
-                return@withContext Result.failure(
-                    RepositoryError.ParseError(RepositoryError.ParseErrorReason.MODELS_EMPTY, "模型列表为空")
-                )
-            }
-            DebugLog.i(TAG, "fetchModels: 获取到 ${models.size} 个模型")
-            Result.success(models)
-        } catch (e: IOException) {
-            DebugLog.e(TAG, "fetchModels 网络异常: ${e.message}")
-            Result.failure(RepositoryError.Network(e))
-        } catch (e: RepositoryError) {
-            Result.failure(e)
-        } catch (e: Throwable) {
-            DebugLog.e(TAG, "fetchModels 异常: ${e::class.simpleName}: ${e.message}")
-            Result.failure(RepositoryError.Unknown(e))
-        }
-    }
-
-    /**
-     * 一键激活用量：用 OAuth token 向 messages 端点发一条最小请求。
-     *
-     * 请求指纹与 Claude Code CLI 对齐（否则 OAuth token 会被判定为非官方客户端）：
-     * `anthropic-beta` + Claude Code 头集合 + 稳定 session id + system 首块身份声明。
-     */
-    suspend fun triggerUsage(model: String): Result<TriggerSummary> = withContext(Dispatchers.IO) {
-        val credential = credentialRepository.get(ServiceType.CLAUDE)
-            ?: return@withContext Result.failure(RepositoryError.InvalidCredential("未找到 Claude Code 凭据"))
-        if (credential !is Credential.ClaudeCredential) {
-            return@withContext Result.failure(RepositoryError.InvalidCredential("凭据类型不匹配"))
-        }
-
-        val effectiveCred = ensureToken(credential)
-            ?: return@withContext Result.failure(
-                TriggerError("token 刷新失败", "", TriggerErrorReason.TOKEN_REFRESH)
-            )
-
-        DebugLog.i(TAG, "triggerUsage: model=$model")
-        val body = """
-            {"model":"$model","max_tokens":32,
-             "system":[{"type":"text","text":"$CLAUDE_CODE_SYSTEM_INSTRUCTION"}],
-             "messages":[{"role":"user","content":[{"type":"text","text":"hi"}]}]}
-        """.trimIndent().toRequestBody(JSON_MEDIA_TYPE)
-
-        try {
-            val first = postMessages(effectiveCred.accessToken, body)
-            if (first.success) {
-                Result.success(parseMessagesResponse(first.body, model))
-            } else if (first.code == 401 || first.code == 403) {
-                // access token 已失效（可能只是本地 expiresAt 不准），二次刷新后重试一次
-                DebugLog.w(TAG, "triggerUsage: HTTP ${first.code}，尝试二次刷新")
-                val refreshed = ensureToken(effectiveCred, force = true)
-                    ?: return@withContext Result.failure(
-                        TriggerError("token 刷新失败", first.body, TriggerErrorReason.TOKEN_REFRESH)
-                    )
-                val retry = postMessages(refreshed.accessToken, body)
-                if (retry.success) {
-                    Result.success(parseMessagesResponse(retry.body, model))
-                } else {
-                    DebugLog.e(TAG, "triggerUsage retry failed: HTTP ${retry.code}")
-                    Result.failure(TriggerError("HTTP ${retry.code}", retry.body.ifBlank { "" }))
-                }
-            } else {
-                DebugLog.e(TAG, "triggerUsage failed: HTTP ${first.code}")
-                Result.failure(TriggerError("HTTP ${first.code}", first.body.ifBlank { "" }))
-            }
-        } catch (e: IOException) {
-            DebugLog.e(TAG, "triggerUsage 网络异常: ${e.message}")
-            Result.failure(RepositoryError.Network(e))
-        } catch (e: Throwable) {
-            DebugLog.e(TAG, "triggerUsage 异常: ${e::class.simpleName}: ${e.message}")
-            Result.failure(RepositoryError.Unknown(e))
-        }
-    }
-
-    /** messages 请求结果（不抛错，由调用方按 code 决定后续）。 */
-    private data class MessagesResponse(val code: Int, val body: String) {
-        val success: Boolean get() = code in 200..299
-    }
-
-    /** 执行一次 messages 请求。 */
-    private fun postMessages(accessToken: String, body: okhttp3.RequestBody): MessagesResponse {
-        val request = claudeCodeRequest(MESSAGES_API, accessToken).post(body).build()
-        okHttpClient.newCall(request).execute().use { resp ->
-            val bodyStr = resp.body?.string() ?: ""
-            DebugLog.i(TAG, "messages: HTTP ${resp.code}, body=${bodyStr.take(500)}")
-            return MessagesResponse(resp.code, bodyStr)
-        }
-    }
-
     // ── 网络 ──
 
     /** `GET /api/oauth/usage`，头指纹对齐 opencodex 的 Claude usage 探针。 */
@@ -313,57 +192,10 @@ class ClaudeRepository(
         }
     }
 
-    /** Claude Code CLI 指纹请求（messages 端点）。 */
-    private fun claudeCodeRequest(url: String, accessToken: String): Request.Builder =
-        Request.Builder().url(url)
-            .header("Content-Type", "application/json")
-            .header("anthropic-version", ANTHROPIC_VERSION)
-            .header("Accept", "application/json")
-            .header("User-Agent", CLAUDE_CODE_USER_AGENT)
-            .header("Authorization", "Bearer $accessToken")
-            .header("anthropic-beta", ANTHROPIC_OAUTH_BETA)
-            .header("X-App", "cli")
-            .header("X-Stainless-Retry-Count", "0")
-            .header("X-Stainless-Runtime", "node")
-            .header("X-Stainless-Lang", "js")
-            .header("X-Stainless-Timeout", "600")
-            .header("X-Stainless-Arch", STAINLESS_ARCH)
-            .header("X-Stainless-OS", STAINLESS_OS)
-            .header("X-Stainless-Package-Version", STAINLESS_PACKAGE_VERSION)
-            .header("X-Stainless-Runtime-Version", STAINLESS_RUNTIME_VERSION)
-            .header("X-Claude-Code-Session-Id", claudeCodeSessionId(accessToken))
-            .header("x-client-request-id", randomClientRequestId())
-
     // ── Token 刷新 ──
 
     private fun tokenNeedsRefresh(cred: Credential.ClaudeCredential): Boolean =
         cred.expiresAt > 0L && System.currentTimeMillis() >= cred.expiresAt - REFRESH_BUFFER_MS
-
-    /**
-     * 确保 access_token 有效，返回刷新后的凭据或 null（刷新失败时）。
-     *
-     * 刷新成功后**必须落盘**：Anthropic 的 refresh token 会被轮换，且有复用检测
-     * （旧 refresh token 再用会直接失效），丢弃新 token 会让用户凭据报废。
-     *
-     * @param force 忽略 expiresAt 判断，强制刷新（用于收到 401/403 后的重试）
-     */
-    private suspend fun ensureToken(
-        credential: Credential.ClaudeCredential,
-        force: Boolean = false
-    ): Credential.ClaudeCredential? {
-        if (!force && !tokenNeedsRefresh(credential)) return credential
-        DebugLog.i(TAG, "ensureToken: 刷新 token（force=$force）")
-        return when (val r = refreshToken(credential)) {
-            is RefreshResult.Success -> {
-                credentialRepository.save(r.cred)
-                r.cred
-            }
-            is RefreshResult.Failure -> {
-                DebugLog.e(TAG, "ensureToken: token 刷新失败: ${r.reason}")
-                null
-            }
-        }
-    }
 
     private suspend fun refreshToken(cred: Credential.ClaudeCredential): RefreshResult =
         refreshTokenBlocking(cred)
@@ -415,51 +247,20 @@ class ClaudeRepository(
     companion object {
         private const val TAG = "Claude"
         private const val USAGE_API = "https://api.anthropic.com/api/oauth/usage"
-        private const val MESSAGES_API = "https://api.anthropic.com/v1/messages"
         private const val TOKEN_URL = "https://api.anthropic.com/v1/oauth/token"
-        private const val MODELS_API = "https://models.dev/api.json"
 
         /** Claude Code CLI 的 OAuth client id（公开常量，与官方 CLI 同源）。 */
         private const val CLAUDE_CODE_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
 
-        private const val ANTHROPIC_VERSION = "2023-06-01"
-        private const val CLAUDE_CODE_USER_AGENT = "@anthropic-ai/sdk/0.74.0"
         /** usage 探针的 User-Agent（opencodex vendor-probes-oauth.ts 同款）。 */
         private const val USAGE_USER_AGENT = "claude-cli/2.1.63 (external, cli)"
         /** usage 探针的 anthropic-beta 列表（与 opencodex 逐项一致）。 */
         private const val USAGE_BETA =
             "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14," +
                 "context-management-2025-06-27,prompt-caching-scope-2026-01-05"
-        /** messages 端点的 anthropic-beta（opencodex ANTHROPIC_OAUTH_BETA）。 */
-        private const val ANTHROPIC_OAUTH_BETA = "claude-code-20250219,oauth-2025-04-20"
-        /** OAuth 请求的 system 首个 block：Claude Code 身份声明。 */
-        private const val CLAUDE_CODE_SYSTEM_INSTRUCTION =
-            "You are a Claude agent, built on Anthropic's Claude Agent SDK."
-
-        // X-Stainless-* 指纹：对齐 Claude Code CLI（@anthropic-ai/sdk 0.74.0 / node）
-        private const val STAINLESS_ARCH = "arm64"
-        private const val STAINLESS_OS = "linux"
-        private const val STAINLESS_PACKAGE_VERSION = "0.74.0"
-        private const val STAINLESS_RUNTIME_VERSION = "22.14.0"
 
         private const val REFRESH_BUFFER_MS = 5L * 60 * 1000
         private val JSON_MEDIA_TYPE = "application/json".toMediaType()
-
-        /**
-         * 由 token 派生稳定的 Claude Code session id（UUIDv4 形状）。
-         * 与 opencodex `claudeCodeSessionId` 同算法：sha256("claude-code-session:" + token)。
-         */
-        internal fun claudeCodeSessionId(token: String): String {
-            val seed = token.ifBlank { "rainytoken-anon" }
-            val digest = MessageDigest.getInstance("SHA-256")
-                .digest("claude-code-session:$seed".toByteArray(Charsets.UTF_8))
-            val hex = digest.joinToString("") { "%02x".format(it) }
-            val variant = ((hex[16].digitToInt(16) and 0x3) or 0x8).toString(16)
-            return "${hex.substring(0, 8)}-${hex.substring(8, 12)}-4${hex.substring(13, 16)}-" +
-                "$variant${hex.substring(17, 20)}-${hex.substring(20, 32)}"
-        }
-
-        private fun randomClientRequestId(): String = java.util.UUID.randomUUID().toString()
 
         /**
          * 解析 `GET /api/oauth/usage` 响应。
@@ -575,30 +376,3 @@ internal data class ClaudeUsageWindow(
     val percent: Float,
     val resetAtMillis: Long? = null
 )
-
-/**
- * 解析 Claude messages 响应，提取回复文本与 token 用量。
- */
-internal fun parseMessagesResponse(responseBody: String, model: String): TriggerSummary {
-    val json = Json { ignoreUnknownKeys = true }
-    return try {
-        val root = json.parseToJsonElement(responseBody) as? JsonObject
-        val content = root?.get("content") as? JsonArray
-        val text = content?.mapNotNull { block ->
-            val obj = block as? JsonObject ?: return@mapNotNull null
-            if ((obj["type"] as? JsonPrimitive)?.contentOrNull != "text") return@mapNotNull null
-            (obj["text"] as? JsonPrimitive)?.contentOrNull
-        }?.joinToString("")
-        val usage = root?.get("usage") as? JsonObject
-        TriggerSummary(
-            model = model,
-            reply = text?.takeIf { it.isNotBlank() },
-            inputTokens = (usage?.get("input_tokens") as? JsonPrimitive)?.contentOrNull,
-            outputTokens = (usage?.get("output_tokens") as? JsonPrimitive)?.contentOrNull,
-            totalTokens = null,
-            parseFailed = text == null
-        )
-    } catch (_: Exception) {
-        TriggerSummary(model = model, reply = null, parseFailed = true)
-    }
-}

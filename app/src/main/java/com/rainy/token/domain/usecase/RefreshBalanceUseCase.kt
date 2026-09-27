@@ -74,14 +74,6 @@ class RefreshBalanceUseCase @Inject constructor(
             openCodeGoRepositoryProvider.get().triggerUsage(model)
         }
 
-    suspend fun fetchClaudeModels(): Result<List<String>> =
-        claudeRepositoryProvider.get().fetchModels()
-
-    suspend fun triggerClaudeUsage(model: String): Result<TriggerSummary> =
-        withCredentialSession(ServiceType.CLAUDE) {
-            claudeRepositoryProvider.get().triggerUsage(model)
-        }
-
     suspend fun fetchOllamaModels(): Result<List<String>> =
         ollamaRepositoryProvider.get().fetchModels()
 

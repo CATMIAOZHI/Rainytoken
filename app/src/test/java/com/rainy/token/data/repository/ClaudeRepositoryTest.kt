@@ -9,9 +9,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Unit tests for [ClaudeRepository.parseUsageResponse],
- * [ClaudeRepository.parseResetEpochMillis], [ClaudeRepository.claudeCodeSessionId]
- * and [parseMessagesResponse].
+ * Unit tests for [ClaudeRepository.parseUsageResponse]
+ * and [ClaudeRepository.parseResetEpochMillis].
  *
  * **JsonNull safety red line**: 显式 JSON null（`"utilization": null`）必须通过
  * `as? JsonPrimitive` 安全跳过，不能走 `jsonPrimitive`（会抛异常）。
@@ -153,67 +152,5 @@ class ClaudeRepositoryTest {
         assertNull(ClaudeRepository.parseResetEpochMillis("   "))
         assertNull(ClaudeRepository.parseResetEpochMillis("not-a-date"))
         assertNull(ClaudeRepository.parseResetEpochMillis("0"))
-    }
-
-    // ── claudeCodeSessionId ──
-
-    @Test
-    fun `session id has uuidv4 shape and is stable`() {
-        val id = ClaudeRepository.claudeCodeSessionId("sk-ant-oat01-example")
-        val regex = Regex("^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
-        assertTrue("unexpected session id: $id", regex.matches(id))
-        assertEquals(id, ClaudeRepository.claudeCodeSessionId("sk-ant-oat01-example"))
-    }
-
-    @Test
-    fun `session id differs per token`() {
-        val a = ClaudeRepository.claudeCodeSessionId("token-a")
-        val b = ClaudeRepository.claudeCodeSessionId("token-b")
-        assertTrue(a != b)
-    }
-
-    @Test
-    fun `session id for blank token is still valid`() {
-        val id = ClaudeRepository.claudeCodeSessionId("")
-        assertTrue(id.matches(Regex("^[0-9a-f-]{36}$")))
-    }
-
-    // ── parseMessagesResponse ──
-
-    @Test
-    fun `messages response extracts text and tokens`() {
-        val summary = parseMessagesResponse(
-            """
-            {"content":[{"type":"text","text":"hi there"}],
-             "usage":{"input_tokens":4,"output_tokens":2}}
-            """.trimIndent(),
-            "claude-sonnet-4-5"
-        )
-        assertEquals("claude-sonnet-4-5", summary.model)
-        assertEquals("hi there", summary.reply)
-        assertEquals("4", summary.inputTokens)
-        assertEquals("2", summary.outputTokens)
-        assertEquals(false, summary.parseFailed)
-    }
-
-    @Test
-    fun `messages response without text marks parse failed`() {
-        val summary = parseMessagesResponse("""{"usage":{"input_tokens":1}}""", "m")
-        assertNull(summary.reply)
-        assertEquals(true, summary.parseFailed)
-    }
-
-    @Test
-    fun `messages response with empty content keeps parse ok`() {
-        val summary = parseMessagesResponse("""{"content":[]}""", "m")
-        assertNull(summary.reply)
-        assertEquals(false, summary.parseFailed)
-    }
-
-    @Test
-    fun `messages response malformed marks parse failed`() {
-        val summary = parseMessagesResponse("<html>oops</html>", "m")
-        assertEquals(true, summary.parseFailed)
-        assertNull(summary.reply)
     }
 }

@@ -119,9 +119,8 @@ fun ServiceDetailScreen(
     val config = ServiceConfigProvider.get(service)
     val isManualMode = config.method == FetchMethod.MANUAL
 
-    // Codex / OCGO / Ollama / Claude 服务且有凭据时自动加载模型列表
-    val supportsTrigger = service == ServiceType.CODEX || service == ServiceType.OPENCODE_GO ||
-        service == ServiceType.OLLAMA || service == ServiceType.CLAUDE
+    // Codex / OCGO / Ollama 服务且有凭据时自动加载模型列表
+    val supportsTrigger = service == ServiceType.CODEX || service == ServiceType.OPENCODE_GO || service == ServiceType.OLLAMA
     LaunchedEffect(service, uiState.hasCredential) {
         if (supportsTrigger && uiState.hasCredential) {
             viewModel.loadModels()
@@ -1193,9 +1192,8 @@ private fun ActionButtons(
     onRefreshModels: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // 一键激活用量区域（Codex / OCGO / Ollama / Claude）
-        val supportsTrigger = service == ServiceType.CODEX || service == ServiceType.OPENCODE_GO ||
-            service == ServiceType.OLLAMA || service == ServiceType.CLAUDE
+        // 一键激活用量区域（Codex / OCGO / Ollama）
+        val supportsTrigger = service == ServiceType.CODEX || service == ServiceType.OPENCODE_GO || service == ServiceType.OLLAMA
         if (supportsTrigger && hasCredential && !isManualMode) {
             // 模型选择器 + 刷新按钮
             if (modelsLoading) {
