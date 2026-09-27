@@ -64,6 +64,7 @@ class ServiceDetailViewModel @Inject constructor(
         private const val KEY_MODELS_CACHE = "models_cache"
         private const val OCGO_PREFS = "ocgo_trigger_prefs"
         private const val OLLAMA_PREFS = "ollama_trigger_prefs"
+        private const val CLAUDE_PREFS = "claude_trigger_prefs"
 
         /** 缓存新鲜度阈值：fetchedAt 距今 ≤5 分钟视为最新数据，不再标记为"缓存"。 */
         private const val CACHE_FRESH_THRESHOLD_MS = 5 * 60_000L
@@ -89,6 +90,7 @@ class ServiceDetailViewModel @Inject constructor(
         ServiceType.CODEX -> CODEX_PREFS
         ServiceType.OPENCODE_GO -> OCGO_PREFS
         ServiceType.OLLAMA -> OLLAMA_PREFS
+        ServiceType.CLAUDE -> CLAUDE_PREFS
         else -> CODEX_PREFS
     }
 
@@ -104,7 +106,8 @@ class ServiceDetailViewModel @Inject constructor(
         _modelsLoading.value = false
         _triggerState.value = TriggerState.Idle
 
-        if (service == ServiceType.CODEX || service == ServiceType.OPENCODE_GO || service == ServiceType.OLLAMA) {
+        if (service == ServiceType.CODEX || service == ServiceType.OPENCODE_GO ||
+            service == ServiceType.OLLAMA || service == ServiceType.CLAUDE) {
             loadSelectedModel(service)?.let { _selectedModel.value = it }
             loadModelsCache(service).takeIf { it.isNotEmpty() }?.let { _models.value = it }
         }
@@ -268,6 +271,7 @@ class ServiceDetailViewModel @Inject constructor(
                 ServiceType.CODEX -> refreshBalanceUseCase.fetchCodexModels()
                 ServiceType.OPENCODE_GO -> refreshBalanceUseCase.fetchOpenCodeGoModels()
                 ServiceType.OLLAMA -> refreshBalanceUseCase.fetchOllamaModels()
+                ServiceType.CLAUDE -> refreshBalanceUseCase.fetchClaudeModels()
                 else -> Result.failure(
                     RepositoryError.Unknown(IllegalArgumentException("不支持模型列表"))
                 )
@@ -322,6 +326,7 @@ class ServiceDetailViewModel @Inject constructor(
                 ServiceType.CODEX -> refreshBalanceUseCase.triggerCodexUsage(model)
                 ServiceType.OPENCODE_GO -> refreshBalanceUseCase.triggerOpenCodeGoUsage(model)
                 ServiceType.OLLAMA -> refreshBalanceUseCase.triggerOllamaUsage(model)
+                ServiceType.CLAUDE -> refreshBalanceUseCase.triggerClaudeUsage(model)
                 else -> Result.failure(
                     RepositoryError.Unknown(IllegalArgumentException("不支持激活用量"))
                 )
@@ -418,6 +423,8 @@ class ServiceDetailViewModel @Inject constructor(
                 is Credential.SessionCredential ->
                     credential.copy(lastVerifiedAt = System.currentTimeMillis())
                 is Credential.CodexCredential ->
+                    credential.copy(lastVerifiedAt = System.currentTimeMillis())
+                is Credential.ClaudeCredential ->
                     credential.copy(lastVerifiedAt = System.currentTimeMillis())
             }
             credentialRepository.save(updated)

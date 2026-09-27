@@ -562,4 +562,21 @@
     <string name="month_12">Dec</string>
     <string name="field_api_key">API Key</string>
     <string name="field_workspace_id">Workspace ID</string>
+
+    <!-- Claude Code -->
+    <string name="credential_title_claude">Claude Code credentials</string>
+    <string name="credential_hint_claude">Paste the content of Claude Code\'s ~/.claude/.credentials.json (includes accessToken and refreshToken); the token refreshes automatically when it expires.</string>
+    <string name="field_claude_credentials_json">Claude Code credentials JSON</string>
+    <string name="placeholder_claude_credentials">{"claudeAiOauth": {"accessToken": "sk-ant-oat01-…", "refreshToken": "sk-ant-ort01-…", "expiresAt": 1730000000000}}</string>
+    <string name="action_how_get_claude_credentials">How to get .credentials.json?</string>
+    <string name="error_claude_json_empty">Please paste the Claude Code credentials content</string>
+    <string name="error_claude_json_parse">Could not parse credentials: missing accessToken</string>
+    <string name="msg_claude_saved">Claude Code credential saved; token auto-refreshes when expiring</string>
+    <string name="help_claude_title">How to get Claude Code credentials</string>
+    <string name="help_claude_1">1. On the machine where Claude Code is installed, open ~/.claude/.credentials.json</string>
+    <string name="help_claude_2">2. Copy the whole file and paste it here (either the wrapper or the inner object works)</string>
+    <string name="help_claude_3">3. Keep refreshToken — without it the access token cannot renew after ~8 hours</string>
+    <string name="help_claude_note">Balance is read from the official usage endpoint (5-hour + weekly windows); the credential never leaves your device.</string>
+    <string name="service_desc_claude">Claude Code subscription quota</string>
+    <string name="window_model_weekly">Model weekly</string>
 </resources>

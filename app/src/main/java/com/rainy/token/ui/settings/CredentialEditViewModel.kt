@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -85,6 +86,23 @@ class CredentialEditViewModel @Inject constructor(
                             if (existing.expiresAt > 0) {
                                 appendLine(",")
                                 append("  \"expires_at\": ${existing.expiresAt}")
+                            }
+                            appendLine()
+                            append("}")
+                        }
+                    } else "",
+                    claudeCredentialJson = if (existing is Credential.ClaudeCredential) {
+                        buildString {
+                            appendLine("{")
+                            appendLine("  \"accessToken\": \"${existing.accessToken}\",")
+                            appendLine("  \"refreshToken\": \"${existing.refreshToken}\"")
+                            if (!existing.subscriptionType.isNullOrBlank()) {
+                                appendLine(",")
+                                append("  \"subscriptionType\": \"${existing.subscriptionType}\"")
+                            }
+                            if (existing.expiresAt > 0) {
+                                appendLine(",")
+                                append("  \"expiresAt\": ${existing.expiresAt}")
                             }
                             appendLine()
                             append("}")
@@ -350,6 +368,117 @@ class CredentialEditViewModel @Inject constructor(
         _uiState.update { it.copy(codexAuthJson = value) }
     }
 
+    fun updateClaudeCredentialJson(value: String) {
+        _uiState.update { it.copy(claudeCredentialJson = value) }
+    }
+
+    /**
+     * 保存 Claude Code 凭据（`~/.claude/.credentials.json`）。
+     *
+     * 兼容两种形态：带 `claudeAiOauth` 外层（官方文件原样）与直接是内层对象。
+     * 字段名同时接受 camelCase 与 snake_case；缺少 refresh_token 时仍可保存，
+     * 但过期后无法自动续期（保存会给出提示）。
+     */
+    fun saveClaudeCredential() {
+        val type = serviceType ?: return
+        val text = _uiState.value.claudeCredentialJson.trim()
+        if (text.isBlank()) {
+            _uiState.update { it.copy(message = UiText.Resource(R.string.error_claude_json_empty)) }
+            return
+        }
+        val parsed = parseClaudeCredentialJson(text)
+        if (parsed == null) {
+            _uiState.update { it.copy(message = UiText.Resource(R.string.error_claude_json_parse)) }
+            return
+        }
+        viewModelScope.launch {
+            val existing = credentialRepository.get(type) as? Credential.ClaudeCredential
+            val updated = Credential.ClaudeCredential(
+                service = type,
+                accessToken = parsed.accessToken,
+                refreshToken = parsed.refreshToken.ifBlank { existing?.refreshToken.orEmpty() },
+                subscriptionType = parsed.subscriptionType ?: existing?.subscriptionType,
+                accountId = existing?.accountId.orEmpty(),
+                expiresAt = parsed.expiresAt,
+                lastVerifiedAt = System.currentTimeMillis()
+            )
+            credentialRepository.save(updated)
+            _uiState.update { it.copy(message = UiText.Resource(R.string.msg_claude_saved), hasExisting = true) }
+        }
+    }
+
+    /** 测试并保存 Claude 凭据：先落盘再查一次配额，失败时回滚。 */
+    fun testAndSaveClaude() {
+        val type = serviceType ?: return
+        val text = _uiState.value.claudeCredentialJson.trim()
+        if (text.isBlank()) {
+            _uiState.update { it.copy(message = UiText.Resource(R.string.error_claude_json_empty)) }
+            return
+        }
+        val parsed = parseClaudeCredentialJson(text)
+        if (parsed == null) {
+            _uiState.update { it.copy(message = UiText.Resource(R.string.error_claude_json_parse)) }
+            return
+        }
+        viewModelScope.launch {
+            val previous = credentialRepository.get(type)
+            val existing = previous as? Credential.ClaudeCredential
+            credentialRepository.save(
+                Credential.ClaudeCredential(
+                    service = type,
+                    accessToken = parsed.accessToken,
+                    refreshToken = parsed.refreshToken.ifBlank { existing?.refreshToken.orEmpty() },
+                    subscriptionType = parsed.subscriptionType ?: existing?.subscriptionType,
+                    accountId = existing?.accountId.orEmpty(),
+                    expiresAt = parsed.expiresAt,
+                    lastVerifiedAt = System.currentTimeMillis()
+                )
+            )
+            testAndRollback(
+                type = type,
+                saveAndPrep = { previous to { refreshBalanceUseCaseProvider.get().invoke(type) } },
+                formatSuccess = { UiText.Resource(R.string.msg_connect_success_saved) },
+                rollbackOnFailure = true
+            )
+        }
+    }
+
+    /** Claude 凭据 JSON 解析结果 */
+    private data class ParsedClaudeCredential(
+        val accessToken: String,
+        val refreshToken: String,
+        val subscriptionType: String?,
+        val expiresAt: Long
+    )
+
+    /**
+     * 解析 `.credentials.json`：支持 `claudeAiOauth` 外层与裸对象，
+     * 字段名兼容 camelCase / snake_case。缺少 accessToken 视为解析失败。
+     * 显式 JSON null（`"accessToken": null`）不算有效值。
+     */
+    private fun parseClaudeCredentialJson(text: String): ParsedClaudeCredential? = try {
+        val root = Json.parseToJsonElement(text).jsonObject
+        val oauth = (root["claudeAiOauth"] ?: root).jsonObject
+        fun field(vararg names: String): String? = names.firstNotNullOfOrNull { name ->
+            val element = oauth[name] ?: return@firstNotNullOfOrNull null
+            if (element is JsonNull) return@firstNotNullOfOrNull null
+            element.jsonPrimitive.content.takeIf { it.isNotBlank() && it != "null" }
+        }
+        val access = field("accessToken", "access_token")
+        if (access == null) {
+            null
+        } else {
+            ParsedClaudeCredential(
+                accessToken = access,
+                refreshToken = field("refreshToken", "refresh_token").orEmpty(),
+                subscriptionType = field("subscriptionType", "subscription_type"),
+                expiresAt = field("expiresAt", "expires_at")?.toLongOrNull() ?: 0L
+            )
+        }
+    } catch (_: Exception) {
+        null
+    }
+
     fun saveCodexAuthJson() {
         val type = serviceType ?: return
         val current = _uiState.value
@@ -585,7 +714,8 @@ class CredentialEditViewModel @Inject constructor(
                     workspaceId = "",
                     cookieCount = 0,
                     ollamaCookie = "",
-                    triggerApiKey = ""
+                    triggerApiKey = "",
+                    claudeCredentialJson = ""
                 )
             }
         }
@@ -660,6 +790,8 @@ data class CredentialEditUiState(
     val cookieCount: Int = 0,
     val hasExisting: Boolean = false,
     val codexAuthJson: String = "",
+    /** Claude Code 凭据 JSON（.credentials.json，含 claudeAiOauth 或裸对象） */
+    val claudeCredentialJson: String = "",
     val ollamaCookie: String = "",
     /** OCGO / Ollama 的一键激活用量 API Key */
     val triggerApiKey: String = "",

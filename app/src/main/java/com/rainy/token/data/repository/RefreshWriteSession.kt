@@ -72,4 +72,5 @@ private fun Credential.withLastVerifiedAt(value: Long): Credential = when (this)
     is Credential.ApiKeyCredential -> copy(lastVerifiedAt = value)
     is Credential.SessionCredential -> copy(lastVerifiedAt = value)
     is Credential.CodexCredential -> copy(lastVerifiedAt = value)
+    is Credential.ClaudeCredential -> copy(lastVerifiedAt = value)
 }

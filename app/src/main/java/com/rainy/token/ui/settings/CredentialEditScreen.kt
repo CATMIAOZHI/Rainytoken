@@ -77,6 +77,7 @@ fun CredentialEditScreen(
     var showGoHelp by remember { mutableStateOf(false) }
     var showOpenCcgoHelp by remember { mutableStateOf(false) }
     var showCodexHelp by remember { mutableStateOf(false) }
+    var showClaudeHelp by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.message) {
         uiState.message?.let { msg ->
@@ -135,6 +136,15 @@ fun CredentialEditScreen(
                         onSave = viewModel::saveCodexAuthJson,
                         onShowHelp = { showCodexHelp = true },
                         onStartOAuth = onStartCodexOAuth
+                    )
+                } else if (service == ServiceType.CLAUDE) {
+                    ClaudeCredentialJsonForm(
+                        credentialJson = uiState.claudeCredentialJson,
+                        hasExisting = uiState.hasExisting,
+                        onCredentialJsonChange = viewModel::updateClaudeCredentialJson,
+                        onSave = viewModel::saveClaudeCredential,
+                        onTestAndSave = viewModel::testAndSaveClaude,
+                        onShowHelp = { showClaudeHelp = true }
                     )
                 } else {
                     ApiKeyForm(
@@ -308,6 +318,27 @@ fun CredentialEditScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showCodexHelp = false }) {
+                    Text(stringResource(R.string.action_got_it))
+                }
+            }
+        )
+    }
+
+    if (showClaudeHelp) {
+        AlertDialog(
+            onDismissRequest = { showClaudeHelp = false },
+            title = { Text(stringResource(R.string.help_claude_title)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.help_claude_1))
+                    Text(stringResource(R.string.help_claude_2))
+                    Text(stringResource(R.string.help_claude_3))
+                    Text("")
+                    Text(stringResource(R.string.help_claude_note))
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showClaudeHelp = false }) {
                     Text(stringResource(R.string.action_got_it))
                 }
             }
@@ -508,6 +539,44 @@ private fun OpenCodeGoForm(
     }
     TextButton(onClick = onCopyLoginUrl, modifier = Modifier.fillMaxWidth()) {
         Text(text = stringResource(R.string.action_copy_login_url))
+    }
+}
+
+@Composable
+private fun ClaudeCredentialJsonForm(
+    credentialJson: String,
+    hasExisting: Boolean,
+    onCredentialJsonChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onTestAndSave: () -> Unit,
+    onShowHelp: () -> Unit
+) {
+    Text(text = stringResource(R.string.credential_title_claude), style = MaterialTheme.typography.titleMedium)
+    Text(
+        text = stringResource(R.string.credential_hint_claude),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.outline
+    )
+    OutlinedTextField(
+        value = credentialJson,
+        onValueChange = onCredentialJsonChange,
+        label = { Text(stringResource(R.string.field_claude_credentials_json)) },
+        placeholder = { Text(stringResource(R.string.placeholder_claude_credentials)) },
+        modifier = Modifier.fillMaxWidth(),
+        minLines = 6
+    )
+    Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) {
+        Text(if (hasExisting) stringResource(R.string.credential_update) else stringResource(R.string.credential_import_save))
+    }
+    OutlinedButton(
+        onClick = onTestAndSave,
+        modifier = Modifier.fillMaxWidth(),
+        enabled = credentialJson.isNotBlank()
+    ) {
+        Text(text = stringResource(R.string.action_test_and_save))
+    }
+    OutlinedButton(onClick = onShowHelp, modifier = Modifier.fillMaxWidth()) {
+        Text(text = stringResource(R.string.action_how_get_claude_credentials))
     }
 }
 

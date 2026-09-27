@@ -557,4 +557,21 @@
     <string name="month_12">十二月</string>
     <string name="field_api_key">API Key</string>
     <string name="field_workspace_id">Workspace ID</string>
+
+    <!-- Claude Code -->
+    <string name="credential_title_claude">Claude Code 凭据</string>
+    <string name="credential_hint_claude">粘贴 Claude Code 的 ~/.claude/.credentials.json 内容（含 accessToken 与 refreshToken），token 到期会自动刷新。</string>
+    <string name="field_claude_credentials_json">Claude Code 凭据 JSON</string>
+    <string name="placeholder_claude_credentials">{"claudeAiOauth": {"accessToken": "sk-ant-oat01-…", "refreshToken": "sk-ant-ort01-…", "expiresAt": 1730000000000}}</string>
+    <string name="action_how_get_claude_credentials">如何获取 .credentials.json？</string>
+    <string name="error_claude_json_empty">请粘贴 Claude Code 凭据内容</string>
+    <string name="error_claude_json_parse">凭据解析失败：缺少 accessToken</string>
+    <string name="msg_claude_saved">已保存 Claude Code 凭据，token 到期后会自动刷新</string>
+    <string name="help_claude_title">如何获取 Claude Code 凭据</string>
+    <string name="help_claude_1">1. 在安装了 Claude Code 的设备上打开 ~/.claude/.credentials.json</string>
+    <string name="help_claude_2">2. 复制整个文件内容粘贴到这里（带 claudeAiOauth 外层或只复制内层对象都可以）</string>
+    <string name="help_claude_3">3. 请保留 refreshToken —— 缺少它时 access token 约 8 小时后无法自动续期</string>
+    <string name="help_claude_note">余额来自官方用量接口（5 小时 + 每周窗口），凭据仅保存在本机。</string>
+    <string name="service_desc_claude">Claude Code 订阅配额</string>
+    <string name="window_model_weekly">模型每周</string>
 </resources>

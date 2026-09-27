@@ -111,8 +111,8 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                         localized.getString(R.string.widget_service_quota, selectedService.displayName)
                     )
                     views.setImageViewResource(R.id.widget_logo, widgetLogo(selectedService))
-                    // Ollama logo 是正方形，XML 默认 22x12 是给宽扁 logo 的
-                    if (selectedService == ServiceType.OLLAMA) {
+                    // Ollama / Claude logo 是正方形，XML 默认 22x12 是给宽扁 logo 的
+                    if (selectedService == ServiceType.OLLAMA || selectedService == ServiceType.CLAUDE) {
                         views.setViewLayoutWidth(R.id.widget_logo, 14f, TypedValue.COMPLEX_UNIT_DIP)
                         views.setViewLayoutHeight(R.id.widget_logo, 14f, TypedValue.COMPLEX_UNIT_DIP)
                     } else {
@@ -239,6 +239,44 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                     populateRow(views, ids.first, ids.second, ids.third, pct = window.second, resetSec = window.third)
                 }
             }
+            ServiceType.CLAUDE -> {
+                fun resetSecOf(key: String): Long? = extras[key]?.toLongOrNull()
+                    ?.let { (it - System.currentTimeMillis()) / 1000 }?.takeIf { it > 0 }
+                val modelCount = extras.keys
+                    .mapNotNull { key -> key.removePrefix("model_").substringBefore('.').toIntOrNull() }
+                    .distinct().maxOrNull()?.plus(1) ?: 0
+                val hasModel = modelCount > 0
+                setRowLabel(
+                    views,
+                    context.getString(R.string.window_5h_short),
+                    context.getString(R.string.window_every_week),
+                    if (hasModel) extras["model_0.label"] ?: "" else ""
+                )
+                populateRow(views, R.id.row1_pct, R.id.row1_bar, R.id.row1_reset,
+                    pct = extras["fiveHour.pct"]?.toFloatOrNull()?.roundToInt(),
+                    resetSec = resetSecOf("fiveHour.resetAt"))
+                populateRow(views, R.id.row2_pct, R.id.row2_bar, R.id.row2_reset,
+                    pct = extras["weekly.pct"]?.toFloatOrNull()?.roundToInt(),
+                    resetSec = resetSecOf("weekly.resetAt"))
+                if (hasModel) {
+                    populateRow(views, R.id.row3_pct, R.id.row3_bar, R.id.row3_reset,
+                        pct = extras["model_0.pct"]?.toFloatOrNull()?.roundToInt(),
+                        resetSec = resetSecOf("model_0.resetAt"))
+                } else {
+                    views.setTextViewText(R.id.row3_label, "")
+                    views.setTextViewText(R.id.row3_pct, "")
+                    views.setProgressBar(R.id.row3_bar, 100, 0, false)
+                    views.setTextViewText(R.id.row3_reset, "")
+                }
+                // 订阅类型（Max / Pro）合并到标题行
+                val plan = extras["plan"] ?: ""
+                if (plan.isNotEmpty()) {
+                    views.setTextViewText(
+                        R.id.widget_service_title,
+                        context.getString(R.string.widget_quota_with_plan, service.displayName, plan)
+                    )
+                }
+            }
             ServiceType.DEEPSEEK -> setEmptyState(views, context)
             ServiceType.OLLAMA -> {
                 setRowLabel(views, context.getString(R.string.window_5h_short), context.getString(R.string.window_every_week), "")
@@ -326,7 +364,7 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
         private const val KEY_LAST_AUTO_REFRESH = "last_auto_refresh"
         private const val KEY_DISPLAY_SERVICE = "display_service"
         private const val ACTION_SWITCH_SERVICE = "com.rainy.token.action.WIDGET_SWITCH_SERVICE"
-        private val DISPLAY_SERVICES = listOf(ServiceType.OPENCODE_GO, ServiceType.COMMANDCODE_GO, ServiceType.CODEX, ServiceType.OLLAMA)
+        private val DISPLAY_SERVICES = listOf(ServiceType.OPENCODE_GO, ServiceType.COMMANDCODE_GO, ServiceType.CODEX, ServiceType.OLLAMA, ServiceType.CLAUDE)
 
         private fun autoRefreshPrefs(context: Context) =
             context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -359,6 +397,7 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
             ServiceType.CODEX -> "Codex"
             ServiceType.DEEPSEEK -> "DS"
             ServiceType.OLLAMA -> "Ollama"
+            ServiceType.CLAUDE -> "Claude"
         }
 
         private fun widgetLogo(service: ServiceType): Int = when (service) {
@@ -366,6 +405,7 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
             ServiceType.CODEX -> R.drawable.ic_codex_logo_widget // PNG for RemoteViews compatibility
             ServiceType.DEEPSEEK -> R.drawable.ic_deepseek_logo
             ServiceType.OLLAMA -> R.drawable.ic_ollama_logo_widget
+            ServiceType.CLAUDE -> R.drawable.ic_claude_logo_widget // PNG for RemoteViews compatibility
         }
 
         /**

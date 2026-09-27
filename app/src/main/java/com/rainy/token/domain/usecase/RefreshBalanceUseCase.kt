@@ -1,5 +1,6 @@
 package com.rainy.token.domain.usecase
 
+import com.rainy.token.data.repository.ClaudeRepository
 import com.rainy.token.data.repository.CodexRepository
 import com.rainy.token.data.repository.CommandCodeGoRepository
 import com.rainy.token.data.repository.CredentialRepository
@@ -30,6 +31,7 @@ class RefreshBalanceUseCase @Inject constructor(
     private val openCodeGoRepositoryProvider: Provider<OpenCodeGoRepository>,
     private val commandCodeGoRepositoryProvider: Provider<CommandCodeGoRepository>,
     private val codexRepositoryProvider: Provider<CodexRepository>,
+    private val claudeRepositoryProvider: Provider<ClaudeRepository>,
     private val ollamaRepositoryProvider: Provider<OllamaRepository>
 ) {
     suspend operator fun invoke(service: ServiceType): Result<ServiceBalance> =
@@ -46,6 +48,9 @@ class RefreshBalanceUseCase @Inject constructor(
                 }
                 ServiceType.CODEX -> retryOnTransientError {
                     codexRepositoryProvider.get().fetchBalance()
+                }
+                ServiceType.CLAUDE -> retryOnTransientError {
+                    claudeRepositoryProvider.get().fetchBalance()
                 }
                 ServiceType.OLLAMA -> retryOnTransientError {
                     ollamaRepositoryProvider.get().fetchBalance()
@@ -67,6 +72,14 @@ class RefreshBalanceUseCase @Inject constructor(
     suspend fun triggerOpenCodeGoUsage(model: String): Result<TriggerSummary> =
         withCredentialSession(ServiceType.OPENCODE_GO) {
             openCodeGoRepositoryProvider.get().triggerUsage(model)
+        }
+
+    suspend fun fetchClaudeModels(): Result<List<String>> =
+        claudeRepositoryProvider.get().fetchModels()
+
+    suspend fun triggerClaudeUsage(model: String): Result<TriggerSummary> =
+        withCredentialSession(ServiceType.CLAUDE) {
+            claudeRepositoryProvider.get().triggerUsage(model)
         }
 
     suspend fun fetchOllamaModels(): Result<List<String>> =

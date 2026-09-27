@@ -75,6 +75,7 @@ import com.rainy.token.ui.components.StatusStyle
 import com.rainy.token.ui.components.asString
 import com.rainy.token.ui.components.DurationText
 import com.rainy.token.ui.components.formatAmount
+import com.rainy.token.ui.dashboard.claudePrimaryWindowLabel
 import com.rainy.token.ui.components.formatResetInSec
 import com.rainy.token.ui.components.isFiveHourLabel
 import com.rainy.token.ui.theme.inkMuted
@@ -118,8 +119,9 @@ fun ServiceDetailScreen(
     val config = ServiceConfigProvider.get(service)
     val isManualMode = config.method == FetchMethod.MANUAL
 
-    // Codex / OCGO / Ollama 服务且有凭据时自动加载模型列表
-    val supportsTrigger = service == ServiceType.CODEX || service == ServiceType.OPENCODE_GO || service == ServiceType.OLLAMA
+    // Codex / OCGO / Ollama / Claude 服务且有凭据时自动加载模型列表
+    val supportsTrigger = service == ServiceType.CODEX || service == ServiceType.OPENCODE_GO ||
+        service == ServiceType.OLLAMA || service == ServiceType.CLAUDE
     LaunchedEffect(service, uiState.hasCredential) {
         if (supportsTrigger && uiState.hasCredential) {
             viewModel.loadModels()
@@ -180,6 +182,9 @@ fun ServiceDetailScreen(
                 ServiceType.CODEX -> {
                 item { CodexUsageCard(uiState.state) }
             }
+                ServiceType.CLAUDE -> {
+                    item { ClaudeWindowsCard(uiState.state) }
+                }
                 ServiceType.OLLAMA -> {
                     item { OllamaUsageCard(uiState.state) }
                 }
@@ -433,6 +438,68 @@ private fun OpenCodeGoWindowsCard(state: State) {
 }
 
 /**
+ * Claude 配额卡片：5 小时会话 + 每周，外加模型级周窗口（Opus / Sonnet / Fable）。
+ * 数据来自 [com.rainy.token.data.repository.ClaudeRepository] 写入的 extras。
+ */
+@Composable
+private fun ClaudeWindowsCard(state: State) {
+    val balance = when (state) {
+        is State.Fresh -> state.data
+        is State.Stale -> state.data
+        is State.Error -> state.cached
+        else -> null
+    }
+    val extras = balance?.extras ?: return
+
+    fun resetSecOf(key: String): Long? = extras[key]?.toLongOrNull()
+        ?.let { ((it - System.currentTimeMillis()) / 1000).coerceAtLeast(0L) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                text = stringResource(R.string.usage_window_title_plain),
+                style = MaterialTheme.typography.labelLarge,
+                color = inkMuted()
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            UsageWindowRow(
+                label = stringResource(R.string.window_5h),
+                pct = extras["fiveHour.pct"]?.toFloatOrNull(),
+                resetInSec = resetSecOf("fiveHour.resetAt")
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Spacer(modifier = Modifier.height(14.dp))
+            UsageWindowRow(
+                label = stringResource(R.string.window_every_week),
+                pct = extras["weekly.pct"]?.toFloatOrNull(),
+                resetInSec = resetSecOf("weekly.resetAt")
+            )
+            // 模型级周窗口（Opus / Sonnet / Fable 等，按接口返回顺序）
+            val modelCount = extras.keys
+                .mapNotNull { key -> key.removePrefix("model_").substringBefore('.').toIntOrNull() }
+                .distinct().maxOrNull()?.plus(1) ?: 0
+            for (i in 0 until modelCount) {
+                val label = extras["model_$i.label"] ?: continue
+                Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Spacer(modifier = Modifier.height(14.dp))
+                UsageWindowRow(
+                    label = label,
+                    pct = extras["model_$i.pct"]?.toFloatOrNull(),
+                    resetInSec = resetSecOf("model_$i.resetAt")
+                )
+            }
+        }
+    }
+}
+
+/**
  * 解析 extras 中模型级用量 JSON（[OpenCodeGoRepository] 序列化的 WindowModelUsage）。
  * 返回整个窗口对象（含 limit，供配额计算）；解析失败返回空对象（UI 隐藏列表）。
  */
@@ -521,6 +588,7 @@ private fun UsageWindowRow(label: String, pct: Float?, resetInSec: Long?, decima
         hour = stringResource(R.string.format_hour),
         minute = stringResource(R.string.format_minute)
     )
+    val hasPct = pct != null
     val pctValue = (pct ?: 0f).coerceIn(0f, 100f)
     Column {
         Row(
@@ -535,16 +603,20 @@ private fun UsageWindowRow(label: String, pct: Float?, resetInSec: Long?, decima
             )
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
-                    text = String.format(Locale.US, "%.${decimals}f", pctValue),
+                    // 接口未返回该窗口时显示 "—"，与 Dashboard / Widget 保持一致，
+                    // 避免 0% 被误读为"额度已归零"
+                    text = if (hasPct) String.format(Locale.US, "%.${decimals}f", pctValue) else "—",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
-                Text(
-                    text = "%",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = inkMuted(),
-                    modifier = Modifier.padding(bottom = 2.dp, start = 2.dp)
-                )
+                if (hasPct) {
+                    Text(
+                        text = "%",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = inkMuted(),
+                        modifier = Modifier.padding(bottom = 2.dp, start = 2.dp)
+                    )
+                }
             }
         }
         Spacer(modifier = Modifier.height(6.dp))
@@ -915,9 +987,9 @@ private fun MainBalanceCard(state: State, service: ServiceType) {
                         contentAlignment = Alignment.Center
                     ) { CircularProgressIndicator(color = StrawberryPink) }
                 }
-                is State.Fresh -> BalanceBigNumber(state.data)
+                is State.Fresh -> MainBalanceNumber(state.data, service)
                 is State.Stale -> {
-                    BalanceBigNumber(state.data)
+                    MainBalanceNumber(state.data, service)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = stringResource(R.string.msg_stale_cache, formatTime(state.lastFetchedAt)),
@@ -926,7 +998,7 @@ private fun MainBalanceCard(state: State, service: ServiceType) {
                     )
                 }
                 is State.Error -> {
-                    BalanceBigNumber(state.cached)
+                    MainBalanceNumber(state.cached, service)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = stringResource(R.string.msg_showing_last_balance),
@@ -947,7 +1019,7 @@ private fun MainBalanceCard(state: State, service: ServiceType) {
 }
 
 @Composable
-private fun BalanceBigNumber(balance: ServiceBalance?) {
+private fun MainBalanceNumber(balance: ServiceBalance?, service: ServiceType) {
     if (balance == null) {
         Text(
             text = "—",
@@ -970,6 +1042,16 @@ private fun BalanceBigNumber(balance: ServiceBalance?) {
             color = inkMuted(),
             modifier = Modifier.padding(bottom = 8.dp)
         )
+        if (service == ServiceType.CLAUDE) {
+            // 主余额可能取自 5h / 每周 / 模型级窗口（取第一个可用者），标签需与数值同源
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = claudePrimaryLabel(balance),
+                style = MaterialTheme.typography.titleMedium,
+                color = inkMuted(),
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
     }
     if (!balance.isAvailable) {
         Spacer(modifier = Modifier.height(4.dp))
@@ -1111,8 +1193,9 @@ private fun ActionButtons(
     onRefreshModels: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // 一键激活用量区域（Codex / OCGO / Ollama）
-        val supportsTrigger = service == ServiceType.CODEX || service == ServiceType.OPENCODE_GO || service == ServiceType.OLLAMA
+        // 一键激活用量区域（Codex / OCGO / Ollama / Claude）
+        val supportsTrigger = service == ServiceType.CODEX || service == ServiceType.OPENCODE_GO ||
+            service == ServiceType.OLLAMA || service == ServiceType.CLAUDE
         if (supportsTrigger && hasCredential && !isManualMode) {
             // 模型选择器 + 刷新按钮
             if (modelsLoading) {
@@ -1259,8 +1342,17 @@ private fun mainCardLabel(service: ServiceType): String = when (service) {
     ServiceType.OPENCODE_GO -> stringResource(R.string.main_card_5h_usage)
     ServiceType.COMMANDCODE_GO -> stringResource(R.string.main_card_monthly_balance)
     ServiceType.CODEX -> stringResource(R.string.window_usage)
+    // Claude 的主余额取自 5h / 每周 / 模型级窗口中的第一个可用者，标题保持中性
+    ServiceType.CLAUDE -> stringResource(R.string.window_usage)
     ServiceType.OLLAMA -> stringResource(R.string.main_card_session_usage)
 }
+
+/**
+ * Claude 主余额的来源标签：主余额按 fiveHour → weekly → 首个模型窗口取值，标签需与数值同源。
+ * 与 Dashboard 复用同一实现（[com.rainy.token.ui.dashboard.claudePrimaryWindowLabel]）。
+ */
+@Composable
+private fun claudePrimaryLabel(balance: ServiceBalance): String = claudePrimaryWindowLabel(balance)
 
 private fun stateToChip(state: State): StatusStyle = when (state) {
     is State.Loading -> StatusStyle(R.string.status_loading, StatusLevel.INFO)

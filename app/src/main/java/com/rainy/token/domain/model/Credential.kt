@@ -9,6 +9,7 @@ import kotlinx.serialization.Serializable
  * - [ApiKeyCredential] 用于 DeepSeek（API Key 形式）
  * - [SessionCredential] 用于 OpenCode Zen/Go（用户登录 dashboard 后粘贴的值）
  * - [CodexCredential] 用于 Codex / ChatGPT（完整 OAuth 凭据，含自动刷新）
+ * - [ClaudeCredential] 用于 Claude Code（Claude Pro/Max 的 OAuth 凭据，含自动刷新）
  */
 @Serializable
 sealed class Credential {
@@ -60,6 +61,24 @@ sealed class Credential {
         val accountId: String,
         /** 过期时间（epoch millis） */
         val expiresAt: Long,
+        override val lastVerifiedAt: Long = 0L
+    ) : Credential()
+
+    /**
+     * 用于 Claude Code（Claude Pro/Max 订阅）：完整 OAuth 凭据，支持自动刷新。
+     * 用户从 Claude Code 的 `~/.claude/.credentials.json` 粘贴 `claudeAiOauth` 对象。
+     */
+    @Serializable
+    data class ClaudeCredential(
+        override val service: ServiceType,
+        val accessToken: String,
+        val refreshToken: String,
+        /** 订阅类型（如 max / pro）；凭据不带此字段时为 null。 */
+        val subscriptionType: String? = null,
+        /** Anthropic 账户 UUID（刷新响应回填，可选）。 */
+        val accountId: String = "",
+        /** 过期时间（epoch millis）；0 表示未知（不主动刷新，由 401 触发）。 */
+        val expiresAt: Long = 0L,
         override val lastVerifiedAt: Long = 0L
     ) : Credential()
 }

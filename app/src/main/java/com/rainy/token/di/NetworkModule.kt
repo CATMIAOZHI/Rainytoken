@@ -11,6 +11,7 @@ import com.rainy.token.data.local.UsageDatabase
 import com.rainy.token.data.local.usageCacheDataStore
 import com.rainy.token.data.repository.CredentialRepository
 import com.rainy.token.data.repository.DeepSeekRepository
+import com.rainy.token.data.repository.ClaudeRepository
 import com.rainy.token.data.repository.CodexRepository
 import com.rainy.token.data.repository.CommandCodeGoRepository
 import com.rainy.token.data.repository.CommandCodeUsageRepository
@@ -164,6 +165,17 @@ object NetworkModule {
         credentialRepository: CredentialRepository,
         balanceCache: BalanceCache
     ): CodexRepository = CodexRepository(okHttpClient, credentialRepository, balanceCache)
+
+    /**
+     * Claude 仓库：OAuth token 认证，调 api.anthropic.com 的 usage / messages 端点。
+     */
+    @Provides
+    @Singleton
+    fun provideClaudeRepository(
+        okHttpClient: OkHttpClient,
+        credentialRepository: CredentialRepository,
+        balanceCache: BalanceCache
+    ): ClaudeRepository = ClaudeRepository(okHttpClient, credentialRepository, balanceCache)
 
     /**
      * Ollama Cloud 用量仓库：Cookie 认证 + OkHttp 抓 settings HTML 解析。

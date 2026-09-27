@@ -312,6 +312,8 @@ class CredentialRepository @Inject constructor(
         ): Boolean = when {
             original is Credential.CodexCredential && updated is Credential.CodexCredential ->
                 original.service == updated.service && original.accountId == updated.accountId
+            original is Credential.ClaudeCredential && updated is Credential.ClaudeCredential ->
+                original.service == updated.service && original.accountId == updated.accountId
             else -> cacheIdentityFingerprint(original) == cacheIdentityFingerprint(updated)
         }
 
@@ -339,6 +341,15 @@ class CredentialRepository @Inject constructor(
                             field("cookie[$index].value", cookie.value)
                             field("cookie[$index].domain", cookie.domain)
                             field("cookie[$index].path", cookie.path)
+                        }
+                    }
+                    is Credential.ClaudeCredential -> {
+                        field("type", "claude")
+                        if (credential.accountId.isNotBlank()) {
+                            field("accountId", credential.accountId)
+                        } else {
+                            field("accessToken", credential.accessToken)
+                            field("refreshToken", credential.refreshToken)
                         }
                     }
                     is Credential.CodexCredential -> {
@@ -389,6 +400,12 @@ class CredentialRepository @Inject constructor(
                             field("cookie[$index].secure", cookie.isSecure.toString())
                             field("cookie[$index].httpOnly", cookie.isHttpOnly.toString())
                         }
+                    }
+                    is Credential.ClaudeCredential -> {
+                        field("type", "claude")
+                        field("accessToken", credential.accessToken)
+                        field("refreshToken", credential.refreshToken)
+                        field("accountId", credential.accountId)
                     }
                     is Credential.CodexCredential -> {
                         field("type", "codex")

@@ -86,6 +86,11 @@ internal fun BalanceMainArea(card: DashboardCardUi) {
             Spacer(modifier = Modifier.height(12.dp))
             CodexUsageWindows(balance)
         }
+        card.service == ServiceType.CLAUDE -> {
+            ClaudeMainBalance(balance)
+            Spacer(modifier = Modifier.height(12.dp))
+            ClaudeUsageWindows(balance)
+        }
         card.service == ServiceType.OLLAMA -> {
             OllamaMainBalance(balance)
             Spacer(modifier = Modifier.height(12.dp))
@@ -225,6 +230,86 @@ internal fun CommandCodeGoUsageWindows(balance: ServiceBalance) {
                 CompactUsageRowEmpty(label = label, resetInSec = resetSec)
             }
         }
+    }
+}
+
+@Composable
+internal fun ClaudeMainBalance(balance: ServiceBalance) {
+    val plan = balance.extras["plan"]?.takeIf { it.isNotBlank() }
+    Row(verticalAlignment = Alignment.Bottom) {
+        Text(
+            text = formatAmount(balance.amount),
+            style = MaterialTheme.typography.displayMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = "%",
+            style = MaterialTheme.typography.titleLarge,
+            color = inkMuted(),
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = 6.dp, start = 2.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            // 主余额可能取自 5h / 每周 / 模型级窗口，标签需与数值同源
+            text = claudePrimaryWindowLabel(balance),
+            style = MaterialTheme.typography.titleMedium,
+            color = inkMuted(),
+            modifier = Modifier.padding(bottom = 6.dp)
+        )
+        if (plan != null) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = stringResource(R.string.service_plan_suffix, plan.replaceFirstChar { c -> c.uppercaseChar() }),
+                style = MaterialTheme.typography.bodySmall,
+                color = inkMuted(),
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Claude 配额窗口：5 小时会话 + 每周，外加模型级周窗口（Opus / Sonnet / Fable）。
+ * extras 中 `model_<i>.label` 为模型短名，直接展示（是专有名词，不本地化）。
+ */
+@Composable
+internal fun ClaudeUsageWindows(balance: ServiceBalance) {
+    val extras = balance.extras
+    fun resetSecOf(key: String): Long? = extras[key]?.toLongOrNull()
+        ?.let { ((it - System.currentTimeMillis()) / 1000).coerceAtLeast(0L) }
+
+    val rows = buildList {
+        add(Triple(stringResource(R.string.window_5h), extras["fiveHour.pct"]?.toFloatOrNull()?.roundToInt(), resetSecOf("fiveHour.resetAt")))
+        add(Triple(stringResource(R.string.window_every_week), extras["weekly.pct"]?.toFloatOrNull()?.roundToInt(), resetSecOf("weekly.resetAt")))
+        val modelCount = extras.keys
+            .mapNotNull { key -> key.removePrefix("model_").substringBefore('.').toIntOrNull() }
+            .distinct().maxOrNull()?.plus(1) ?: 0
+        for (i in 0 until modelCount) {
+            val label = extras["model_$i.label"] ?: continue
+            add(Triple(label, extras["model_$i.pct"]?.toFloatOrNull()?.roundToInt(), resetSecOf("model_$i.resetAt")))
+        }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        rows.forEach { (label, pct, resetSec) ->
+            if (pct != null) {
+                CompactUsageRow(label = label, pct = pct, resetInSec = resetSec)
+            } else {
+                CompactUsageRowEmpty(label = label, resetInSec = resetSec)
+            }
+        }
+    }
+}
+
+/** Claude 主余额的来源标签：主余额按 fiveHour → weekly → 首个模型窗口取值，标签需与数值同源。 */
+@Composable
+internal fun claudePrimaryWindowLabel(balance: ServiceBalance): String {
+    val extras = balance.extras
+    return when {
+        !extras["fiveHour.pct"].isNullOrBlank() -> stringResource(R.string.window_5h_usage)
+        !extras["weekly.pct"].isNullOrBlank() -> stringResource(R.string.window_every_week)
+        else -> extras["model_0.label"] ?: stringResource(R.string.window_model_weekly)
     }
 }
 
@@ -554,6 +639,7 @@ internal fun secondaryLineRes(card: DashboardCardUi): Int = when (card.service) 
     ServiceType.OPENCODE_GO -> R.string.service_desc_opencode_go
     ServiceType.COMMANDCODE_GO -> R.string.service_desc_commandcode_go
     ServiceType.CODEX -> R.string.service_desc_codex
+    ServiceType.CLAUDE -> R.string.service_desc_claude
     ServiceType.OLLAMA -> R.string.service_desc_ollama
 }
 

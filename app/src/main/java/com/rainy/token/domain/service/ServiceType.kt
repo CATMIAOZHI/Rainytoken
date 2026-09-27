@@ -18,6 +18,7 @@ enum class ServiceType(
     COMMANDCODE_GO("CommandCode", "commandcode_go"),
     DEEPSEEK("DeepSeek", "deepseek"),
     CODEX("Codex / ChatGPT", "codex"),
+    CLAUDE("Claude Code", "claude"),
     OLLAMA("Ollama", "ollama");
 
     companion object {

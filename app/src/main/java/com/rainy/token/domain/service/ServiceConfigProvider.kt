@@ -61,6 +61,12 @@ object ServiceConfigProvider {
             loginUrl = "",
             displayUnit = "%"
         ),
+        ServiceType.CLAUDE to ServiceConfig(
+            type = ServiceType.CLAUDE,
+            method = FetchMethod.REST_API,
+            loginUrl = "",
+            displayUnit = "%"
+        ),
         ServiceType.OLLAMA to ServiceConfig(
             type = ServiceType.OLLAMA,
             method = FetchMethod.WEBVIEW_SCRAPER,

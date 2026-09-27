@@ -102,6 +102,22 @@ fun ServiceIcon(
                 )
             }
         }
+        ServiceType.CLAUDE -> {
+            // Claude 官方符号（取自 Wikimedia Commons 的官方 SVG，转成 Android vector）
+            Box(
+                modifier = modifier
+                    .size(size.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (isSystemInDarkTheme()) Color(0xFF352329) else Color.White),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_claude_logo),
+                    contentDescription = "Claude Code",
+                    modifier = Modifier.size((size * 0.72).dp)
+                )
+            }
+        }
         ServiceType.OLLAMA -> {
             Box(
                 modifier = modifier
