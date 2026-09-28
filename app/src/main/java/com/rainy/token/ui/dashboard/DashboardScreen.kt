@@ -280,27 +280,32 @@ fun DashboardScreen(
                         val items = rememberDashboardItems(
                             cards = uiState.cards,
                             order = cardOrder,
+                            hidden = uiState.hiddenServices,
                             onOpenUsageDetail = onOpenUsageDetail,
                             onOpenCcgoUsageDetail = onOpenCcgoUsageDetail,
                             onOpenService = onOpenService,
                             onOpenHeatmap = onOpenHeatmap,
                             refreshTrigger = usageSyncTrigger
                         )
-                        DraggableDashboardCards(
-                            items = items,
-                            wideEnough = wideEnough,
-                            scrollState = scrollState,
-                            viewportHeightPx = viewportHeightPx,
-                            viewportTopInWindow = viewportTopInWindow,
-                            onOrderChanged = { newOrder ->
-                                cardOrder.clear()
-                                cardOrder.addAll(newOrder)
-                                context.getSharedPreferences(DASHBOARD_ORDER_PREFS, android.content.Context.MODE_PRIVATE)
-                                    .edit()
-                                    .putString(DASHBOARD_ORDER_KEY, newOrder.joinToString(","))
-                                    .apply()
-                            }
-                        )
+                        if (items.isEmpty()) {
+                            AllProvidersHiddenCard(onClick = onOpenSettings)
+                        } else {
+                            DraggableDashboardCards(
+                                items = items,
+                                wideEnough = wideEnough,
+                                scrollState = scrollState,
+                                viewportHeightPx = viewportHeightPx,
+                                viewportTopInWindow = viewportTopInWindow,
+                                onOrderChanged = { newOrder ->
+                                    cardOrder.clear()
+                                    cardOrder.addAll(newOrder)
+                                    context.getSharedPreferences(DASHBOARD_ORDER_PREFS, android.content.Context.MODE_PRIVATE)
+                                        .edit()
+                                        .putString(DASHBOARD_ORDER_KEY, newOrder.joinToString(","))
+                                        .apply()
+                                }
+                            )
+                        }
                         // 一次性"长按拖拽排序"提示横幅
                         if (showDragHint) {
                             Card(
@@ -352,15 +357,49 @@ private const val USAGE_CCGO_CARD_ID = "usage:commandcode_go"
 private const val DASHBOARD_CARD_SPACING_DP = 12
 private const val HEATMAP_CARD_ID = "heatmap"
 
+/**
+ * dashboard 条目是否可见：隐藏的服务商连同其专属用量卡 / 热力图入口一起隐藏。
+ * 未知条目 id 恒可见（宁可多显示也不误吞）。
+ */
+internal fun dashboardItemVisible(itemId: String, hidden: Set<ServiceType>): Boolean = when {
+    itemId.startsWith("service:") ->
+        ServiceType.fromStorageKey(itemId.removePrefix("service:")) !in hidden
+    itemId == USAGE_OCGO_CARD_ID -> ServiceType.OPENCODE_GO !in hidden
+    itemId == USAGE_CCGO_CARD_ID -> ServiceType.COMMANDCODE_GO !in hidden
+    itemId == HEATMAP_CARD_ID -> ServiceType.OPENCODE_GO !in hidden
+    else -> true
+}
+
 private data class DashboardHomeItem(
     val id: String,
     val content: @Composable () -> Unit
 )
 
+/** 所有条目都被隐藏时的兜底卡片，点击去设置里恢复显示。 */
+@Composable
+private fun AllProvidersHiddenCard(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = StrawberryPink.copy(alpha = 0.08f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.dashboard_all_hidden_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = StrawberryPink,
+            modifier = Modifier.padding(16.dp)
+        )
+    }
+}
+
 @Composable
 private fun rememberDashboardItems(
     cards: List<DashboardCardUi>,
     order: List<String>,
+    hidden: Set<ServiceType>,
     onOpenUsageDetail: () -> Unit,
     onOpenCcgoUsageDetail: () -> Unit,
     onOpenService: (ServiceType) -> Unit,
@@ -392,7 +431,7 @@ private fun rememberDashboardItems(
                 )
             })
         }
-    }
+    }.filter { dashboardItemVisible(it.id, hidden) }
     val itemById = defaultItems.associateBy { it.id }
     val ordered = order.mapNotNull { itemById[it] }
     return ordered + defaultItems.filterNot { item -> ordered.any { it.id == item.id } }

@@ -32,10 +32,12 @@ class WidgetRefreshReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val selectedService = OpenCodeGoWidgetProvider.currentDisplayService(appContext)
+                val dsHidden = com.rainy.token.data.local.ServiceVisibilityStore
+                    .isHidden(appContext, ServiceType.DEEPSEEK)
                 val refreshed = withTimeoutOrNull(25_000L) {
                     val selectedResult = useCase(selectedService)
-                    val dsResult = useCase(ServiceType.DEEPSEEK)
-                    selectedResult.isSuccess || dsResult.isSuccess
+                    val dsResult = if (dsHidden) null else useCase(ServiceType.DEEPSEEK)
+                    selectedResult.isSuccess || dsResult?.isSuccess == true
                 } == true
                 if (refreshed) {
                     OpenCodeGoWidgetProvider.notifyDataChanged(appContext)

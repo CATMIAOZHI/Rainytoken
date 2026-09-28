@@ -13,6 +13,7 @@ import com.rainy.token.MainActivity
 import com.rainy.token.R
 import com.rainy.token.data.cache.BalanceCache
 import com.rainy.token.data.cache.balanceCacheDataStore
+import com.rainy.token.data.local.ServiceVisibilityStore
 import com.rainy.token.domain.service.ServiceType
 import com.rainy.token.ui.components.normalizeWindowLabel
 import com.rainy.token.util.LocaleManager
@@ -99,6 +100,13 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
             )
             views.setOnClickPendingIntent(R.id.widget_refresh, refreshPendingIntent)
 
+            // DeepSeek 余额行按 DeepSeek 显隐控制（放在 runBlocking 外，
+            // 确保异常路径下也不会残留默认 VISIBLE 显示"—"）
+            val dsHidden = ServiceVisibilityStore.isHidden(context, ServiceType.DEEPSEEK)
+            views.setViewVisibility(
+                R.id.widget_ds_row,
+                if (dsHidden) android.view.View.GONE else android.view.View.VISIBLE
+            )
             // 读缓存并填充数据
             runBlocking {
                 try {
@@ -139,7 +147,7 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
                         )
                     }
 
-                    // DeepSeek 余额
+                    // DeepSeek 余额（行显隐已在 runBlocking 外设置）
                     val dsCached = cache.get(ServiceType.DEEPSEEK)
                     if (dsCached != null && dsCached.balance.amount > 0) {
                         val dsBal = dsCached.balance
@@ -366,6 +374,13 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
         private const val ACTION_SWITCH_SERVICE = "com.rainy.token.action.WIDGET_SWITCH_SERVICE"
         private val DISPLAY_SERVICES = listOf(ServiceType.OPENCODE_GO, ServiceType.COMMANDCODE_GO, ServiceType.CODEX, ServiceType.OLLAMA, ServiceType.CLAUDE)
 
+        /** 可轮播服务 = 全部 − 用户隐藏的；全部隐藏时回退全量，避免小组件无内容可显。 */
+        private fun visibleServices(context: Context): List<ServiceType> {
+            val hidden = ServiceVisibilityStore.hiddenKeys(context)
+            val visible = DISPLAY_SERVICES.filterNot { it.storageKey in hidden }
+            return visible.ifEmpty { DISPLAY_SERVICES }
+        }
+
         private fun autoRefreshPrefs(context: Context) =
             context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -382,12 +397,13 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
 
         fun currentDisplayService(context: Context): ServiceType {
             val key = autoRefreshPrefs(context).getString(KEY_DISPLAY_SERVICE, ServiceType.OPENCODE_GO.storageKey)
-            return DISPLAY_SERVICES.firstOrNull { it.storageKey == key } ?: ServiceType.OPENCODE_GO
+            val visible = visibleServices(context)
+            return visible.firstOrNull { it.storageKey == key } ?: visible.first()
         }
-
         private fun switchDisplayService(context: Context) {
+            val visible = visibleServices(context)
             val current = currentDisplayService(context)
-            val next = DISPLAY_SERVICES[(DISPLAY_SERVICES.indexOf(current).coerceAtLeast(0) + 1) % DISPLAY_SERVICES.size]
+            val next = visible[(visible.indexOf(current).coerceAtLeast(0) + 1) % visible.size]
             autoRefreshPrefs(context).edit().putString(KEY_DISPLAY_SERVICE, next.storageKey).apply()
         }
 

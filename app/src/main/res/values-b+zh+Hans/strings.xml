@@ -353,6 +353,11 @@
     <string name="usage_sync_stale">数据可能已过期，建议立即同步</string>
     <string name="settings_background_sync_title">后台同步</string>
     <string name="settings_background_sync_desc">有网络时每 8 小时自动同步一次 CommandCode 用量；系统省电策略可能使其延后。</string>
+    <string name="settings_hide_hint">点卡片右侧「隐藏」可收起不使用的服务商，隐藏后仪表盘不再显示（凭据保留）</string>
+    <string name="status_hidden">已隐藏</string>
+    <string name="action_hide_provider">隐藏该服务商</string>
+    <string name="action_show_provider">恢复显示该服务商</string>
+    <string name="dashboard_all_hidden_hint">所有服务都已隐藏，点此去设置里恢复显示</string>
     <string name="range_from">从 %1$s</string>
     <string name="range_to">至 %1$s</string>
     <string name="action_apply_custom_range">应用自定义范围</string>

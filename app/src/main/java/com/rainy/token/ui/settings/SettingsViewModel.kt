@@ -3,8 +3,10 @@ package com.rainy.token.ui.settings
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rainy.token.data.local.ServiceVisibilityStore
 import com.rainy.token.data.repository.CredentialRepository
 import com.rainy.token.domain.model.CredentialStatus
+import com.rainy.token.domain.service.ServiceType
 import com.rainy.token.domain.usecase.UsageSyncCoordinator
 import com.rainy.token.sync.UsageSyncScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -41,10 +43,24 @@ class SettingsViewModel @Inject constructor(
                 it.copy(
                     loading = false,
                     credentialStatuses = statuses,
-                    backgroundSyncEnabled = syncCoordinator.backgroundSyncEnabled
+                    backgroundSyncEnabled = syncCoordinator.backgroundSyncEnabled,
+                    hiddenServices = ServiceVisibilityStore.hiddenServices(appContext)
                 )
             }
         }
+    }
+
+    /**
+     * 显隐开关：隐藏不使用的服务商（仪表盘不再显示其卡片）。
+     * 只动展示偏好，凭据与缓存均不受影响。
+     */
+    fun setServiceHidden(service: ServiceType, hidden: Boolean) {
+        ServiceVisibilityStore.setHidden(appContext, service, hidden)
+        _uiState.update {
+            it.copy(hiddenServices = ServiceVisibilityStore.hiddenServices(appContext))
+        }
+        // 隐藏/恢复立即重绘桌面小组件（DS 行与轮播），不用等下次 onUpdate
+        com.rainy.token.ui.widget.OpenCodeGoWidgetProvider.notifyDataChanged(appContext)
     }
 
     /**
@@ -62,5 +78,7 @@ class SettingsViewModel @Inject constructor(
 data class SettingsUiState(
     val loading: Boolean = false,
     val credentialStatuses: List<CredentialStatus> = emptyList(),
-    val backgroundSyncEnabled: Boolean = true
+    val backgroundSyncEnabled: Boolean = true,
+    /** 用户隐藏的服务商（不使用的提供商），隐藏后仪表盘不显示其卡片。 */
+    val hiddenServices: Set<ServiceType> = emptySet()
 )

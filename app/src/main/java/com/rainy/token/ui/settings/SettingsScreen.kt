@@ -2,6 +2,7 @@ package com.rainy.token.ui.settings
 
 import android.app.Activity
 import android.os.Build
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,9 +14,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -43,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -138,10 +142,20 @@ fun SettingsScreen(
                         color = InkMuted,
                         modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
                     )
+                    Text(
+                        text = stringResource(R.string.settings_hide_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = InkMuted,
+                        modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                    )
                 }
                 items(uiState.credentialStatuses, key = { it.service.name }) { status ->
                     CredentialStatusCard(
                         status = status,
+                        hidden = status.service in uiState.hiddenServices,
+                        onToggleHidden = {
+                            viewModel.setServiceHidden(status.service, status.service !in uiState.hiddenServices)
+                        },
                         onClick = { onEditCredential(status.service) }
                     )
                 }
@@ -314,7 +328,12 @@ private fun LanguageDialog(onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun CredentialStatusCard(status: CredentialStatus, onClick: () -> Unit) {
+private fun CredentialStatusCard(
+    status: CredentialStatus,
+    hidden: Boolean,
+    onToggleHidden: () -> Unit,
+    onClick: () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -336,13 +355,37 @@ private fun CredentialStatusCard(status: CredentialStatus, onClick: () -> Unit) 
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = stateLabel(status.state),
+                    text = if (hidden) {
+                        stateLabel(status.state) + " · " + stringResource(R.string.status_hidden)
+                    } else {
+                        stateLabel(status.state)
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = InkMuted,
                     modifier = Modifier.padding(top = 2.dp)
                 )
             }
             StatusChip(style = stateToChip(status.state))
+            Spacer(modifier = Modifier.width(8.dp))
+            // 显隐开关：眼睛图标，粉=显示中（点隐藏）/ 灰=已隐藏（点恢复）
+            val showDesc = stringResource(R.string.action_show_provider)
+            val hideDesc = stringResource(R.string.action_hide_provider)
+            val pillColor = if (hidden) InkMuted else StrawberryPink
+            Icon(
+                painter = painterResource(
+                    if (hidden) R.drawable.ic_visibility_off else R.drawable.ic_visibility
+                ),
+                contentDescription = if (hidden) showDesc else hideDesc,
+                tint = pillColor,
+                modifier = Modifier
+                    .clickable { onToggleHidden() }
+                    .background(
+                        color = pillColor.copy(alpha = 0.10f),
+                        shape = CircleShape
+                    )
+                    .padding(8.dp)
+                    .size(22.dp)
+            )
         }
     }
 }

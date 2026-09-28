@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rainy.token.data.cache.CachedBalance
+import com.rainy.token.data.local.ServiceVisibilityStore
 import com.rainy.token.data.repository.CredentialRepository
 import com.rainy.token.data.repository.RepositoryError
 import com.rainy.token.domain.model.CredentialStatus
@@ -67,8 +68,10 @@ class DashboardViewModel @Inject constructor(
     fun reloadLocalState() {
         viewModelScope.launch {
             val localStates = credentialRepository.readLocalStates()
+            val hidden = ServiceVisibilityStore.hiddenServices(appContext)
             _uiState.update { state ->
                 state.copy(
+                    hiddenServices = hidden,
                     cards = state.cards.map { card ->
                         val local = localStates.getValue(card.service)
                         val credentialChanged = local.fingerprint != card.credentialFingerprint
@@ -103,7 +106,10 @@ class DashboardViewModel @Inject constructor(
         val cards = ServiceType.entries.map { type ->
             buildCard(localStates.getValue(type), lastFetchError = null)
         }
-        _uiState.update { it.copy(loading = false, refreshing = false, cards = cards) }
+        val hidden = ServiceVisibilityStore.hiddenServices(appContext)
+        _uiState.update {
+            it.copy(loading = false, refreshing = false, cards = cards, hiddenServices = hidden)
+        }
     }
 
     /** 拉取所有服务最新余额，更新缓存。失败的服务保留旧数据并把错误信息带上。 */
@@ -113,12 +119,13 @@ class DashboardViewModel @Inject constructor(
             if (!refreshMutex.tryLock()) return@launch
             try {
                 _uiState.update { it.copy(refreshing = true) }
+                val hidden = ServiceVisibilityStore.hiddenServices(appContext)
                 val results: Map<ServiceType, Result<ServiceBalance>?> = coroutineScope {
                     ServiceType.entries.map { type ->
                         async {
                             val status = credentialRepository.statusFor(type)
-                            if (status.state == CredentialStatus.State.NOT_CONFIGURED) {
-                                type to null // 未配置的服务不拉
+                            if (type in hidden || status.state == CredentialStatus.State.NOT_CONFIGURED) {
+                                type to null // 隐藏的服务与未配置的服务不拉
                             } else {
                                 type to refreshBalanceUseCase(type)
                             }
@@ -175,7 +182,9 @@ class DashboardViewModel @Inject constructor(
 data class DashboardUiState(
     val loading: Boolean = false,
     val refreshing: Boolean = false,
-    val cards: List<DashboardCardUi> = emptyList()
+    val cards: List<DashboardCardUi> = emptyList(),
+    /** 用户隐藏的服务（不使用的提供商），仪表盘按此过滤卡片。 */
+    val hiddenServices: Set<ServiceType> = emptySet()
 )
 
 data class DashboardCardUi(

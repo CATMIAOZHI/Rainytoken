@@ -351,6 +351,11 @@
     <string name="usage_sync_stale">資料可能已過期，建議立即同步</string>
     <string name="settings_background_sync_title">後台同步</string>
     <string name="settings_background_sync_desc">有網路時每 8 小時自動同步一次 CommandCode 用量；系統省電策略可能使其延後。</string>
+    <string name="settings_hide_hint">點卡片右側「隱藏」可收起不使用的服務商，隱藏後儀表板不再顯示（憑據保留）</string>
+    <string name="status_hidden">已隱藏</string>
+    <string name="action_hide_provider">隱藏該服務商</string>
+    <string name="action_show_provider">恢復顯示該服務商</string>
+    <string name="dashboard_all_hidden_hint">所有服務都已隱藏，點此去設定裡恢復顯示</string>
     <string name="action_close">關閉</string>
     <string name="range_from">從 %1$s</string>
     <string name="range_to">至 %1$s</string>

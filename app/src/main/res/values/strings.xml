@@ -356,6 +356,11 @@
     <string name="usage_sync_stale">Data may be out of date — tap sync now</string>
     <string name="settings_background_sync_title">Background sync</string>
     <string name="settings_background_sync_desc">Sync CommandCode usage every 8 hours when network is available. System power saving may delay it.</string>
+    <string name="settings_hide_hint">Tap Hide on a card to hide providers you don\'t use — hidden ones disappear from the dashboard, credentials stay</string>
+    <string name="status_hidden">Hidden</string>
+    <string name="action_hide_provider">Hide from dashboard</string>
+    <string name="action_show_provider">Show on dashboard</string>
+    <string name="dashboard_all_hidden_hint">All providers hidden — tap to manage them in Settings</string>
     <string name="range_from">From %1$s</string>
     <string name="range_to">To %1$s</string>
     <string name="action_apply_custom_range">Apply custom range</string>
