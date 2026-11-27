@@ -47,11 +47,11 @@ RainyToken（雨晴Token）— AI Balance & Usage Quota Query · the Rainy Famil
 | 特性 | 说明 |
 |------|------|
 | 📊 **仪表盘** | DeepSeek 余额（¥）+ 各服务用量/余额卡片；OCGO/CCGO 卡片可直达用量详情；长按拖动自由排序（持久化）；下拉全局刷新 · 平板自适应双窗格布局 |
-| 📈 **用量图表** | 3 张 Canvas 手绘图表 — 消耗金额 / API 请求次数 / Token 消耗（OCGO & CCGO 双数据源）；支持 UTC+0/UTC+8 时区切换和自定义日/月/范围；自动降级（近5h无数据→12h→7天→当月）；平板并排展示 |
-| 🗓️ **Token活动** | OCGO每日 Token热力图（GitHub贡献图风格）：每日 /每周 /累计三视图 +年份切换（默认最近 365 天，可切换自然年）；个人资料 +活动洞察（总请求次数 /最多请求时段 Top 3）+年度统计（累计 /峰值 /连续天数）；6 级粉色分位色阶，点击 /滑动查看 |
+| 📈 **用量图表** | 3 张图表：消费金额 / 请求次数 / Token。OpenCode 工作区按 UTC 日汇总；CommandCode 支持小时粒度、UTC/UTC+8 和自定义范围。 |
+| 🗓️ **Token活动** | OpenCode 工作区 UTC 日用量热力图，支持每日 / 每周 / 累计视图、年份切换与请求总数。 |
 | 📱 **平板适配** | 全局 `BoxWithConstraints` 自适应容器宽度；≥600dp 卡片双列，≥700dp 图表并排；双窗格 35/65 左右分栏（Expanded 模式）；支持 Android 13+ 预见性返回手势 |
-| 📋 **详细数据** | 原始记录分页浏览，支持时间 + 模型筛选，点击查看完整字段 |
-| 🔍 **多粒度筛选** | 5小时 / 12小时(10分钟桶) / 24小时 / 今天 / 昨天 / 最近7天 / 最近30天 / 当月 / 自定义日·月·范围 |
+| 📋 **详细数据** | 按日期和模型筛选：OpenCode 查看日汇总，CommandCode 查看逐条请求。 |
+| 🔍 **多粒度筛选** | OpenCode 支持日、月及日期范围；CommandCode 另支持 5 小时、12 小时、24 小时等小时级范围。 |
 | 🏷️ **模型筛选** | 多选 / 单选 / 全选，动态图例自适应换行 |
 | 📱 **桌面小组件** | 不打开 APP 也能看用量；支持四服务切换（OCGO/CCGO/Codex/Ollama）+ DeepSeek 余额；左上角 > 进 APP、其他区域点切换、↻ 刷新；可拖入负一屏；划到即自动刷新（MIUI 曝光刷新） |
 | 🔄 **自动同步** | 首页下拉自动同步用量；无缓存时启动自动全量同步；CCGO 详情页支持手动清除并重新同步 |
@@ -62,7 +62,7 @@ RainyToken（雨晴Token）— AI Balance & Usage Quota Query · the Rainy Famil
 | 🎀 **雨晴粉主题** | Material Design 3 · 草莓粉 #FF85A2 · 樱粉 #FFD1DC |
 | 🔐 **Codex OAuth 登录** | 无头模式 OAuth PKCE：APP 生成授权链接 → 外部浏览器登录 → 粘贴回调 URL 完成授权，无需手动导出 auth.json |
 | ⚡ **Codex 一键激活用量** | Codex 详情页可向 ChatGPT API 发送简短请求触发用量统计；模型列表从 models.dev 动态获取并持久化，支持手动刷新；响应弹窗可复制 |
-| ⚡ **OCGO / Ollama 一键激活用量** | OCGO 详情页可向 `opencode.ai/zen/v1` 发送请求，Ollama 详情页可向 `ollama.com/v1` 发送请求触发用量统计；API Key 在设置页手动填写，模型列表从 models.dev 动态获取 |
+| ⚡ **OCGO / Ollama 一键激活用量** | 详情页可向 OpenCode Go 或 Ollama 推理 API 发送简短请求；模型选择仍由 models.dev 提供。 |
 | 🐛 **调试日志** | APP 内「调试日志」页面，查看 Repository 网络请求、Token 刷新、解析错误等详细日志，无需连接电脑 |
 | 🌐 **多语言** | 简体中文 / 繁體中文 / English 三语言界面；设置页一键切换（跟随系统 / 简体 / 繁体 / English）；Android 13+ 与系统「应用语言」页双向同步；非中英系统语言自动回退英文；桌面 APP 名称与小组件跟随语言 |
 
@@ -72,7 +72,11 @@ RainyToken（雨晴Token）— AI Balance & Usage Quota Query · the Rainy Famil
 
 前往 [Releases](https://github.com/CATMIAOZHI/Rainytoken/releases) 下载最新 APK。
 
-> ⚠️ 需要配置 DeepSeek API Key、OpenCode Go API Key、CommandCode API Key、Codex（OAuth 登录或粘贴 auth.json）或 Ollama Cookie 才能拉取数据。OpenCode Go 的 auth cookie + workspaceId 选填，仅用于用量记录与模型级明细。
+> ⚠️ 需要配置 DeepSeek API Key、OpenCode Go API Key、CommandCode API Key、Codex（OAuth 登录或粘贴 auth.json）或 Ollama Cookie 才能拉取数据。
+
+**OpenCode Go 只需在设置中填写 `oc_sk_...` API Key**，无需 Cookie 或工作区 ID。[官方 Go 用量 API](https://opencode.ai/docs/console/go/) 提供 5 小时、每周和每月的用量百分比、重置时间及是否达限。工作区明细来自[官方 CSV 导出](https://opencode.ai/docs/console/api/usage-export)，需要启用 `Usage › Read`，并使用所有者或管理员的个人密钥，或有此权限的服务账号密钥。普通成员的密钥不能导出工作区用量。
+
+明细覆盖密钥所在工作区的全部模型，按 UTC 天汇总，不含每次请求的时间。每次同步可回填最近 90 天，超出窗口的已导入汇总留在本地。旧版网页明细不删除，但因无法用新接口核实两个数据源的工作区是否相同，不会混入新视图。更换 API Key 后会从新密钥的独立本地缓存读取。
 
 ---
 
@@ -102,7 +106,7 @@ RainyToken（雨晴Token）— AI Balance & Usage Quota Query · the Rainy Famil
 │                       │                           │
 │  ┌────────────────────▼─────────────────────────┐ │
 │  │         Repository + Network                  │ │
-│  │  DeepSeekApi（Retrofit）· OpenCodeGo 网页抓取
+│  │  DeepSeekApi（Retrofit）· OpenCode Go 官方用量 API
 │  │  · OpenCodeUsageRepository · CommandCodeUsageRepository · CodexRepository · OllamaRepository（OkHttp）│ │
 │  └────────────────────┬────────────────────────┘ │
 │                       │                           │
@@ -125,7 +129,7 @@ Rainytoken/
 │   ├── data/
 │   │   ├── cache/          # BalanceCache（DataStore）
 │   │   ├── local/          # UsageCache（Room）、UsageRecordEntity、UsageDao、UsageDatabase、ChartBucket
-│   │   ├── remote/         # DeepSeekApi（Retrofit）+ OpenCodeGo 抓取 + UsageRepository
+│   │   ├── remote/         # DeepSeekApi（Retrofit）
 │   │   └── repository/     # DeepSeek / OpenCodeGo / CommandCode / Codex / Ollama / Credential Repository
 │   ├── domain/
 │   │   ├── model/          # ServiceBalance、Credential 等
@@ -198,7 +202,7 @@ wrapper 脚本将等号形式拆分为空格分隔的两个独立 argv。项目 
 | `androidx.compose:compose-bom` | Jetpack Compose BOM |
 | `androidx.navigation:navigation-compose` | 页面导航 |
 | `com.squareup.retrofit2:retrofit` | DeepSeek REST API |
-| `com.squareup.okhttp3:okhttp` | OpenCode Go 网页抓取 |
+| `com.squareup.okhttp3:okhttp` | OpenCode Go JSON 配额 / Console CSV 明细 |
 | `org.jetbrains.kotlinx:kotlinx-serialization-json` | JSON 序列化 |
 | `androidx.room:room-runtime` | 用量数据本地数据库（Room） |
 | `androidx.datastore:datastore-preferences` | 本地缓存 |
@@ -210,7 +214,7 @@ wrapper 脚本将等号形式拆分为空格分隔的两个独立 argv。项目 
 ## 🔒 安全说明
 
 - ✅ API Key / Session 凭据存入 **Android Keystore**（AES-256 GCM 加密）
-- ✅ 网络请求仅向 DeepSeek / OpenCode 官方 API 发出
+- ✅ OpenCode 凭据只用于 OpenCode 官方 API；models.dev 模型列表为公开查询，不发送凭据
 - ✅ `allowBackup=false`：凭据密文、用量数据均不参与系统备份，避免换机恢复后密文无法解密
 - ✅ 签名密钥固定，每次 Release 可覆盖安装
 - ✅ GitHub Secrets 加密存储签名密钥及密码，CI 中解码使用

@@ -47,11 +47,11 @@ RainyToken (雨晴Token) — AI Balance & Usage Quota Query · the Rainy Family 
 | Feature | Description |
 |------|------|
 | 📊 **Dashboard** | DeepSeek balance (¥) + usage/balance cards for each service; OCGO/CCGO cards link directly to usage details; long-press & drag to reorder (persisted); pull-to-refresh globally · tablet-adaptive two-pane layout |
-| 📈 **Usage charts** | 3 Canvas-drawn charts — amount spent / API request count / token consumption (dual data sources: OCGO & CCGO); UTC+0/UTC+8 timezone switching and custom day/month/range; automatic fallback (no data in last 5h → 12h → 7 days → current month); side-by-side on tablets |
-| 🗓️ **Token Activity** | OCGO daily token heatmap (GitHub contribution-graph style): daily / weekly / cumulative views + year switching (last 365 days by default, or a calendar year); personal profile + activity insights (total requests / top 3 request hours) + yearly stats (total / peak / streaks); 6-level pink quantile scale, tap / slide to inspect |
+| 📈 **Usage charts** | Spend, requests, and tokens. OpenCode workspace charts use UTC days; CommandCode retains hourly views, UTC/UTC+8, and custom ranges. |
+| 🗓️ **Token Activity** | OpenCode workspace heatmap by UTC day, with daily, weekly, and cumulative views, year selection, and total requests. |
 | 📱 **Tablet adaptation** | Global `BoxWithConstraints` adaptive container width; ≥600dp dual-column cards, ≥700dp side-by-side charts; two-pane 35/65 split (Expanded mode); supports Android 13+ predictive back gestures |
-| 📋 **Detailed data** | Paginated browsing of raw records with time + model filtering; tap to view full fields |
-| 🔍 **Multi-granularity filters** | 5 hours / 12 hours (10-minute buckets) / 24 hours / today / yesterday / last 7 days / last 30 days / current month / custom day · month · range |
+| 📋 **Detailed data** | Browse and filter by date and model. OpenCode shows daily summaries; CommandCode shows individual requests. |
+| 🔍 **Multi-granularity filters** | OpenCode supports days, months, and date ranges; CommandCode also supports hourly ranges such as 5, 12, and 24 hours. |
 | 🏷️ **Model filtering** | Multi-select / single-select / select all, with dynamic legends that wrap automatically |
 | 📱 **Home screen widget** | Check usage without opening the app; switch between four services (OCGO/CCGO/Codex/Ollama) + DeepSeek balance; top-left corner → open app, tap elsewhere to switch, ↻ to refresh; can be added to the At a Glance screen; auto-refreshes when scrolled into view (MIUI exposure refresh) |
 | 🔄 **Auto sync** | Pull-to-refresh on home auto-syncs usage; auto full sync on startup when no cache; CCGO detail page supports manual clear & re-sync |
@@ -62,7 +62,7 @@ RainyToken (雨晴Token) — AI Balance & Usage Quota Query · the Rainy Family 
 | 🎀 **Rainy pink theme** | Material Design 3 · Strawberry Pink #FF85A2 · Sakura Pink #FFD1DC |
 | 🔐 **Codex OAuth sign-in** | Headless OAuth PKCE: the app generates an authorization link → sign in in an external browser → paste the callback URL to complete authorization; no manual auth.json export needed |
 | ⚡ **Codex one-tap usage activation** | Codex detail page can send a short request to the ChatGPT API to trigger usage tracking; model list fetched dynamically from models.dev and persisted, with manual refresh; response dialog is copyable |
-| ⚡ **OCGO / Ollama one-tap usage activation** | OCGO detail page can send a request to `opencode.ai/zen/v1`, Ollama detail page to `ollama.com/v1` to trigger usage tracking; API keys are entered manually in settings; model lists fetched dynamically from models.dev |
+| ⚡ **OCGO / Ollama one-tap usage activation** | The detail pages can send a short inference request to OpenCode Go or Ollama; the model picker still uses models.dev. |
 | 🐛 **Debug logs** | In-app "Debug Logs" page showing detailed logs of Repository network requests, token refreshes, parse errors, etc.; no computer needed |
 | 🌐 **Multilingual** | Simplified Chinese / 繁體中文 / English interface; one-tap switching in settings (follow system / Simplified / Traditional / English); two-way sync with the system "App languages" page on Android 13+; non-CN/EN system languages fall back to English; home screen app name and widget follow the language |
 
@@ -72,7 +72,11 @@ RainyToken (雨晴Token) — AI Balance & Usage Quota Query · the Rainy Family 
 
 Download the latest APK from [Releases](https://github.com/CATMIAOZHI/Rainytoken/releases).
 
-> ⚠️ You need a DeepSeek API Key, an OpenCode Go API Key, a CommandCode API Key, Codex (OAuth sign-in or pasted auth.json), or an Ollama Cookie to fetch data. The OpenCode Go auth cookie and workspaceId are optional — only for usage records and the per-model breakdown.
+> ⚠️ You need a DeepSeek API Key, an OpenCode Go API Key, a CommandCode API Key, Codex (OAuth sign-in or pasted auth.json), or an Ollama Cookie to fetch data.
+
+**OpenCode Go only needs an `oc_sk_...` API key in Settings**, not a cookie or workspace ID. The [official Go usage API](https://opencode.ai/docs/console/go/) reports usage percent, reset time, and whether the 5-hour, weekly, and monthly limits have been reached. Workspace details come from the [official CSV export](https://opencode.ai/docs/console/api/usage-export). Use an owner’s or admin’s personal key, or a service account key, with `Usage › Read`. Ordinary members cannot export workspace usage.
+
+The export includes all models in the key’s workspace and groups usage by UTC day, without individual request times. Each sync can fill the latest 90 days; previously imported CSV history older than that stays on the device. Legacy web records are kept on disk, but are not mixed with the new views because the export does not identify the workspace. A replacement API key uses a separate local cache.
 
 ---
 
@@ -102,7 +106,7 @@ Download the latest APK from [Releases](https://github.com/CATMIAOZHI/Rainytoken
 │                                 │                                │
 │  ┌──────────────────────────────▼─────────────────────────────┐  │
 │  │ Repository + Network                                       │  │
-│  │ DeepSeekApi (Retrofit) · OpenCodeGo web scraping           │  │
+│  │ DeepSeekApi (Retrofit) · OpenCode Go official usage API           │  │
 │  │ · OpenCodeUsageRepository · CommandCodeUsageRepository     │  │
 │  │ · CodexRepository · OllamaRepository (OkHttp)              │  │
 │  └──────────────────────────────┬─────────────────────────────┘  │
@@ -126,7 +130,7 @@ Rainytoken/
 │   ├── data/
 │   │   ├── cache/          # BalanceCache (DataStore)
 │   │   ├── local/          # UsageCache (Room), UsageRecordEntity, UsageDao, UsageDatabase, ChartBucket
-│   │   ├── remote/         # DeepSeekApi (Retrofit) + OpenCodeGo scraping + UsageRepository
+│   │   ├── remote/         # DeepSeekApi (Retrofit)
 │   │   └── repository/     # DeepSeek / OpenCodeGo / CommandCode / Codex / Ollama / Credential repositories
 │   ├── domain/
 │   │   ├── model/          # ServiceBalance, Credential, etc.
@@ -199,7 +203,7 @@ The project manages all dependencies with a Gradle Version Catalog (`gradle/libs
 | `androidx.compose:compose-bom` | Jetpack Compose BOM |
 | `androidx.navigation:navigation-compose` | Page navigation |
 | `com.squareup.retrofit2:retrofit` | DeepSeek REST API |
-| `com.squareup.okhttp3:okhttp` | OpenCode Go web scraping |
+| `com.squareup.okhttp3:okhttp` | OpenCode Go JSON quotas and Console CSV export |
 | `org.jetbrains.kotlinx:kotlinx-serialization-json` | JSON serialization |
 | `androidx.room:room-runtime` | Local usage database (Room) |
 | `androidx.datastore:datastore-preferences` | Local caching |
@@ -211,7 +215,7 @@ The project manages all dependencies with a Gradle Version Catalog (`gradle/libs
 ## 🔒 Security
 
 - ✅ API keys / session credentials are stored in the **Android Keystore** (AES-256 GCM encrypted)
-- ✅ Network requests are only sent to the official DeepSeek / OpenCode APIs
+- ✅ OpenCode credentials go only to official OpenCode APIs; public models.dev lookups do not send credentials
 - ✅ `allowBackup=false`: encrypted credentials and usage data are excluded from system backups, preventing undecryptable ciphertext when restoring on a new device
 - ✅ Fixed signing key — every Release can be installed over the previous version
 - ✅ Signing keys and passwords are stored encrypted in GitHub Secrets and decrypted during CI
