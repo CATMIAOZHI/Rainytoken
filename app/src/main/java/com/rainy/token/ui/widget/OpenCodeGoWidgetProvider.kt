@@ -14,6 +14,7 @@ import com.rainy.token.R
 import com.rainy.token.data.cache.BalanceCache
 import com.rainy.token.data.cache.balanceCacheDataStore
 import com.rainy.token.data.local.ServiceVisibilityStore
+import com.rainy.token.data.repository.UsageWindowStatus
 import com.rainy.token.domain.service.ServiceType
 import com.rainy.token.ui.components.normalizeWindowLabel
 import com.rainy.token.util.LocaleManager
@@ -180,16 +181,23 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
         val extras = balance.extras
         when (service) {
             ServiceType.OPENCODE_GO -> {
+                fun limitLabel(prefix: String): String? =
+                    if (extras["$prefix.status"] == UsageWindowStatus.RATE_LIMITED.wireValue) {
+                        context.getString(R.string.quota_limit_reached_short)
+                    } else null
                 setRowLabel(views, context.getString(R.string.window_5h_short), context.getString(R.string.window_weekly), context.getString(R.string.window_monthly))
                 populateRow(views, R.id.row1_pct, R.id.row1_bar, R.id.row1_reset,
                     pct = extras["rolling.pct"]?.toFloatOrNull()?.roundToInt(),
-                    resetSec = extras["rolling.resetInSec"]?.toLongOrNull())
+                    resetSec = extras["rolling.resetInSec"]?.toLongOrNull(),
+                    limitLabel = limitLabel("rolling"))
                 populateRow(views, R.id.row2_pct, R.id.row2_bar, R.id.row2_reset,
                     pct = extras["weekly.pct"]?.toFloatOrNull()?.roundToInt(),
-                    resetSec = extras["weekly.resetInSec"]?.toLongOrNull())
+                    resetSec = extras["weekly.resetInSec"]?.toLongOrNull(),
+                    limitLabel = limitLabel("weekly"))
                 populateRow(views, R.id.row3_pct, R.id.row3_bar, R.id.row3_reset,
                     pct = extras["monthly.pct"]?.toFloatOrNull()?.roundToInt(),
-                    resetSec = extras["monthly.resetInSec"]?.toLongOrNull())
+                    resetSec = extras["monthly.resetInSec"]?.toLongOrNull(),
+                    limitLabel = limitLabel("monthly"))
             }
             ServiceType.COMMANDCODE_GO -> {
                 fun calcPct(used: Double?, cap: Double?): Int? {
@@ -323,12 +331,13 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
         barViewId: Int,
         resetViewId: Int,
         pct: Int?,
-        resetSec: Long?
+        resetSec: Long?,
+        limitLabel: String? = null
     ) {
         if (pct != null) {
-            views.setTextViewText(pctViewId, "${pct}%")
+            views.setTextViewText(pctViewId, limitLabel ?: "${pct}%")
             views.setProgressBar(barViewId, 100, pct.coerceIn(0, 100), false)
-            setProgressColor(views, barViewId, pct)
+            setProgressColor(views, barViewId, if (limitLabel != null) 100 else pct)
         } else {
             views.setTextViewText(pctViewId, "—")
             views.setProgressBar(barViewId, 100, 0, false)
@@ -442,7 +451,12 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
             }
         }
 
-        fun showRefreshing(context: Context) {
+        fun showRefreshing(context: Context) = updateRefreshLabel(context, R.string.widget_refreshing)
+
+        /** Finish the spinner without a redraw that would auto-refresh again on a cache miss. */
+        fun showRefreshFailed(context: Context) = updateRefreshLabel(context, R.string.widget_refresh_failed)
+
+        private fun updateRefreshLabel(context: Context, @androidx.annotation.StringRes label: Int) {
             // 与 onUpdate 同理：用最新语言偏好包装，避免进程启动后切换语言不生效
             val localized = LocaleManager.wrapContext(context)
             val appWidgetManager = AppWidgetManager.getInstance(context)
@@ -450,7 +464,7 @@ class OpenCodeGoWidgetProvider : AppWidgetProvider() {
             val ids = appWidgetManager.getAppWidgetIds(component)
             ids.forEach { id ->
                 val views = RemoteViews(context.packageName, R.layout.widget_opencode_go)
-                views.setTextViewText(R.id.widget_updated, localized.getString(R.string.widget_refreshing))
+                views.setTextViewText(R.id.widget_updated, localized.getString(label))
                 appWidgetManager.partiallyUpdateAppWidget(id, views)
             }
         }

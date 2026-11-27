@@ -29,6 +29,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rainy.token.R
 import com.rainy.token.data.local.OverviewStats
@@ -51,9 +53,11 @@ fun UsageStatsCard(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    // OCGO 首次加载（init 不再自动加载）
-    LaunchedEffect(Unit) {
+    // Wide dashboard panes stay mounted while the credential editor replaces the key.
+    LaunchedEffect(viewModel) { viewModel.observeGoUsageScope() }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.loadStats()
+        viewModel.syncIfStale()
     }
 
     // 全局刷新触发用量同步（跳过首次 0）
@@ -77,7 +81,7 @@ fun UsageStatsCard(
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = if (uiState.recordCount > 0) stringResource(R.string.usage_record_count, uiState.recordCount) else stringResource(R.string.usage_click_to_sync),
+                        text = stringResource(R.string.go_usage_scope),
                         style = MaterialTheme.typography.bodySmall,
                         color = InkMuted
                     )
@@ -89,13 +93,39 @@ fun UsageStatsCard(
                         color = StrawberryPink
                     )
                 } else {
-                    IconButton(onClick = { viewModel.sync() }) {
+                    IconButton(onClick = { viewModel.sync() }, enabled = uiState.hasGoApiKey) {
                         Icon(
                             imageVector = Icons.Filled.Refresh,
                             contentDescription = stringResource(R.string.action_sync_usage),
                             tint = StrawberryPink
                         )
                     }
+                }
+            }
+
+            if (!uiState.loading) {
+                val emptyState = when {
+                    !uiState.hasGoApiKey -> R.string.go_usage_configure_key
+                    uiState.syncing || uiState.lastSyncError != null -> null
+                    uiState.lastSyncAt == 0L -> R.string.go_usage_first_sync
+                    uiState.overview == null -> R.string.go_usage_synced_empty
+                    else -> null
+                }
+                if (emptyState != null) {
+                    Text(
+                        text = stringResource(emptyState),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = InkMuted,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+                if (uiState.hasGoApiKey && uiState.lastSyncAt == 0L) {
+                    Text(
+                        text = stringResource(R.string.go_usage_legacy),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = InkMuted,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
                 }
             }
 
@@ -129,11 +159,11 @@ fun UsageStatsCard(
                 }
             }
 
-            // ─── 空状态 ───
-            if (uiState.overview == null && !uiState.syncing) {
+            // ─── 首次读取本地缓存 ───
+            if (uiState.overview == null && uiState.loading && !uiState.syncing) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = if (uiState.loading) stringResource(R.string.common_loading) else stringResource(R.string.usage_no_data_sync),
+                    text = stringResource(R.string.common_loading),
                     style = MaterialTheme.typography.bodyMedium,
                     color = InkMuted
                 )
@@ -183,7 +213,7 @@ fun UsageStatsCard(
             if (uiState.lastSyncResult > 0) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = stringResource(R.string.usage_new_records, uiState.lastSyncResult),
+                    text = stringResource(R.string.go_usage_changed_rows, uiState.lastSyncResult),
                     style = MaterialTheme.typography.bodySmall,
                     color = StrawberryPink
                 )

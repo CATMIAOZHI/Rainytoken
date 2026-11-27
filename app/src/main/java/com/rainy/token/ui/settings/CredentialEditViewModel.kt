@@ -1,7 +1,5 @@
 package com.rainy.token.ui.settings
 
-import android.content.ClipboardManager
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rainy.token.R
@@ -30,9 +28,7 @@ import kotlinx.serialization.json.jsonPrimitive
 /**
  * 凭据编辑页 ViewModel。
  *
- * - REST API 服务：API Key 表单保存
- * - WebView 类服务：分两种子模式
- *     - OpenCode Go：用户粘贴 `auth cookie` + `workspaceId`（自动抓取）
+ * OpenCode Go 仅需 API Key；使用原 SessionCredential 格式兼容已保存的凭据。
  */
 @HiltViewModel
 class CredentialEditViewModel @Inject constructor(
@@ -74,8 +70,6 @@ class CredentialEditViewModel @Inject constructor(
                     cookieInput = if (existing is Credential.SessionCredential) {
                         existing.cookies.joinToString("; ") { c -> "${c.name}=${c.value}" }
                     } else "",
-                    authCookie = (existing as? Credential.SessionCredential)?.authCookie.orEmpty(),
-                    workspaceId = (existing as? Credential.SessionCredential)?.workspaceId.orEmpty(),
                     cookieCount = (existing as? Credential.SessionCredential)?.cookies?.size ?: 0,
                     codexAuthJson = if (existing is Credential.CodexCredential) {
                         buildString {
@@ -122,14 +116,6 @@ class CredentialEditViewModel @Inject constructor(
 
     fun updateCookieInput(value: String) {
         _uiState.update { it.copy(cookieInput = value) }
-    }
-
-    fun updateAuthCookie(value: String) {
-        _uiState.update { it.copy(authCookie = value) }
-    }
-
-    fun updateWorkspaceId(value: String) {
-        _uiState.update { it.copy(workspaceId = value) }
     }
 
     fun saveApiKey() {
@@ -181,6 +167,8 @@ class CredentialEditViewModel @Inject constructor(
             val reason: UiText = when (err) {
                 is RepositoryError.InvalidCredential ->
                     UiText.Resource(R.string.error_credential_rejected)
+                is RepositoryError.OpenCodeGoSubscriptionRequired ->
+                    UiText.Resource(R.string.error_opencode_go_subscription_required)
                 is RepositoryError.CredentialChanged ->
                     UiText.Resource(R.string.error_credential_changed_test)
                 is RepositoryError.RateLimited ->
@@ -268,67 +256,48 @@ class CredentialEditViewModel @Inject constructor(
         return UiText.Resource(R.string.msg_key_masked, listOf(head, tail, key.length))
     }
 
-    fun saveOpenCodeGoSession() {
-        val type = serviceType ?: return
-        val current = _uiState.value
-        if (current.authCookie.isBlank() || current.workspaceId.isBlank()) {
-            _uiState.update {
-                it.copy(message = UiText.Resource(R.string.error_auth_cookie_workspace))
-            }
-            return
-        }
+    fun saveOpenCodeGoApiKey() {
+        if (serviceType != ServiceType.OPENCODE_GO) return
+        val apiKey = openCodeGoApiKeyInput() ?: return
         viewModelScope.launch {
-            doSaveOpenCodeGo(current.workspaceId.trim(), current.authCookie.trim())
-            _uiState.update {
-                it.copy(message = UiText.Resource(R.string.msg_credentials_saved), hasExisting = true)
-            }
+            val previous = credentialRepository.get(ServiceType.OPENCODE_GO)
+            saveOpenCodeGoKey(apiKey, previous)
+            _uiState.update { it.copy(message = UiText.Resource(R.string.msg_api_key_saved), hasExisting = true) }
         }
     }
 
     fun testAndSaveOpenCodeGo() {
-        val type = serviceType ?: return
-        val current = _uiState.value
-        // 余额只认 API Key：必填；cookie 对可选，但只填一半视为填写错误
-        if (current.triggerApiKey.isBlank()) {
-            _uiState.update { it.copy(message = UiText.Resource(R.string.error_api_key_empty)) }
-            return
-        }
-        if (current.authCookie.isBlank() != current.workspaceId.isBlank()) {
-            _uiState.update { it.copy(message = UiText.Resource(R.string.error_auth_cookie_workspace)) }
-            return
-        }
+        val type = ServiceType.OPENCODE_GO
+        if (serviceType != type) return
+        val apiKey = openCodeGoApiKeyInput() ?: return
         viewModelScope.launch {
-            val previous = credentialRepository.get(type)
-            doSaveOpenCodeGo(
-                workspaceId = current.workspaceId.trim().ifBlank { null },
-                authCookie = current.authCookie.trim().ifBlank { null },
-                apiKey = current.triggerApiKey.trim()
-            )
             testAndRollback(
                 type = type,
-                saveAndPrep = { previous to { refreshBalanceUseCaseProvider.get().invoke(type) } },
+                saveAndPrep = {
+                    val previous = credentialRepository.get(type)
+                    saveOpenCodeGoKey(apiKey, previous)
+                    previous to { refreshBalanceUseCaseProvider.get().invoke(type) }
+                },
                 formatSuccess = { UiText.Resource(R.string.msg_connect_success_saved) },
                 rollbackOnFailure = true
             )
         }
     }
 
-    /**
-     * 保存 OpenCode Go 凭据。参数为 `null` 表示该项不修改（保留已存值），
-     * 便于"仅更新 API Key"时不冲掉用户已配置的 cookie 对。
-     */
-    private suspend fun doSaveOpenCodeGo(workspaceId: String?, authCookie: String?, apiKey: String? = null) {
-        val type = serviceType ?: return
-        val existing = credentialRepository.get(type) as? Credential.SessionCredential
-        val updated = (existing ?: Credential.SessionCredential(
-            service = type,
-            cookies = emptyList()
-        )).copy(
-            authCookie = authCookie ?: existing?.authCookie,
-            workspaceId = workspaceId ?: existing?.workspaceId,
-            apiKey = apiKey ?: existing?.apiKey,
-            lastVerifiedAt = System.currentTimeMillis()
-        )
+    private fun openCodeGoApiKeyInput(): String? {
+        val apiKey = _uiState.value.triggerApiKey.trim()
+        if (apiKey.isBlank()) {
+            _uiState.update { it.copy(message = UiText.Resource(R.string.error_api_key_empty)) }
+            return null
+        }
+        return apiKey
+    }
+
+    private suspend fun saveOpenCodeGoKey(apiKey: String, previous: Credential?) {
+        val existing = previous as? Credential.SessionCredential
+        // 同一 Key 重新保存时保留旧凭据字段；换 Key 时不关联旧工作区。
+        val updated = existing?.takeIf { it.apiKey?.trim() == apiKey }?.copy(apiKey = apiKey)
+            ?: Credential.SessionCredential(service = ServiceType.OPENCODE_GO, apiKey = apiKey)
         credentialRepository.save(updated)
     }
 
@@ -710,8 +679,6 @@ class CredentialEditViewModel @Inject constructor(
                     hasExisting = false,
                     apiKey = "",
                     cookieInput = "",
-                    authCookie = "",
-                    workspaceId = "",
                     cookieCount = 0,
                     ollamaCookie = "",
                     triggerApiKey = "",
@@ -723,48 +690,6 @@ class CredentialEditViewModel @Inject constructor(
 
     fun clearMessage() {
         _uiState.update { it.copy(message = null) }
-    }
-
-    fun importFromClipboard(context: Context) {
-        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
-        val text = cm.primaryClip?.getItemAt(0)?.text?.toString()
-        if (text.isNullOrBlank()) {
-            _uiState.update { it.copy(message = UiText.Resource(R.string.error_clipboard_empty)) }
-            return
-        }
-        val ws = extractWorkspaceId(text)
-        val auth = extractAuthCookie(text)
-        _uiState.update { state ->
-            state.copy(
-                workspaceId = ws ?: state.workspaceId,
-                authCookie = auth ?: state.authCookie
-            )
-        }
-        when {
-            ws != null && auth != null ->
-                _uiState.update { it.copy(message = UiText.Resource(R.string.msg_clipboard_ws_auth)) }
-            ws != null ->
-                _uiState.update { it.copy(message = UiText.Resource(R.string.msg_clipboard_ws_only)) }
-            auth != null ->
-                _uiState.update { it.copy(message = UiText.Resource(R.string.msg_clipboard_auth_only)) }
-            else ->
-                _uiState.update { it.copy(message = UiText.Resource(R.string.error_clipboard_none)) }
-        }
-    }
-
-    private fun extractWorkspaceId(text: String): String? {
-        Regex("""https?:\/\/opencode\.ai\/workspace\/([a-zA-Z0-9_]+)\/go""").find(text)
-            ?.groupValues?.get(1)?.let { return it }
-        Regex("""workspace\/([a-zA-Z0-9_]+)\/go""").find(text)
-            ?.groupValues?.get(1)?.let { return it }
-        return null
-    }
-
-    private fun extractAuthCookie(text: String): String? {
-        Regex("""auth=([^;\s]+)""").find(text)?.groupValues?.get(1)?.let { return it }
-        Regex(""""name"\s*:\s*"auth"[^}]*"value"\s*:\s*"([^"]+)"""").find(text)
-            ?.groupValues?.get(1)?.let { return it }
-        return null
     }
 
     private fun parseCookieString(cookieString: String): List<CookieEntry> {
@@ -785,8 +710,6 @@ data class CredentialEditUiState(
     val loginUrl: String = "",
     val apiKey: String = "",
     val cookieInput: String = "",
-    val authCookie: String = "",
-    val workspaceId: String = "",
     val cookieCount: Int = 0,
     val hasExisting: Boolean = false,
     val codexAuthJson: String = "",

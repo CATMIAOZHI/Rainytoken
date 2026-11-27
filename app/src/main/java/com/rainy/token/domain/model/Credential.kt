@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
  * 统一凭据密封类。序列化为 JSON 后经 [com.rainy.token.data.local.SecureStorage] 加密存储。
  *
  * - [ApiKeyCredential] 用于 DeepSeek（API Key 形式）
- * - [SessionCredential] 用于 OpenCode Zen/Go（用户登录 dashboard 后粘贴的值）
+ * - [SessionCredential] 用于 OpenCode Go（API Key，兼容历史格式）及 Ollama
  * - [CodexCredential] 用于 Codex / ChatGPT（完整 OAuth 凭据，含自动刷新）
  * - [ClaudeCredential] 用于 Claude Code（Claude Pro/Max 的 OAuth 凭据，含自动刷新）
  */
@@ -26,9 +26,7 @@ sealed class Credential {
     ) : Credential()
 
     /**
-     * 用于 OpenCode Go：用户在浏览器登录 opencode.ai 后从 dashboard 拿到
-     * - [authCookie]: 名为 `auth` 的 cookie 值
-     * - [workspaceId]: 浏览器 dashboard URL 中的 workspace ID
+     * 会话凭据格式。OpenCode Go 使用 [apiKey]；保留旧字段以兼容已存凭据。
      */
     @Serializable
     data class SessionCredential(
@@ -38,9 +36,9 @@ sealed class Credential {
         val token: String? = null,
         /** Token 过期时间（epoch millis），null 表示未知。 */
         val expiresAt: Long? = null,
-        /** OpenCode Go（选填）：dashboard auth cookie 值，仅用于用量记录与模型级明细（简化为单字段，便于用户粘贴） */
+        /** OpenCode Go 旧版 dashboard cookie，仅为旧凭据反序列化保留。 */
         val authCookie: String? = null,
-        /** OpenCode Go（选填）：workspace ID，仅用于用量记录与模型级明细 */
+        /** OpenCode Go 旧版工作区 ID，仅为旧凭据反序列化保留。 */
         val workspaceId: String? = null,
         /** Ollama 专用：完整的 Cookie 字符串（用户从浏览器 DevTools 复制） */
         val ollamaCookie: String? = null,

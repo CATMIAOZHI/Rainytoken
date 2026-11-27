@@ -72,7 +72,7 @@ fun UsageOverviewScreen(
 
     // OCGO 首次加载（CCGO 由 setWorkspace 触发，不重复 load）
     LaunchedEffect(Unit) {
-        if (autoLoad) viewModel.loadStats()
+        if (autoLoad) viewModel.observeGoUsageScope()
     }
 
     var menuExpanded by remember { mutableStateOf(false) }
@@ -95,6 +95,9 @@ fun UsageOverviewScreen(
             modifier = Modifier.fillMaxSize().padding(innerPadding).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            if (autoLoad) item {
+                Text(stringResource(R.string.go_usage_scope), style = MaterialTheme.typography.bodySmall, color = inkMuted())
+            }
             // 时间筛选
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -104,10 +107,7 @@ fun UsageOverviewScreen(
                     }
                     Text("UTC+0", style = MaterialTheme.typography.bodySmall, color = inkMuted(), modifier = Modifier.padding(start = 4.dp))
                     DropdownMenu(menuExpanded, { menuExpanded = false }) {
-                        listOf(TimeFilter.All, TimeFilter.Last5h, TimeFilter.Last24h,
-                            TimeFilter.Today, TimeFilter.Yesterday,
-                            TimeFilter.Last7Days, TimeFilter.Last30Days, TimeFilter.ThisMonth
-                        ).forEach { filter ->
+                        usageTimeFilters(dailyOnly = autoLoad).forEach { filter ->
                             DropdownMenuItem(
                                 text = { Text(stringResource(filter.labelRes)) },
                                 onClick = { menuExpanded = false; viewModel.setTimeFilter(filter) }
@@ -120,14 +120,14 @@ fun UsageOverviewScreen(
                     }
                 }
             }
-            if (uiState.timeFilter is TimeFilter.Custom) {
+            if (!autoLoad && uiState.timeFilter is TimeFilter.Custom) {
                 item {
                     Text(stringResource(R.string.usage_utc0_note), style = MaterialTheme.typography.bodySmall, color = inkMuted())
                 }
             }
             // 总览
             uiState.overview?.let { overview ->
-                item { OverviewCard(overview, false) }
+                item { OverviewCard(overview, false, dailyOnly = autoLoad) }
                 if (overview.cacheReadTokens > 0 || overview.cacheWriteTokens > 0) {
                     item { CacheBreakdownCard(overview) }
                 }
@@ -195,7 +195,7 @@ fun UsageOverviewScreen(
 }
 
 @OptIn(ExperimentalLayoutApi::class)
-@Composable private fun OverviewCard(overview: OverviewStats, isExpanded: Boolean = false) {
+@Composable private fun OverviewCard(overview: OverviewStats, isExpanded: Boolean = false, dailyOnly: Boolean) {
     val inputTotal = overview.inputTokens + overview.cacheReadTokens
     Card(Modifier.fillMaxWidth(), RoundedCornerShape(20.dp), CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(0.dp)) {
         Column(Modifier.padding(16.dp)) {
@@ -208,22 +208,26 @@ fun UsageOverviewScreen(
                 ) {
                     StatItem(stringResource(R.string.usage_input_tokens), formatTokenCount(inputTotal))
                     StatItem(stringResource(R.string.usage_output_tokens), formatTokenCount(overview.outputTokens))
-                    StatItem(stringResource(R.string.usage_reasoning_tokens), formatTokenCount(overview.reasoningTokens))
+                    if (!dailyOnly) {
+                        StatItem(stringResource(R.string.usage_reasoning_tokens), formatTokenCount(overview.reasoningTokens))
+                    }
                     StatItem(stringResource(R.string.usage_total), formatTokenCount(overview.totalTokens))
                     StatItem(stringResource(R.string.usage_total_cost), "$${String.format(Locale.US, "%.4f", overview.totalCost / 100_000_000.0)}")
-                    StatItem(stringResource(R.string.usage_records), "${overview.totalCount}")
+                    StatItem(stringResource(if (dailyOnly) R.string.chart_requests else R.string.usage_records), "${overview.totalCount}")
                 }
             } else {
                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly) {
                     StatItem(stringResource(R.string.usage_input_tokens), formatTokenCount(inputTotal))
                     StatItem(stringResource(R.string.usage_output_tokens), formatTokenCount(overview.outputTokens))
-                    StatItem(stringResource(R.string.usage_reasoning_tokens), formatTokenCount(overview.reasoningTokens))
+                    if (!dailyOnly) {
+                        StatItem(stringResource(R.string.usage_reasoning_tokens), formatTokenCount(overview.reasoningTokens))
+                    }
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly) {
                     StatItem(stringResource(R.string.usage_total), formatTokenCount(overview.totalTokens))
                     StatItem(stringResource(R.string.usage_total_cost), "$${String.format(Locale.US, "%.4f", overview.totalCost / 100_000_000.0)}")
-                    StatItem(stringResource(R.string.usage_records), "${overview.totalCount}")
+                    StatItem(stringResource(if (dailyOnly) R.string.chart_requests else R.string.usage_records), "${overview.totalCount}")
                 }
             }
         }

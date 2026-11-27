@@ -12,6 +12,14 @@ sealed class RepositoryError(message: String, cause: Throwable? = null) : Except
     /** 请求期间凭据被保存、替换或删除；旧结果已安全丢弃。 */
     class CredentialChanged : RepositoryError("凭据已变更，本次请求结果已丢弃")
 
+    class OpenCodeGoSubscriptionRequired : RepositoryError("OpenCode Go subscription required")
+
+    enum class OpenCodeUsageForbiddenReason { MISSING_PERMISSION, NOT_OWNER_OR_ADMIN, UNSPECIFIED }
+    class OpenCodeUsageForbidden(val reason: OpenCodeUsageForbiddenReason) :
+        RepositoryError("OpenCode workspace usage access denied")
+    class OpenCodeUsageBadRequest : RepositoryError("Invalid OpenCode usage export request (HTTP 400)")
+    class OpenCodeUsageSummaryUnavailable : RepositoryError("OpenCode daily totals aren't available yet (HTTP 503)")
+
     /** 限流（429 Too Many Requests） */
     class RateLimited(val retryAfterSeconds: Long? = null) :
         RepositoryError("请求过于频繁${retryAfterSeconds?.let { "，请 ${it} 秒后重试" } ?: ""}")

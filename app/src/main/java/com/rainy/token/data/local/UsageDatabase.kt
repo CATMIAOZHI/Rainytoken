@@ -8,6 +8,8 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.builtins.ListSerializer
@@ -15,7 +17,7 @@ import kotlinx.serialization.json.Json
 
 @Database(
     entities = [UsageRecordEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class UsageDatabase : RoomDatabase() {
@@ -25,13 +27,21 @@ abstract class UsageDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: UsageDatabase? = null
 
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE usage_records ADD COLUMN requestCount INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE usage_records ADD COLUMN userType TEXT")
+                db.execSQL("ALTER TABLE usage_records ADD COLUMN userId TEXT")
+                db.execSQL("ALTER TABLE usage_records ADD COLUMN userName TEXT")
+            }
+        }
         fun getInstance(context: Context): UsageDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     UsageDatabase::class.java,
                     "usage_database"
-                ).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_1_2).build().also { INSTANCE = it }
             }
         }
     }

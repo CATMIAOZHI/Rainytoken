@@ -41,9 +41,11 @@ class WidgetRefreshReceiver : BroadcastReceiver() {
                 } == true
                 if (refreshed) {
                     OpenCodeGoWidgetProvider.notifyDataChanged(appContext)
+                } else {
+                    OpenCodeGoWidgetProvider.showRefreshFailed(appContext)
                 }
             } catch (_: Exception) {
-                // 静默，Widget 保留旧数据
+                OpenCodeGoWidgetProvider.showRefreshFailed(appContext)
             } finally {
                 isRefreshing = false
                 pendingResult.finish()

@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import androidx.annotation.StringRes
 import com.rainy.token.R
+import com.rainy.token.data.repository.UsageWindowStatus
 import com.rainy.token.domain.model.CredentialStatus
 import com.rainy.token.domain.model.ServiceBalance
 import com.rainy.token.domain.service.ServiceType
@@ -159,14 +160,21 @@ internal fun OpenCodeGoMainBalance(balance: ServiceBalance) {
 @Composable
 internal fun OpenCodeGoUsageWindows(balance: ServiceBalance) {
     val windows = listOf(
-        Triple(stringResource(R.string.window_5h), balance.extras["rolling.pct"]?.toFloatOrNull()?.roundToInt(), balance.extras["rolling.resetInSec"]?.toLongOrNull()),
-        Triple(stringResource(R.string.window_weekly),   balance.extras["weekly.pct"]?.toFloatOrNull()?.roundToInt(),   balance.extras["weekly.resetInSec"]?.toLongOrNull()),
-        Triple(stringResource(R.string.window_monthly),   balance.extras["monthly.pct"]?.toFloatOrNull()?.roundToInt(),  balance.extras["monthly.resetInSec"]?.toLongOrNull())
+        "rolling" to stringResource(R.string.window_5h),
+        "weekly" to stringResource(R.string.window_weekly),
+        "monthly" to stringResource(R.string.window_monthly)
     )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        windows.forEach { (label, pct, resetSec) ->
+        windows.forEach { (prefix, label) ->
+            val pct = balance.extras["$prefix.pct"]?.toFloatOrNull()?.roundToInt()
+            val resetSec = balance.extras["$prefix.resetInSec"]?.toLongOrNull()
             if (pct != null) {
-                CompactUsageRow(label = label, pct = pct, resetInSec = resetSec)
+                CompactUsageRow(
+                    label = label,
+                    pct = pct,
+                    resetInSec = resetSec,
+                    limitReached = balance.extras["$prefix.status"] == UsageWindowStatus.RATE_LIMITED.wireValue
+                )
             } else {
                 CompactUsageRowEmpty(label = label, resetInSec = resetSec)
             }
@@ -556,7 +564,7 @@ internal fun CompactUsageRowEmpty(label: String, resetInSec: Long?) {
 }
 
 @Composable
-internal fun CompactUsageRow(label: String, pct: Int, resetInSec: Long?) {
+internal fun CompactUsageRow(label: String, pct: Int, resetInSec: Long?, limitReached: Boolean = false) {
     val durationText = rememberDurationText()
     val pctValue = pct.coerceIn(0, 100).toFloat()
     Column {
@@ -571,11 +579,11 @@ internal fun CompactUsageRow(label: String, pct: Int, resetInSec: Long?) {
                 modifier = Modifier.weight(1f)
             )
             Text(
-                text = "$pct%",
+                text = if (limitReached) "$pct% · ${stringResource(R.string.quota_limit_reached)}" else "$pct%",
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = when {
-                    pct >= 80 -> MaterialTheme.colorScheme.error
+                    limitReached || pct >= 80 -> MaterialTheme.colorScheme.error
                     pct >= 50 -> StatusOrange
                     else -> MaterialTheme.colorScheme.onSurface
                 }
@@ -589,7 +597,7 @@ internal fun CompactUsageRow(label: String, pct: Int, resetInSec: Long?) {
                 .height(4.dp)
                 .clip(RoundedCornerShape(2.dp)),
             color = when {
-                pctValue >= 80f -> MaterialTheme.colorScheme.error
+                limitReached || pctValue >= 80f -> MaterialTheme.colorScheme.error
                 pctValue >= 50f -> StatusOrange
                 else -> StrawberryPink
             },

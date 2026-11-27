@@ -89,17 +89,17 @@ fun UsageDetailScreen(
 
     // OCGO 首次加载（CCGO 由 NavHost 的 setWorkspace 触发，不重复 load）
     LaunchedEffect(Unit) {
-        if (!isCcgo) viewModel.load()
+        if (!isCcgo) viewModel.observeGoUsageScope()
     }
 
-    var granularityExpanded by remember { mutableStateOf(false) }
-    var modelExpanded by remember { mutableStateOf(false) }
-    var showCustomDayPicker by remember { mutableStateOf(false) }
-    var showCustomMonthPicker by remember { mutableStateOf(false) }
-    var showCustomRangePicker by remember { mutableStateOf(false) }
-    var showCostDetail by remember { mutableStateOf(false) }
-    var showReqDetail by remember { mutableStateOf(false) }
-    var showTokenDetail by remember { mutableStateOf(false) }
+    var granularityExpanded by remember(state.scopeGeneration) { mutableStateOf(false) }
+    var modelExpanded by remember(state.scopeGeneration) { mutableStateOf(false) }
+    var showCustomDayPicker by remember(state.scopeGeneration) { mutableStateOf(false) }
+    var showCustomMonthPicker by remember(state.scopeGeneration) { mutableStateOf(false) }
+    var showCustomRangePicker by remember(state.scopeGeneration) { mutableStateOf(false) }
+    var showCostDetail by remember(state.scopeGeneration) { mutableStateOf(false) }
+    var showReqDetail by remember(state.scopeGeneration) { mutableStateOf(false) }
+    var showTokenDetail by remember(state.scopeGeneration) { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -109,7 +109,7 @@ fun UsageDetailScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    val serviceLabel = if (isCcgo) "CommandCode" else "OCGO"
+                    val serviceLabel = if (isCcgo) "CommandCode" else stringResource(R.string.go_usage_scope)
                     Column {
                         Text(
                             stringResource(R.string.title_usage_detail),
@@ -128,7 +128,7 @@ fun UsageDetailScreen(
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, stringResource(R.string.action_back)) } },
                 actions = {
                     TextButton(onClick = onOpenData) {
-                        Text(stringResource(R.string.action_view_raw_data), color = StrawberryPink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text(stringResource(if (isCcgo) R.string.action_view_raw_data else R.string.go_usage_rows_action), color = StrawberryPink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -156,7 +156,7 @@ fun UsageDetailScreen(
                                     Icon(Icons.Filled.ArrowDropDown, null, tint = StrawberryPink)
                                 }
                                 DropdownMenu(granularityExpanded, { granularityExpanded = false }) {
-                                    ChartGranularity.entries.forEach { g ->
+                                    (if (state.dailyOnly) GO_CHART_GRANULARITIES else ChartGranularity.entries).forEach { g ->
                                         DropdownMenuItem(text = { Text(stringResource(g.labelRes)) }, onClick = {
                                             granularityExpanded = false
                                             when (g) {
@@ -169,7 +169,7 @@ fun UsageDetailScreen(
                                     }
                                 }
                             }
-                            TextButton(onClick = {
+                            if (isCcgo) TextButton(onClick = {
                                 viewModel.toggleUtc8()
                                 scope.launch {
                                     snackbarHostState.showSnackbar(
@@ -242,7 +242,7 @@ fun UsageDetailScreen(
                                 }
                                 Box(modifier = Modifier.weight(1f)) {
                                     ChartCard(stringResource(R.string.chart_requests), stringResource(R.string.count_times, reqTotal), { showReqDetail = true }) {
-                                        LineChart(state.buckets, { it.totalRequests.toFloat() }, StrawberryPink, { context.getString(R.string.count_times, it.toInt()) }, state.granularity, useUtc8 = state.useUtc8)
+                                        LineChart(state.buckets, { it.totalRequests.toFloat() }, StrawberryPink, { context.getString(R.string.count_times, it.toLong()) }, state.granularity, useUtc8 = state.useUtc8, formatTooltip = { context.getString(R.string.count_times, it.totalRequests) })
                                     }
                                 }
                             }
@@ -284,7 +284,7 @@ fun UsageDetailScreen(
                         item {
                             val reqTotal = state.buckets.sumOf { it.totalRequests }
                             ChartCard(stringResource(R.string.chart_requests), stringResource(R.string.count_times, reqTotal), { showReqDetail = true }) {
-                                LineChart(state.buckets, { it.totalRequests.toFloat() }, StrawberryPink, { context.getString(R.string.count_times, it.toInt()) }, state.granularity, useUtc8 = state.useUtc8)
+                                LineChart(state.buckets, { it.totalRequests.toFloat() }, StrawberryPink, { context.getString(R.string.count_times, it.toLong()) }, state.granularity, useUtc8 = state.useUtc8, formatTooltip = { context.getString(R.string.count_times, it.totalRequests) })
                             }
                         }
                         item {
@@ -349,7 +349,7 @@ fun UsageDetailScreen(
             models.forEach { model -> val t = state.buckets.sumOf { it.byModel[model]?.cost ?:0L }; if (t>0) DetailRow(model, "$${String.format(Locale.US, "%.4f", t/100_000_000.0)}") }
         }
         if (showReqDetail) ChartDetailDialog(stringResource(R.string.chart_detail_requests), { showReqDetail = false }) {
-            models.forEach { model -> val t = state.buckets.sumOf { it.byModel[model]?.requests ?: 0 }; if (t>0) DetailRow(model, stringResource(R.string.count_times, t)) }
+            models.forEach { model -> val t = state.buckets.sumOf { it.byModel[model]?.requests ?: 0L }; if (t>0) DetailRow(model, stringResource(R.string.count_times, t)) }
         }
         if (showTokenDetail) ChartDetailDialog(stringResource(R.string.chart_detail_tokens), { showTokenDetail = false }) {
             DetailRow(stringResource(R.string.chart_stack_cache), formatTokenComma(state.buckets.sumOf { it.cacheHitTokens }))

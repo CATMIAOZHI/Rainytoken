@@ -78,7 +78,7 @@ fun UsageDataScreen(
 
     // OCGO 首次加载（CCGO 由 setWorkspace 触发，不重复 load）
     LaunchedEffect(Unit) {
-        if (autoLoad) viewModel.loadData()
+        if (autoLoad) viewModel.observeGoUsageScope()
     }
 
     var timeMenuExpanded by remember { mutableStateOf(false) }
@@ -86,20 +86,23 @@ fun UsageDataScreen(
     var showRangePicker by remember { mutableStateOf(false) }
     var showCustomDayPicker by remember { mutableStateOf(false) }
     var showCustomMonthPicker by remember { mutableStateOf(false) }
-    var rawRecord by remember { mutableStateOf<UsageRecord?>(null) }
+    var rawRecordId by remember(state.scopeGeneration) { mutableStateOf<String?>(null) }
     var pageInput by remember { mutableStateOf("") }
 
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.title_raw_data)) },
+                title = { Text(stringResource(if (autoLoad) R.string.go_usage_rows_title else R.string.title_raw_data)) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, stringResource(R.string.action_back)) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
         }
     ) { innerPadding ->
         Column(Modifier.fillMaxSize().padding(innerPadding).padding(horizontal = 12.dp)) {
+            if (autoLoad) {
+                Text(stringResource(R.string.go_usage_scope), style = MaterialTheme.typography.bodySmall, color = inkMuted())
+            }
             // ─── 筛选栏 ───
             Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp), Alignment.CenterVertically) {
                 // 时间筛选
@@ -109,11 +112,7 @@ fun UsageDataScreen(
                         Icon(Icons.Filled.ArrowDropDown, null, tint = StrawberryPink)
                     }
                     DropdownMenu(timeMenuExpanded, { timeMenuExpanded = false }) {
-                        listOf(
-                            TimeFilter.All, TimeFilter.Last5h, TimeFilter.Last24h,
-                            TimeFilter.Today, TimeFilter.Yesterday,
-                            TimeFilter.Last7Days, TimeFilter.Last30Days, TimeFilter.ThisMonth
-                        ).forEach { f ->
+                        usageTimeFilters(dailyOnly = autoLoad).forEach { f ->
                             DropdownMenuItem(text = { Text(stringResource(f.labelRes)) }, onClick = {
                                 timeMenuExpanded = false; viewModel.setTimeFilter(f)
                             })
@@ -154,13 +153,13 @@ fun UsageDataScreen(
             }
 
             // 自定义时间范围：确认选择后显示 UTC 说明
-            if (state.timeFilter is TimeFilter.Custom) {
+            if (!autoLoad && state.timeFilter is TimeFilter.Custom) {
                 Text(stringResource(R.string.usage_utc0_note), style = MaterialTheme.typography.bodySmall, color = inkMuted())
             }
 
             // ─── 记录数 + 分页 ───
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Text(stringResource(R.string.usage_record_count, state.totalRecords), style = MaterialTheme.typography.bodySmall, color = inkMuted())
+                Text(stringResource(if (autoLoad) R.string.go_usage_row_count else R.string.usage_record_count, state.totalRecords), style = MaterialTheme.typography.bodySmall, color = inkMuted())
                 if (state.totalPages > 1) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = { viewModel.prevPage() }, enabled = state.currentPage > 1) {
@@ -195,7 +194,7 @@ fun UsageDataScreen(
             Card(Modifier.fillMaxWidth(), RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp),
                 CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)) {
-                    HeaderCell(stringResource(R.string.header_time), Modifier.weight(1.5f), false)
+                    HeaderCell(stringResource(if (autoLoad) R.string.go_usage_date_utc else R.string.header_time), Modifier.weight(1.5f), false)
                     HeaderCell(stringResource(R.string.header_model), Modifier.weight(1.8f), false)
                     HeaderCell(stringResource(R.string.header_input_cache), Modifier.weight(1.5f), false)
                     HeaderCell(stringResource(R.string.header_output), Modifier.weight(1.2f), false)
@@ -215,7 +214,7 @@ fun UsageDataScreen(
             } else {
                 LazyColumn(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     itemsIndexed(state.records, key = { _, r -> r.id }) { idx, record ->
-                        DataRecordRow(record, idx, { rawRecord = it }, false)
+                        DataRecordRow(record, idx, { rawRecordId = it.id }, false)
                     }
                     item { Spacer(Modifier.height(8.dp)) }
                 }
@@ -262,29 +261,42 @@ fun UsageDataScreen(
         }
 
         // 原始数据弹窗
-        rawRecord?.let { record ->
+        state.records.firstOrNull { it.id == rawRecordId }?.let { record ->
+            val daily = record.userType != null
             AlertDialog(
-                onDismissRequest = { rawRecord = null },
-                title = { Text(stringResource(R.string.raw_record_title), fontWeight = FontWeight.Bold) },
+                onDismissRequest = { rawRecordId = null },
+                title = { Text(stringResource(if (daily) R.string.go_usage_row_title else R.string.raw_record_title), fontWeight = FontWeight.Bold) },
                 text = {
                     Column(Modifier.horizontalScroll(rememberScrollState())) {
-                        RawField("ID", record.id)
-                        RawField(stringResource(R.string.header_time), formatUtcTime(record.timeCreated))
+                        if (daily) {
+                            RawField(stringResource(R.string.go_usage_date_utc), record.timeCreated.toUtcLocalDate().toString())
+                            RawField(stringResource(R.string.chart_requests), "%,d".format(Locale.US, record.requestCount))
+                            record.userType?.takeIf { it.isNotBlank() }?.let { RawField(stringResource(R.string.go_usage_user_type), it) }
+                            record.userName?.takeIf { it.isNotBlank() }?.let { RawField(stringResource(R.string.go_usage_user_name), it) }
+                            record.userId?.takeIf { it.isNotBlank() }?.let { RawField(stringResource(R.string.go_usage_user_id), it) }
+                        } else {
+                            RawField("ID", record.id)
+                            RawField(stringResource(R.string.header_time), formatUtcTime(record.timeCreated))
+                        }
                         RawField(stringResource(R.string.header_model), record.model)
-                        RawField("Provider", record.provider)
+                        RawField(if (daily) stringResource(R.string.go_usage_provider) else "Provider", record.provider)
                         RawField(stringResource(R.string.usage_input_tokens), "%,d".format(Locale.US, record.inputTokens))
                         RawField(stringResource(R.string.usage_output_tokens), "%,d".format(Locale.US, record.outputTokens))
-                        RawField(stringResource(R.string.usage_reasoning_tokens), "%,d".format(Locale.US, record.reasoningTokens))
+                        if (!daily) {
+                            RawField(stringResource(R.string.usage_reasoning_tokens), "%,d".format(Locale.US, record.reasoningTokens))
+                        }
                         RawField(stringResource(R.string.stat_cache_read), "%,d".format(Locale.US, record.cacheReadTokens))
                         RawField(stringResource(R.string.stat_cache_write_5m), "%,d".format(Locale.US, record.cacheWrite5mTokens))
                         RawField(stringResource(R.string.stat_cache_write_1h), "%,d".format(Locale.US, record.cacheWrite1hTokens))
                         RawField(stringResource(R.string.raw_cost_usd), "$${String.format(Locale.US, "%.6f", record.costUsd)}")
-                        RawField(stringResource(R.string.raw_cost_raw), "${record.cost}")
-                        RawField("KeyId", record.keyId)
-                        RawField("SessionId", record.sessionId)
+                        if (!daily) {
+                            RawField(stringResource(R.string.raw_cost_raw), "${record.cost}")
+                            RawField("KeyId", record.keyId)
+                            RawField("SessionId", record.sessionId)
+                        }
                     }
                 },
-                confirmButton = { TextButton(onClick = { rawRecord = null }) { Text(stringResource(R.string.action_close)) } }
+                confirmButton = { TextButton(onClick = { rawRecordId = null }) { Text(stringResource(R.string.action_close)) } }
             )
         }
     }
@@ -306,7 +318,7 @@ private fun DataRecordRow(record: UsageRecord, idx: Int, onClick: (UsageRecord) 
         RoundedCornerShape(0.dp), CardDefaults.cardColors(containerColor = bg)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = rowPad),
             verticalAlignment = Alignment.CenterVertically) {
-            DataCell(formatUtcTimeShort(record.timeCreated), Modifier.weight(1.5f), expanded)
+            DataCell(if (record.userType != null) record.timeCreated.toUtcLocalDate().toString() else formatUtcTimeShort(record.timeCreated), Modifier.weight(1.5f), expanded)
             DataCell(record.model, Modifier.weight(1.8f), expanded)
             DataCell(formatInputWithCache(record), Modifier.weight(1.5f), expanded)
             DataCell("%,d".format(Locale.US, record.outputTokens), Modifier.weight(1.2f), expanded)

@@ -104,7 +104,7 @@
     <string name="service_plan_suffix">· %1$s</string>
     <string name="service_reset_in">%1$s 后重置</string>
     <string name="service_desc_deepseek">REST API · ¥</string>
-    <string name="service_desc_opencode_go">WebView 抓取 · 5h 配额</string>
+    <string name="service_desc_opencode_go">API Key · 5 小时、每周及每月配额</string>
     <string name="service_desc_commandcode_go">JSON API · $</string>
     <string name="service_desc_codex">ChatGPT · Codex 额度</string>
     <string name="service_desc_ollama">Cookie 抓取 · Cloud 配额</string>
@@ -125,8 +125,6 @@
     <string name="window_usage">用量</string>
     <string name="usage_window_title">用量窗口%1$s</string>
     <string name="usage_window_title_plain">用量窗口</string>
-    <string name="msg_model_usage">模型用量</string>
-    <string name="msg_model_quota">配额 $%1$s</string>
 
     <!-- ══════════ 用量统计 ══════════ -->
     <string name="usage_title_opencode">OpenCode 用量</string>
@@ -199,16 +197,6 @@
     <string name="help_cookie_3">3. 登录后按 F12 → Application → Cookies</string>
     <string name="help_cookie_4">4. 复制该站点下的所有 Cookie 粘贴到上面输入框</string>
     <string name="help_cookie_5">格式：name1=value1; name2=value2</string>
-    <string name="help_ocgo_title">如何获取 auth cookie 与 workspaceId？</string>
-    <string name="help_ocgo_1">1. 桌面 Chrome 打开 opencode.ai/auth</string>
-    <string name="help_ocgo_2">2. 用 GitHub / Google 登录（Google 不会拦截 Chrome）</string>
-    <string name="help_ocgo_3">3. 登录后跳转到 dashboard，URL 形如：</string>
-    <string name="help_ocgo_4">   https://opencode.ai/workspace/{id}/go</string>
-    <string name="help_ocgo_5">4. 复制 URL 中的 {id} 段 → workspaceId</string>
-    <string name="help_ocgo_6">5. F12 → Application → Cookies</string>
-    <string name="help_ocgo_7">6. 找到域名 opencode.ai 下名为 auth 的 Cookie</string>
-    <string name="help_ocgo_8">7. 复制它的 Value 字段 → auth cookie</string>
-    <string name="help_ocgo_note">注意：只填 auth 一个 Cookie 即可，不要整个 Cookie 字符串</string>
     <string name="help_ccgo_title">如何获取 CommandCode 凭据？</string>
     <string name="help_ccgo_1">1. 打开 https://commandcode.ai 并登录 GitHub</string>
     <string name="help_ccgo_2">▸ 获取 API Key（必填）：</string>
@@ -239,7 +227,6 @@
     <string name="error_rollback_skipped">，检测到凭据已变化，未执行回滚</string>
     <string name="error_test_failed">测试失败。%1$s%2$s</string>
     <string name="error_test_not_supported">暂不支持测试此服务</string>
-    <string name="error_auth_cookie_workspace">auth cookie 和 workspaceId 都需要填写</string>
     <string name="error_cookie_empty">Cookie 不能为空</string>
     <string name="error_credential_not_configured">凭据未配置</string>
     <string name="error_credential_not_configured_expired">凭据未配置或已过期</string>
@@ -405,16 +392,11 @@
     <string name="placeholder_ollama_api_key">ollama-xxx 或 sk-xxx</string>
     <string name="action_save_api_key">保存 API Key</string>
     <string name="credential_title_opencode_go">OpenCode Go 凭据</string>
-    <string name="credential_hint_opencode_go">余额与 5h/周/月 三档用量通过 API Key 查询（opencode.ai/settings → API Keys 获取）。下方 auth cookie + workspaceId 为选填，仅用于用量记录页与模型级明细。</string>
-    <string name="action_import_from_clipboard">从剪贴板自动导入</string>
-    <string name="placeholder_workspace_id">dashboard URL 中的 {id} 段</string>
-    <string name="field_auth_cookie_value">auth Cookie 值</string>
-    <string name="placeholder_auth_cookie">F12 → Cookies → opencode.ai → auth 的 Value</string>
-    <string name="action_how_get_two_values">如何获取这两个值？</string>
+    <string name="credential_hint_opencode_go">填写你使用 OpenCode Go 的 API Key，用于查询配额和一键激活。</string>
+    <string name="action_open_opencode_dashboard">打开 OpenCode 控制台</string>
+    <string name="quota_limit_reached">已达上限</string>
+    <string name="quota_limit_reached_short">用尽</string>
     <string name="action_open_login_entry">在浏览器中打开登录入口</string>
-    <string name="hint_opencode_trigger_key">API Key 用于查询余额，也可在详情页一键发送请求激活用量统计。从 opencode.ai/settings → API Keys 获取。</string>
-    <string name="opencode_api_key_title">API Key（查询余额）</string>
-    <string name="opencode_session_optional_title">用量记录与模型级明细（选填）</string>
     <string name="credential_title_ccgo">CommandCode 凭据</string>
     <string name="credential_hint_ccgo">需要 API Key（拉余额）。Session Cookie（可选）在浏览器 DevTools 复制，用于拉用量记录。不填也可正常查看余额。</string>
     <string name="placeholder_api_key_from_settings">从 Settings → API Keys 生成</string>
@@ -482,11 +464,6 @@
     <string name="msg_api_key_saved">API Key 已保存</string>
     <string name="msg_connect_success_session">连接成功！Session: %1$s%% · %2$s</string>
     <string name="msg_credential_deleted">凭据已删除</string>
-    <string name="error_clipboard_empty">剪贴板为空</string>
-    <string name="msg_clipboard_ws_auth">已识别 workspaceId 和 auth cookie</string>
-    <string name="msg_clipboard_ws_only">已识别 workspaceId，请再粘贴 auth cookie</string>
-    <string name="msg_clipboard_auth_only">已识别 auth cookie，请再粘贴 workspaceId</string>
-    <string name="error_clipboard_none">未识别到有效凭据</string>
 
     <!-- ══════════ Codex OAuth 登录页 ══════════ -->
     <string name="oauth_screen_title">Codex OAuth 登录</string>
@@ -561,7 +538,6 @@
     <string name="month_11">十一月</string>
     <string name="month_12">十二月</string>
     <string name="field_api_key">API Key</string>
-    <string name="field_workspace_id">Workspace ID</string>
 
     <!-- Claude Code -->
     <string name="credential_title_claude">Claude Code 凭据</string>
@@ -579,4 +555,12 @@
     <string name="help_claude_note">余额来自官方用量接口（5 小时 + 每周窗口），凭据仅保存在本机。</string>
     <string name="service_desc_claude">Claude Code 订阅配额</string>
     <string name="window_model_weekly">模型每周</string>
+
+    <string name="error_opencode_go_subscription_required">此 API Key 所属的工作区需要有效的 OpenCode Go 订阅。</string>
+    <string name="error_opencode_usage_permission">此 API Key 需要开启「用量 › 读取」（Usage › Read）权限才能查看工作区用量。</string>
+    <string name="error_opencode_usage_role">普通成员的 API Key 不能查看工作区用量。请使用所有者或管理员的个人密钥，或有 Usage › Read 权限的服务账号密钥。</string>
+    <string name="error_opencode_usage_forbidden">请改用所有者或管理员的个人密钥，或服务账号密钥，并开启 Usage › Read 权限。</string>
+    <string name="error_opencode_usage_bad_request">工作区用量导出请求被拒绝，请重试或检查应用更新。</string>
+    <string name="error_opencode_usage_unavailable">每日用量汇总尚未生成，请稍后重试。</string>
+    <string name="widget_refresh_failed">刷新失败</string>
 </resources>

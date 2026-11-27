@@ -58,15 +58,22 @@ class UsageCache(
         return dao.insertAll(entities).count { it != -1L }
     }
 
+    /** Merge one authoritative CSV window. Unchanged rows and history outside the window are untouched. */
+    internal suspend fun applyDailyExport(
+        scope: String,
+        fromTs: Long,
+        toTs: Long,
+        records: List<UsageRecord>
+    ): UsageExportChanges {
+        ensureMigrated()
+        return dao.applyDailyExport(scope, fromTs, toTs, records.map { it.toEntity() })
+    }
+
     suspend fun getLatest(): UsageRecord? {
         ensureMigrated()
         return dao.getLatest()?.toDomain()
     }
 
-    suspend fun getAllIds(): Set<String> {
-        ensureMigrated()
-        return dao.getAllIds().toSet()
-    }
 
     /** 按 workspaceId 获取已有记录 ID 集合（增量同步用） */
     suspend fun getIdsByWorkspace(workspaceId: String): Set<String> {
@@ -126,7 +133,7 @@ class UsageCache(
                     model = model,
                     totalTokens = recs.sumOf { it.totalTokens },
                     totalCost = recs.sumOf { it.cost },
-                    count = recs.size
+                    count = recs.sumOf { it.requestCount }
                 )
             }
             .sortedByDescending { it.totalTokens }
@@ -146,7 +153,7 @@ class UsageCache(
                     dayTs = dayTs,
                     totalTokens = recs.sumOf { it.totalTokens },
                     totalCost = recs.sumOf { it.cost },
-                    count = recs.size
+                    count = recs.sumOf { it.requestCount }
                 )
             }
             .sortedByDescending { it.dayTs }
@@ -163,7 +170,7 @@ class UsageCache(
         return OverviewStats(
             totalTokens = records.sumOf { it.inputTokens + it.cacheReadTokens + it.outputTokens },
             totalCost = records.sumOf { it.cost },
-            totalCount = records.size,
+            totalCount = records.sumOf { it.requestCount },
             modelCount = records.map { it.model }.distinct().size,
             inputTokens = records.sumOf { it.inputTokens },
             outputTokens = records.sumOf { it.outputTokens },
@@ -192,30 +199,37 @@ data class UsageRecord(
     val cost: Long,
     val keyId: String,
     val sessionId: String,
-    val enrichmentPlan: String = ""
+    val enrichmentPlan: String = "",
+    // Legacy providers store one request per row; CSV exports store one daily aggregate per identity.
+    val requestCount: Long = 1,
+    val userType: String? = null,
+    val userId: String? = null,
+    val userName: String? = null
 ) {
     val costUsd: Double get() = cost / 100_000_000.0
-    val totalTokens: Long get() = inputTokens + outputTokens + reasoningTokens
+    // OpenCode export lists cache reads separately; count them consistently in daily/model totals.
+    val totalTokens: Long get() = inputTokens + outputTokens + reasoningTokens +
+        (if (userType != null) cacheReadTokens else 0L)
 }
 
 data class ModelStats(
     val model: String,
     val totalTokens: Long,
     val totalCost: Long,
-    val count: Int
+    val count: Long
 )
 
 data class DailyStats(
     val dayTs: Long,
     val totalTokens: Long,
     val totalCost: Long,
-    val count: Int
+    val count: Long
 )
 
 data class OverviewStats(
     val totalTokens: Long,
     val totalCost: Long,
-    val totalCount: Int,
+    val totalCount: Long,
     val modelCount: Int,
     val inputTokens: Long = 0,
     val outputTokens: Long = 0,

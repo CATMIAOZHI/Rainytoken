@@ -1,6 +1,9 @@
 package com.rainy.token.data.repository
 
+import com.rainy.token.domain.model.CookieEntry
+import com.rainy.token.domain.model.Credential
 import com.rainy.token.domain.model.CredentialStatus
+import com.rainy.token.domain.service.ServiceType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
@@ -114,5 +117,22 @@ class CredentialRepositoryTest {
                 state
             )
         }
+    }
+
+    @Test
+    fun `OpenCode Go cache identity depends on trimmed API key instead of legacy credentials`() {
+        val credential = Credential.SessionCredential(service = ServiceType.OPENCODE_GO, apiKey = "fixture-key-one")
+        val original = CredentialRepository.cacheIdentityFingerprint(credential)
+        val withLegacyFields = credential.copy(
+            apiKey = "  fixture-key-one  ",
+            workspaceId = "legacy-workspace",
+            authCookie = "legacy-cookie",
+            cookies = listOf(CookieEntry("legacy", "value")),
+            token = "legacy-token",
+            lastVerifiedAt = 42L
+        )
+        assertEquals(original, CredentialRepository.cacheIdentityFingerprint(withLegacyFields))
+        assertNotEquals(original, CredentialRepository.cacheIdentityFingerprint(credential.copy(apiKey = "fixture-key-two")))
+        assertNotEquals(original, CredentialRepository.cacheIdentityFingerprint(credential.copy(apiKey = null)))
     }
 }

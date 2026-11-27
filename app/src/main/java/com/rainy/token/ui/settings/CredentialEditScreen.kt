@@ -53,11 +53,6 @@ import com.rainy.token.domain.service.ServiceType
 
 /**
  * 凭据编辑页。
- *
- * - REST API 服务（DeepSeek）：API Key 表单
- * - WebView 类服务（OpenCode Go）：
- *     - **主路径**：手动粘贴 Cookie（避免 Google OAuth 拦截 WebView）
- *     - **备用路径**：WebView 登录（保留但会提示 Google OAuth 不让过）
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,7 +69,6 @@ fun CredentialEditScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     var showCookieHelp by remember { mutableStateOf(false) }
-    var showGoHelp by remember { mutableStateOf(false) }
     var showOpenCcgoHelp by remember { mutableStateOf(false) }
     var showCodexHelp by remember { mutableStateOf(false) }
     var showClaudeHelp by remember { mutableStateOf(false) }
@@ -117,7 +111,15 @@ fun CredentialEditScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 if (uiState.isApiKeyService) {
-                if (service == ServiceType.COMMANDCODE_GO) {
+                if (service == ServiceType.OPENCODE_GO) {
+                    OpenCodeGoForm(
+                        apiKey = uiState.triggerApiKey,
+                        onApiKeyChange = viewModel::updateTriggerApiKey,
+                        onSaveApiKey = viewModel::saveOpenCodeGoApiKey,
+                        onTestAndSave = viewModel::testAndSaveOpenCodeGo,
+                        onOpenDashboard = { openInBrowser(context, uiState.loginUrl) }
+                    )
+                } else if (service == ServiceType.COMMANDCODE_GO) {
                     CommandCodeGoForm(
                         apiKey = uiState.apiKey,
                         cookieInput = uiState.cookieInput,
@@ -171,24 +173,6 @@ fun CredentialEditScreen(
                                 onApiKeyChange = viewModel::updateTriggerApiKey,
                                 onSaveApiKey = { viewModel.saveTriggerApiKey() }
                             )
-                        } else if (service == ServiceType.OPENCODE_GO) {
-                            OpenCodeGoForm(
-                                authCookie = uiState.authCookie,
-                                workspaceId = uiState.workspaceId,
-                                loginUrl = uiState.loginUrl,
-                                hasExisting = uiState.hasExisting,
-                                triggerApiKey = uiState.triggerApiKey,
-                                onAuthCookieChange = viewModel::updateAuthCookie,
-                                onWorkspaceIdChange = viewModel::updateWorkspaceId,
-                                onSave = { viewModel.saveOpenCodeGoSession() },
-                                onTestAndSave = { viewModel.testAndSaveOpenCodeGo() },
-                                onImportFromClipboard = { viewModel.importFromClipboard(context) },
-                                onCopyLoginUrl = { copyToClipboard(context, uiState.loginUrl) },
-                                onOpenLoginUrl = { openInBrowser(context, uiState.loginUrl) },
-                                onShowHelp = { showGoHelp = true },
-                                onApiKeyChange = viewModel::updateTriggerApiKey,
-                                onSaveApiKey = { viewModel.saveTriggerApiKey() }
-                            )
                         } else {
                         // 通用 WebView 抓取已移除（半成品功能，凭据无法正确映射到 Repository 字段）
                         // 保留手动 Cookie 粘贴作为 fallback
@@ -232,31 +216,6 @@ fun CredentialEditScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showCookieHelp = false }) {
-                    Text(stringResource(R.string.action_got_it))
-                }
-            }
-        )
-    }
-
-    if (showGoHelp) {
-        AlertDialog(
-            onDismissRequest = { showGoHelp = false },
-            title = { Text(stringResource(R.string.help_ocgo_title)) },
-            text = {
-                Column {
-                    Text(stringResource(R.string.help_ocgo_1))
-                    Text(stringResource(R.string.help_ocgo_2))
-                    Text(stringResource(R.string.help_ocgo_3))
-                    Text(stringResource(R.string.help_ocgo_4))
-                    Text(stringResource(R.string.help_ocgo_5))
-                    Text(stringResource(R.string.help_ocgo_6))
-                    Text(stringResource(R.string.help_ocgo_7))
-                    Text(stringResource(R.string.help_ocgo_8))
-                    Text(stringResource(R.string.help_ocgo_note))
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showGoHelp = false }) {
                     Text(stringResource(R.string.action_got_it))
                 }
             }
@@ -437,21 +396,11 @@ private fun OllamaCookieForm(
 
 @Composable
 private fun OpenCodeGoForm(
-    authCookie: String,
-    workspaceId: String,
-    loginUrl: String,
-    hasExisting: Boolean,
-    triggerApiKey: String,
-    onAuthCookieChange: (String) -> Unit,
-    onWorkspaceIdChange: (String) -> Unit,
-    onSave: () -> Unit,
-    onTestAndSave: () -> Unit,
-    onImportFromClipboard: () -> Unit,
-    onCopyLoginUrl: () -> Unit,
-    onOpenLoginUrl: () -> Unit,
-    onShowHelp: () -> Unit,
+    apiKey: String,
     onApiKeyChange: (String) -> Unit,
-    onSaveApiKey: () -> Unit
+    onSaveApiKey: () -> Unit,
+    onTestAndSave: () -> Unit,
+    onOpenDashboard: () -> Unit
 ) {
     Text(text = stringResource(R.string.credential_title_opencode_go), style = MaterialTheme.typography.titleMedium)
     Text(
@@ -459,86 +408,31 @@ private fun OpenCodeGoForm(
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.outline
     )
-    // ── API Key（查余额，必填）──
-    Text(
-        text = stringResource(R.string.opencode_api_key_title),
-        style = MaterialTheme.typography.titleSmall
-    )
-    Text(
-        text = stringResource(R.string.hint_opencode_trigger_key),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.outline
-    )
     OutlinedTextField(
-        value = triggerApiKey,
+        value = apiKey,
         onValueChange = onApiKeyChange,
         label = { Text(stringResource(R.string.field_api_key)) },
-        placeholder = { Text("opencode-xxx") },
-        singleLine = true,
-        visualTransformation = PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-        modifier = Modifier.fillMaxWidth()
-    )
-    OutlinedButton(
-        onClick = onSaveApiKey,
-        modifier = Modifier.fillMaxWidth(),
-        enabled = triggerApiKey.isNotBlank()
-    ) {
-        Text(stringResource(R.string.action_save_api_key))
-    }
-
-    // ── 用量记录 + 模型级明细（选填）：auth cookie + workspaceId ──
-    androidx.compose.material3.HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-    Text(
-        text = stringResource(R.string.opencode_session_optional_title),
-        style = MaterialTheme.typography.titleSmall
-    )
-    OutlinedButton(onClick = onImportFromClipboard, modifier = Modifier.fillMaxWidth()) {
-        Text(text = stringResource(R.string.action_import_from_clipboard))
-    }
-    OutlinedTextField(
-        value = workspaceId,
-        onValueChange = onWorkspaceIdChange,
-        label = { Text(stringResource(R.string.field_workspace_id)) },
-        placeholder = { Text(stringResource(R.string.placeholder_workspace_id)) },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth()
-    )
-    OutlinedTextField(
-        value = authCookie,
-        onValueChange = onAuthCookieChange,
-        label = { Text(stringResource(R.string.field_auth_cookie_value)) },
-        placeholder = { Text(stringResource(R.string.placeholder_auth_cookie)) },
         singleLine = true,
         visualTransformation = PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         modifier = Modifier.fillMaxWidth()
     )
     Button(
-        onClick = onSave,
-        modifier = Modifier.fillMaxWidth(),
-        enabled = authCookie.isNotBlank() && workspaceId.isNotBlank()
-    ) {
-        Text(text = if (hasExisting) stringResource(R.string.credential_update) else stringResource(R.string.credential_save))
-    }
-    OutlinedButton(
         onClick = onTestAndSave,
         modifier = Modifier.fillMaxWidth(),
-        enabled = triggerApiKey.isNotBlank() && (authCookie.isBlank() == workspaceId.isBlank())
+        enabled = apiKey.isNotBlank()
     ) {
-        Text(text = stringResource(R.string.action_test_and_save))
-    }
-    OutlinedButton(onClick = onShowHelp, modifier = Modifier.fillMaxWidth()) {
-        Text(text = stringResource(R.string.action_how_get_two_values))
+        Text(stringResource(R.string.action_test_and_save))
     }
     OutlinedButton(
-        onClick = onOpenLoginUrl,
-        modifier = Modifier.fillMaxWidth()
+        onClick = onSaveApiKey,
+        modifier = Modifier.fillMaxWidth(),
+        enabled = apiKey.isNotBlank()
     ) {
-        Text(text = stringResource(R.string.action_open_login_entry))
+        Text(stringResource(R.string.action_save_api_key))
     }
-    TextButton(onClick = onCopyLoginUrl, modifier = Modifier.fillMaxWidth()) {
-        Text(text = stringResource(R.string.action_copy_login_url))
+    TextButton(onClick = onOpenDashboard, modifier = Modifier.fillMaxWidth()) {
+        Text(stringResource(R.string.action_open_opencode_dashboard))
     }
 }
 

@@ -5,13 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.rainy.token.data.local.UsageCache
 import com.rainy.token.data.local.UsageRecord
 import com.rainy.token.data.repository.CredentialRepository
-import com.rainy.token.domain.model.Credential
+import com.rainy.token.data.repository.OpenCodeUsageRepository
 import com.rainy.token.domain.service.ServiceType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Provider
@@ -28,51 +29,52 @@ class UsageDataViewModel @Inject constructor(
     val state: StateFlow<UsageDataState> = _state.asStateFlow()
 
     private var workspaceIdOverride: String? = null
-    private var loadGeneration = 0
+    private var loadJob: Job? = null
+    private var displayedGoScope: String? = null
+    private var goScopeObserver: Job? = null
 
-    /** 覆盖 workspaceId，用于 CCGO 等非 OCGO 服务。必须在 loadModelsAndData() 前调用。 */
+    fun observeGoUsageScope() {
+        if (workspaceIdOverride != null || goScopeObserver?.isActive == true) return
+        goScopeObserver = viewModelScope.launch {
+            credentialRepository.openCodeUsageScopeChanges.collect { scope ->
+                if (workspaceIdOverride != null) return@collect
+                showGoScope(scope)
+                loadData()
+            }
+        }
+    }
+
+    private fun showGoScope(scope: String?) {
+        if (displayedGoScope == scope) return
+        displayedGoScope = scope
+        _state.value = UsageDataState(loading = scope != null, scopeGeneration = _state.value.scopeGeneration + 1)
+    }
+
+    /** Use the fixed CommandCode scope instead of the OpenCode API key. */
     fun setWorkspace(wid: String) {
         workspaceIdOverride = wid
-        loadGeneration++
-        // 先清空数据防止 init 自动加载的 OCGO 数据闪一下
+        goScopeObserver?.cancel()
         _state.value = UsageDataState()
         loadData()
     }
-
-    // 不在 init 自动加载，由 Composable 层显式触发 loadData()（OCGO）或 setWorkspace()（CCGO）
-
-    private fun loadModelsAndData() {
-        viewModelScope.launch {
-            val wid = workspaceId() ?: return@launch
-            val genAtStart = loadGeneration
-            val cache = cacheProvider.get()
-            val models = cache.getDistinctModels(wid)
-            _state.update { it.copy(allModels = models) }
-            // 如果 loadGeneration 已经变化，丢弃这次结果
-            if (loadGeneration != genAtStart) return@launch
-            // 紧接着加载数据
-            loadDataInternal(cache, wid)
-        }
-    }
-
-    private suspend fun workspaceId(): String? {
+    private suspend fun cacheScope(): String? {
         workspaceIdOverride?.let { return it }
-        val c = credentialRepository.get(ServiceType.OPENCODE_GO)
-        return (c as? Credential.SessionCredential)?.workspaceId?.takeIf { it.isNotBlank() }
+        return OpenCodeUsageRepository.cacheScope(credentialRepository.get(ServiceType.OPENCODE_GO))
     }
 
     fun loadData() {
-        viewModelScope.launch {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
+            val wid = cacheScope()
+            if (workspaceIdOverride == null) showGoScope(wid)
+            if (wid == null) {
+                _state.update { it.copy(loading = false) }
+                return@launch
+            }
             _state.update { it.copy(loading = true) }
-            val wid = workspaceId() ?: return@launch
-            val genAtStart = loadGeneration
-            val cache = cacheProvider.get()
-            loadDataInternal(cache, wid)
-            // 如果 loadGeneration 已经变化，丢弃这次结果
-            if (loadGeneration != genAtStart) return@launch
+            loadDataInternal(cacheProvider.get(), wid)
         }
     }
-
     private suspend fun loadDataInternal(cache: UsageCache, wid: String) {
         val filter = _state.value.timeFilter
         val (fromTs, toTs) = filter.toRange()
@@ -90,12 +92,17 @@ class UsageDataViewModel @Inject constructor(
         val paged = records.drop((page - 1) * DATA_PAGE_SIZE).take(DATA_PAGE_SIZE)
 
         val models = cache.getDistinctModels(wid)
+        if (cacheScope() != wid) {
+            loadData()
+            return
+        }
         _state.update {
             it.copy(
                 records = paged,
                 allModels = models,
                 totalRecords = total,
                 totalPages = totalPages,
+                currentPage = page,
                 loading = false
             )
         }
@@ -146,7 +153,8 @@ class UsageDataViewModel @Inject constructor(
 }
 
 data class UsageDataState(
-    val loading: Boolean = true,
+        val loading: Boolean = true,
+    val scopeGeneration: Int = 0,
     val records: List<UsageRecord> = emptyList(),
     val allModels: List<String> = emptyList(),
     val selectedModels: Set<String> = emptySet(),  // empty = all

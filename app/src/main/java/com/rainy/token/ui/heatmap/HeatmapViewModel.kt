@@ -2,20 +2,20 @@ package com.rainy.token.ui.heatmap
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.rainy.token.data.local.ChartSettingsStore
 import com.rainy.token.data.local.UsageCache
 import com.rainy.token.data.local.UsageRecord
 import com.rainy.token.data.repository.CredentialRepository
-import com.rainy.token.domain.model.Credential
+import com.rainy.token.data.repository.OpenCodeUsageRepository
 import com.rainy.token.domain.service.ServiceType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Instant
 import java.time.ZoneOffset
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -54,21 +54,10 @@ data class HeatmapStats(
     val maxStreak: Int = 0,     // 最长连续天数（当年内连续 >0 的最大天数）
 )
 
-/**
- * 活动洞察（基于全部历史记录，不随年份切换变化）。
- *
- * - totalRequests：总请求次数（= 记录条数，一条 UsageRecord 即一次请求）
- * - topHours：请求最多的时段（按小时 0-23），降序取前 3；
- *   并列时小时数小的优先；不足 3 个时列表较短
- */
-data class HeatmapInsights(
-    val totalRequests: Int = 0,
-    val topHours: List<Int> = emptyList(),
-)
-
 /** UI 状态 */
 data class HeatmapUiState(
     val loading: Boolean = true,
+    val scopeGeneration: Int = 0,
     val viewMode: HeatmapViewMode = HeatmapViewMode.DAILY,
     val selectedYear: Int = 0,  // 当前选中范围：0=尚未加载，RECENT_YEAR(-1)=最近365天，>0=具体年份
     val currentYear: Int = 0,   // 今年（浮层日期判断是否显示年份用）
@@ -78,13 +67,13 @@ data class HeatmapUiState(
     val cumulativeData: List<HeatmapDayData> = emptyList(),
     val colorLevels: IntArray = IntArray(6),  // [0, p25, p50, p75, p95, max]
     val stats: HeatmapStats = HeatmapStats(), // 年度统计（累计/峰值/当前连续/最长连续）
-    val insights: HeatmapInsights = HeatmapInsights(), // 活动洞察（全量记录：总请求次数 + 最多请求时段 Top3）
-    val useUtc8: Boolean = false,  // 与全局图表设置一致：true=UTC+8 分桶，false=UTC
+    val totalRequests: Long = 0L, // All synced workspace summaries, across calendar views.
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is HeatmapUiState) return false
         return loading == other.loading &&
+            scopeGeneration == other.scopeGeneration &&
             viewMode == other.viewMode &&
             selectedYear == other.selectedYear &&
             currentYear == other.currentYear &&
@@ -94,12 +83,12 @@ data class HeatmapUiState(
             cumulativeData == other.cumulativeData &&
             colorLevels.contentEquals(other.colorLevels) &&
             stats == other.stats &&
-            insights == other.insights &&
-            useUtc8 == other.useUtc8
+            totalRequests == other.totalRequests
     }
 
     override fun hashCode(): Int {
         var result = loading.hashCode()
+        result = 31 * result + scopeGeneration
         result = 31 * result + viewMode.hashCode()
         result = 31 * result + selectedYear
         result = 31 * result + currentYear
@@ -109,8 +98,7 @@ data class HeatmapUiState(
         result = 31 * result + cumulativeData.hashCode()
         result = 31 * result + colorLevels.contentHashCode()
         result = 31 * result + stats.hashCode()
-        result = 31 * result + insights.hashCode()
-        result = 31 * result + useUtc8.hashCode()
+        result = 31 * result + totalRequests.hashCode()
         return result
     }
 }
@@ -157,29 +145,57 @@ internal data class QuantileLevels(val thresholds: LongArray) {
 class HeatmapViewModel @Inject constructor(
     private val cacheProvider: Provider<UsageCache>,
     private val credentialRepository: CredentialRepository,
-    private val chartSettingsStore: ChartSettingsStore,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HeatmapUiState())
     val uiState: StateFlow<HeatmapUiState> = _uiState.asStateFlow()
 
-    private var loaded = false
+    private var loadJob: Job? = null
+    private var yearJob: Job? = null
+    private var displayedScope: String? = null
+    private var scopeObserver: Job? = null
     // 全量记录缓存（仅在 load 时拉取一次，切换年份/视图时复用）
     private var records: List<UsageRecord> = emptyList()
-    private var useUtc8 = false
     // 按年缓存三视图计算结果，切换年份不必重复计算（跨线程读写，用并发容器）
     private val yearResults = ConcurrentHashMap<Int, AllViewsResult>()
     // 最近一次请求的年份（防止快速连续切换时旧协程后完成覆盖新选择）
     private var latestRequestedYear = 0
+
+    fun observeGoUsageScope() {
+        if (scopeObserver?.isActive == true) return
+        scopeObserver = viewModelScope.launch {
+            credentialRepository.openCodeUsageScopeChanges.collect { scope ->
+                if (displayedScope != scope) {
+                    loadJob?.cancel()
+                    loadJob = null
+                    showGoScope(scope)
+                }
+                load()
+            }
+        }
+    }
+
+    private fun showGoScope(scope: String?) {
+        if (displayedScope == scope) return
+        displayedScope = scope
+        yearJob?.cancel()
+        yearResults.clear()
+        latestRequestedYear = RECENT_YEAR
+        records = emptyList()
+        _uiState.value = HeatmapUiState(
+            loading = scope != null,
+            scopeGeneration = _uiState.value.scopeGeneration + 1,
+            viewMode = _uiState.value.viewMode
+        )
+    }
 
     /**
      * Composable 层在 LaunchedEffect 中调用一次即可。
      * 首次加载拉取全量记录并计算默认年份（今年）的三视图数据。
      */
     fun load() {
-        if (loaded) return
-        loaded = true
-        viewModelScope.launch { loadInternal() }
+        if (loadJob?.isActive == true) return
+        loadJob = viewModelScope.launch { loadInternal() }
     }
 
     /** 切换视图模式（仅改 State，不重新加载数据） */
@@ -201,19 +217,26 @@ class HeatmapViewModel @Inject constructor(
         // 避免"在途切换未提交时重复点击导致最后一次意图被丢弃"的竞态
         if (year == latestRequestedYear || records.isEmpty()) return
         latestRequestedYear = year
-        viewModelScope.launch {
+        yearJob?.cancel()
+        yearJob = viewModelScope.launch {
+            val scope = displayedScope
             val cached = yearResults[year]
             // 最近 365 天窗口以计算时刻的 todayTs 为锚：页面跨天常驻时缓存已过期（窗口末日在昨天），需重算
             val stale = cached != null && year == RECENT_YEAR && cached.dailyData.lastOrNull()?.dayTs != todayTsOf()
             val result = if (cached == null || stale) {
                 withContext(Dispatchers.Default) {
-                    computeAllViews(records, useUtc8, year).also { yearResults[year] = it }
+                    computeAllViews(records, year = year)
                 }
             } else {
                 cached
             }
             // 期间用户又切了别的范围：丢弃过期结果，避免旧协程覆盖新选择
-            if (year != latestRequestedYear) return@launch
+            if (cacheScope() != scope) {
+                load()
+                return@launch
+            }
+            if (year != latestRequestedYear || displayedScope != scope) return@launch
+            yearResults[year] = result
             val mode = _uiState.value.viewMode
             val levels = when (mode) {
                 HeatmapViewMode.DAILY -> result.dailyLevels
@@ -235,67 +258,63 @@ class HeatmapViewModel @Inject constructor(
 
     /** 当前时区下的今天自然日零点（缓存新鲜度校验用） */
     private fun todayTsOf(): Long {
-        val zone = if (useUtc8) ZoneOffset.ofHours(8) else ZoneOffset.UTC
-        return startOfDayTs(System.currentTimeMillis(), zone)
+        return startOfDayTs(System.currentTimeMillis(), ZoneOffset.UTC)
     }
 
     // ── 内部逻辑 ────────────────────────────────────────────
 
-    private suspend fun workspaceId(): String? {
-        val c = credentialRepository.get(ServiceType.OPENCODE_GO)
-        return (c as? Credential.SessionCredential)?.workspaceId?.takeIf { it.isNotBlank() }
+    private suspend fun cacheScope(): String? {
+        return OpenCodeUsageRepository.cacheScope(credentialRepository.get(ServiceType.OPENCODE_GO))
     }
 
     private suspend fun loadInternal() {
         try {
-            val wid = workspaceId() ?: run {
-                _uiState.update { it.copy(loading = false) }
+            while (true) {
+                val scope = cacheScope()
+                if (displayedScope == scope && !_uiState.value.loading) return
+                showGoScope(scope)
+                if (scope == null) {
+                    _uiState.update { it.copy(loading = false) }
+                    return
+                }
+                val cache = cacheProvider.get()
+                val currentYear = Instant.now().atOffset(ZoneOffset.UTC).year
+                val fetched = withContext(Dispatchers.Default) { cache.getRecords(scope) }
+                val (result, availableYears, totalRequests) = withContext(Dispatchers.Default) {
+                    Triple(
+                        computeAllViews(fetched, year = RECENT_YEAR),
+                        computeAvailableYears(fetched, ZoneOffset.UTC, currentYear),
+                        computeTotalRequests(fetched)
+                    )
+                }
+                if (cacheScope() != scope) continue
+                records = fetched
+                yearResults[RECENT_YEAR] = result
+                // 重操作完成后按当前视图模式写入对应的分位阈值（加载期间可能已切换视图）
+                val mode = _uiState.value.viewMode
+                val levels = when (mode) {
+                    HeatmapViewMode.DAILY -> result.dailyLevels
+                    HeatmapViewMode.WEEKLY -> result.weeklyLevels
+                    HeatmapViewMode.CUMULATIVE -> result.cumulativeLevels
+                }
+                _uiState.update {
+                    it.copy(
+                        loading = false,
+                        selectedYear = RECENT_YEAR,
+                        currentYear = currentYear,
+                        availableYears = availableYears,
+                        dailyData = result.dailyData,
+                        weeklyData = result.weeklyData,
+                        cumulativeData = result.cumulativeData,
+                        colorLevels = levels.toIntArray(),
+                        stats = computeStats(result.dailyData),
+                        totalRequests = totalRequests,
+                    )
+                }
                 return
             }
-            val cache = cacheProvider.get()
-            // 与全局图表设置一致：读取 UTC+8 / UTC 分桶偏好
-            useUtc8 = chartSettingsStore.useUtc8Flow.first()
-
-            // 拉取全量记录 + 计算可选年份（在 IO 线程，避免主线程遍历大列表）
-            val zone = if (useUtc8) ZoneOffset.ofHours(8) else ZoneOffset.UTC
-            val currentYear = Instant.now().atOffset(zone).year
-            val (fetched, availableYears) = withContext(Dispatchers.Default) {
-                val all = cache.getRecords(wid)
-                all to computeAvailableYears(all, zone, currentYear)
-            }
-            records = fetched
-            latestRequestedYear = RECENT_YEAR
-
-            // 活动洞察基于全量历史记录（不随年份变化），在后台线程计算（万级记录仅数 ms）
-            val insights = withContext(Dispatchers.Default) { computeInsights(fetched, useUtc8) }
-
-            // 所有重操作放在 Dispatchers.Default 上；默认窗口 = 最近 365 天（RECENT_YEAR）
-            val result = withContext(Dispatchers.Default) {
-                computeAllViews(fetched, useUtc8, RECENT_YEAR).also { yearResults[RECENT_YEAR] = it }
-            }
-
-            // 重操作完成后按当前视图模式写入对应的分位阈值（加载期间可能已切换视图）
-            val mode = _uiState.value.viewMode
-            val levels = when (mode) {
-                HeatmapViewMode.DAILY -> result.dailyLevels
-                HeatmapViewMode.WEEKLY -> result.weeklyLevels
-                HeatmapViewMode.CUMULATIVE -> result.cumulativeLevels
-            }
-            _uiState.update {
-                it.copy(
-                    loading = false,
-                    selectedYear = RECENT_YEAR,
-                    currentYear = currentYear,
-                    availableYears = availableYears,
-                    useUtc8 = useUtc8,
-                    dailyData = result.dailyData,
-                    weeklyData = result.weeklyData,
-                    cumulativeData = result.cumulativeData,
-                    colorLevels = levels.toIntArray(),
-                    stats = computeStats(result.dailyData),
-                    insights = insights,
-                )
-            }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             _uiState.update { it.copy(loading = false) }
         }
@@ -487,33 +506,9 @@ class HeatmapViewModel @Inject constructor(
             return HeatmapStats(total, peak, currentStreak, maxStreak)
         }
 
-        /**
-         * 计算活动洞察（基于全部历史记录，不随年份变化）。
-         *
-         * - totalRequests：总请求次数 = 记录条数（一条 UsageRecord 即一次请求）
-         * - topHours：请求最多的时段（按小时 0-23），降序取前 3；
-         *   并列时小时数小的优先；不足 3 个时列表较短；无数据时为空列表
-         *
-         * 小时按 useUtc8 对应的时区（UTC+8 / UTC）计算，与热力图分桶口径一致。
-         */
-        internal fun computeInsights(records: List<UsageRecord>, useUtc8: Boolean = false): HeatmapInsights {
-            if (records.isEmpty()) return HeatmapInsights()
-            val offsetMs = if (useUtc8) 8 * 3_600_000L else 0L
-            val hourCounts = IntArray(24)
-            for (r in records) {
-                // 纯算术取小时（避免逐条分配 Instant/OffsetDateTime）：
-                // (时间戳 + 时区偏移) 对一天取余 → 所在小时（ts 恒为正，无负数取模问题）
-                val hour = (((r.timeCreated + offsetMs) % 86_400_000L) / 3_600_000L).toInt()
-                hourCounts[hour]++
-            }
-            val topHours = hourCounts.indices
-                .sortedWith(compareByDescending<Int> { hourCounts[it] }.thenBy { it })
-                .filter { hourCounts[it] > 0 }
-                .take(3)
-            return HeatmapInsights(totalRequests = records.size, topHours = topHours)
-        }
+        internal fun computeTotalRequests(records: List<UsageRecord>): Long =
+            records.sumOf { it.requestCount }
 
-        /** 返回时间戳在指定时区下的自然日零点（epoch 毫秒） */
         private fun startOfDayTs(ts: Long, zone: ZoneOffset): Long {
             return Instant.ofEpochMilli(ts).atOffset(zone).toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
         }

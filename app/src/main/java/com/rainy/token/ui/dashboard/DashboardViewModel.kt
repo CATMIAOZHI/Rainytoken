@@ -200,6 +200,8 @@ data class DashboardCardUi(
 
 /** 把 Repository 错误映射为本地化文案（ParseError 按 reason 映射资源，detail 仅作日志，不流向 UI）。 */
 private fun errorToUiText(error: Throwable): UiText = when (error) {
+    is RepositoryError.OpenCodeGoSubscriptionRequired ->
+        UiText.Resource(R.string.error_opencode_go_subscription_required)
     is RepositoryError.InvalidCredential ->
         UiText.Resource(R.string.error_credential_invalid_reconfigure)
     is RepositoryError.RateLimited -> UiText.Resource(

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="go_usage_scope">工作区用量 · UTC 日汇总</string>
+    <string name="go_usage_first_sync">点击刷新，导入最近最多 90 天的工作区用量。</string>
+    <string name="go_usage_synced_empty">同步成功，该工作区暂无每日用量汇总。</string>
+    <string name="go_usage_configure_key">请在设置中添加 OpenCode Go API 密钥以同步用量。</string>
+    <string name="go_usage_legacy">切换前的记录仍保存在本机；由于无法确认所属工作区，不计入这里的统计。</string>
+    <string name="go_usage_changed_rows">已变更 %1$d 条汇总</string>
+    <string name="go_usage_rows_title">每日用量汇总</string>
+    <string name="go_usage_rows_action">查看汇总</string>
+    <string name="go_usage_row_count">共 %1$d 条汇总</string>
+    <string name="go_usage_row_title">日汇总明细</string>
+    <string name="go_usage_date_utc">日期 (UTC)</string>
+    <string name="go_usage_user_type">用户类型</string>
+    <string name="go_usage_user_name">用户名称</string>
+    <string name="go_usage_user_id">用户 ID</string>
+    <string name="go_usage_provider">服务商</string>
+    <string name="go_usage_heatmap_note">日历按已同步的每日总量绘制。导出数据不包含按小时统计的活动。</string>
+    <string name="go_usage_already_syncing">此 API 密钥的用量正在同步，请稍后重试。</string>
+</resources>

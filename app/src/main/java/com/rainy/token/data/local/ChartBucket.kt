@@ -11,7 +11,7 @@ import java.time.ZoneOffset
 data class ChartBucket(
     val ts: Long,               // 时间桶起点 epoch ms（小时桶或天桶）
     val totalCost: Long,        // 总花费（原始值，÷1亿=美元）
-    val totalRequests: Int,     // API 请求次数
+    val totalRequests: Long,     // API 请求次数
     val inputTokens: Long,      // 未命中缓存的输入 token
     val cacheHitTokens: Long,   // 命中缓存的 token（cacheReadTokens）
     val outputTokens: Long,     // 输出 token
@@ -21,7 +21,7 @@ data class ChartBucket(
 
 data class ModelBucket(
     val cost: Long,
-    val requests: Int,
+    val requests: Long,
     val inputTokens: Long,
     val cacheHitTokens: Long,
     val outputTokens: Long
@@ -109,7 +109,7 @@ object ChartAggregator {
             .mapValues { (_, recs) ->
                 ModelBucket(
                     cost = recs.sumOf { it.cost },
-                    requests = recs.size,
+                    requests = recs.sumOf { it.requestCount },
                     inputTokens = recs.sumOf { it.inputTokens },
                     cacheHitTokens = recs.sumOf { it.cacheReadTokens },
                     outputTokens = recs.sumOf { it.outputTokens }
@@ -118,7 +118,7 @@ object ChartAggregator {
         return ChartBucket(
             ts = ts,
             totalCost = records.sumOf { it.cost },
-            totalRequests = records.size,
+            totalRequests = records.sumOf { it.requestCount },
             inputTokens = records.sumOf { it.inputTokens },
             cacheHitTokens = records.sumOf { it.cacheReadTokens },
             outputTokens = records.sumOf { it.outputTokens },

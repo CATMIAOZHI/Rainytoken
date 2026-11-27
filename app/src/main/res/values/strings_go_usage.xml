@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="go_usage_scope">Workspace usage · Daily (UTC)</string>
+    <string name="go_usage_first_sync">Tap refresh to import up to 90 days of workspace usage.</string>
+    <string name="go_usage_synced_empty">Sync complete. No daily summaries are available for this workspace.</string>
+    <string name="go_usage_configure_key">Add an OpenCode Go API key in Settings to sync usage.</string>
+    <string name="go_usage_legacy">Older records from before the switch are kept on this device but not included because their workspace is unknown.</string>
+    <string name="go_usage_changed_rows">Summary rows changed: %1$d</string>
+    <string name="go_usage_rows_title">Daily usage summaries</string>
+    <string name="go_usage_rows_action">Summaries</string>
+    <string name="go_usage_row_count">Summary rows: %1$d</string>
+    <string name="go_usage_row_title">Daily summary</string>
+    <string name="go_usage_date_utc">Date (UTC)</string>
+    <string name="go_usage_user_type">User type</string>
+    <string name="go_usage_user_name">User name</string>
+    <string name="go_usage_user_id">User ID</string>
+    <string name="go_usage_provider">Provider</string>
+    <string name="go_usage_heatmap_note">The calendar uses synced daily totals. The export does not include hourly activity.</string>
+    <string name="go_usage_already_syncing">Usage for this API key is already syncing. Please try again shortly.</string>
+</resources>

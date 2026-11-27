@@ -107,7 +107,7 @@
     <string name="service_plan_suffix">· %1$s</string>
     <string name="service_reset_in">Resets in %1$s</string>
     <string name="service_desc_deepseek">REST API · ¥</string>
-    <string name="service_desc_opencode_go">WebView fetch · 5h quota</string>
+    <string name="service_desc_opencode_go">API Key · 5h, weekly, and monthly limits</string>
     <string name="service_desc_commandcode_go">JSON API · $</string>
     <string name="service_desc_codex">ChatGPT · Codex quota</string>
     <string name="service_desc_ollama">Cookie fetch · Cloud quota</string>
@@ -128,8 +128,6 @@
     <string name="window_usage">Usage</string>
     <string name="usage_window_title">Usage window%1$s</string>
     <string name="usage_window_title_plain">Usage window</string>
-    <string name="msg_model_usage">Model usage</string>
-    <string name="msg_model_quota">Quota $%1$s</string>
 
     <!-- ══════════ 用量统计 ══════════ -->
     <string name="usage_title_opencode">OpenCode Usage</string>
@@ -202,16 +200,6 @@
     <string name="help_cookie_3">3. After login, press F12 → Application → Cookies</string>
     <string name="help_cookie_4">4. Copy all cookies of the site and paste them above</string>
     <string name="help_cookie_5">Format: name1=value1; name2=value2</string>
-    <string name="help_ocgo_title">How to get the auth cookie and workspaceId?</string>
-    <string name="help_ocgo_1">1. Open opencode.ai/auth in desktop Chrome</string>
-    <string name="help_ocgo_2">2. Sign in with GitHub / Google (Google won\'t block Chrome)</string>
-    <string name="help_ocgo_3">3. You\'ll land on the dashboard, URL looks like:</string>
-    <string name="help_ocgo_4">   https://opencode.ai/workspace/{id}/go</string>
-    <string name="help_ocgo_5">4. Copy the {id} segment → workspaceId</string>
-    <string name="help_ocgo_6">5. F12 → Application → Cookies</string>
-    <string name="help_ocgo_7">6. Find the cookie named auth under opencode.ai</string>
-    <string name="help_ocgo_8">7. Copy its Value field → auth cookie</string>
-    <string name="help_ocgo_note">Note: only the auth cookie is needed, not the whole cookie string</string>
     <string name="help_ccgo_title">How to get CommandCode credentials?</string>
     <string name="help_ccgo_1">1. Open https://commandcode.ai and sign in with GitHub</string>
     <string name="help_ccgo_2">▸ Get API Key (required):</string>
@@ -242,7 +230,6 @@
     <string name="error_rollback_skipped">, credential changed, rollback skipped</string>
     <string name="error_test_failed">Test failed. %1$s%2$s</string>
     <string name="error_test_not_supported">Testing is not supported for this service</string>
-    <string name="error_auth_cookie_workspace">Both auth cookie and workspaceId are required</string>
     <string name="error_cookie_empty">Cookie cannot be empty</string>
     <string name="error_credential_not_configured">Credential not configured</string>
     <string name="error_credential_not_configured_expired">Credential missing or expired</string>
@@ -408,16 +395,11 @@
     <string name="placeholder_ollama_api_key">ollama-xxx or sk-xxx</string>
     <string name="action_save_api_key">Save API Key</string>
     <string name="credential_title_opencode_go">OpenCode Go credentials</string>
-    <string name="credential_hint_opencode_go">Balance and 5h/week/month usage are fetched with an API Key (get it at opencode.ai/settings → API Keys). The auth cookie and workspaceId below are optional — only needed for usage records and the per-model breakdown.</string>
-    <string name="action_import_from_clipboard">Auto-import from clipboard</string>
-    <string name="placeholder_workspace_id">The {id} segment of the dashboard URL</string>
-    <string name="field_auth_cookie_value">auth Cookie value</string>
-    <string name="placeholder_auth_cookie">F12 → Cookies → opencode.ai → Value of auth</string>
-    <string name="action_how_get_two_values">How to get these two?</string>
+    <string name="credential_hint_opencode_go">Use the same API Key you use for OpenCode Go. It checks quota and powers one-tap activation.</string>
+    <string name="action_open_opencode_dashboard">Open OpenCode dashboard</string>
+    <string name="quota_limit_reached">Limit reached</string>
+    <string name="quota_limit_reached_short">Limit</string>
     <string name="action_open_login_entry">Open login page in browser</string>
-    <string name="hint_opencode_trigger_key">The API Key fetches your balance; the details page can also send one request to activate usage stats. Get it at opencode.ai/settings → API Keys.</string>
-    <string name="opencode_api_key_title">API Key (fetches balance)</string>
-    <string name="opencode_session_optional_title">Usage records and per-model breakdown (optional)</string>
     <string name="credential_title_ccgo">CommandCode credentials</string>
     <string name="credential_hint_ccgo">Needs an API Key (for balance). Session Cookie (optional) for usage records, copied from browser DevTools. Balance works without it.</string>
     <string name="placeholder_api_key_from_settings">Generate at Settings → API Keys</string>
@@ -485,11 +467,6 @@
     <string name="msg_api_key_saved">API Key saved</string>
     <string name="msg_connect_success_session">Connected! Session: %1$s%% · %2$s</string>
     <string name="msg_credential_deleted">Credential deleted</string>
-    <string name="error_clipboard_empty">Clipboard is empty</string>
-    <string name="msg_clipboard_ws_auth">Recognized workspaceId and auth cookie</string>
-    <string name="msg_clipboard_ws_only">Recognized workspaceId, please paste the auth cookie too</string>
-    <string name="msg_clipboard_auth_only">Recognized auth cookie, please paste the workspaceId too</string>
-    <string name="error_clipboard_none">No valid credential recognized</string>
 
     <!-- ══════════ Codex OAuth 登录页 ══════════ -->
     <string name="oauth_screen_title">Codex OAuth Login</string>
@@ -566,7 +543,6 @@
     <string name="month_11">Nov</string>
     <string name="month_12">Dec</string>
     <string name="field_api_key">API Key</string>
-    <string name="field_workspace_id">Workspace ID</string>
 
     <!-- Claude Code -->
     <string name="credential_title_claude">Claude Code credentials</string>
@@ -584,4 +560,12 @@
     <string name="help_claude_note">Balance is read from the official usage endpoint (5-hour + weekly windows); the credential never leaves your device.</string>
     <string name="service_desc_claude">Claude Code subscription quota</string>
     <string name="window_model_weekly">Model weekly</string>
+
+    <string name="error_opencode_go_subscription_required">This API key must belong to a workspace with an active OpenCode Go subscription.</string>
+    <string name="error_opencode_usage_permission">This API key needs Usage › Read permission to view workspace usage.</string>
+    <string name="error_opencode_usage_role">A member key cannot view workspace usage. Use an owner or admin’s personal key, or a service account key with Usage › Read.</string>
+    <string name="error_opencode_usage_forbidden">To view workspace usage, use an owner or admin’s personal key or a service account key, with Usage › Read enabled.</string>
+    <string name="error_opencode_usage_bad_request">The workspace usage export request was rejected. Try again or check for an app update.</string>
+    <string name="error_opencode_usage_unavailable">Daily usage totals are not ready yet. Try again later.</string>
+    <string name="widget_refresh_failed">Refresh failed</string>
 </resources>

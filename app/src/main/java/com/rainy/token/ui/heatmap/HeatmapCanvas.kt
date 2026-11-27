@@ -337,8 +337,8 @@ fun HeatmapCanvas(
     // 应用内语言（LocaleManager 只覆写配置、不改变 Locale.getDefault()，故从配置取；
     // 与 UsageOverviewScreen 的 date_format_md 同一做法）
     val activeLocale = LocalConfiguration.current.locales[0]
-    // 与全局图表设置一致的时区（分桶与显示口径统一）
-    val zone = if (state.useUtc8) ZoneOffset.ofHours(8) else ZoneOffset.UTC
+    // OpenCode usage summaries are natively grouped by UTC date.
+    val zone = ZoneOffset.UTC
 
     // 格子参数
     val blockSize = 11.dp
@@ -700,12 +700,12 @@ fun HeatmapCanvas(
             val text = when {
                 d != null -> stringResource(
                     R.string.heatmap_day_used,
-                    formatDateChinese(d.dayTs, state.useUtc8, state.currentYear, activeLocale),
+                    formatDateChinese(d.dayTs, false, state.currentYear, activeLocale),
                     formatTokenChinese(d.tokens, activeLocale),
                 )
                 w != null -> stringResource(
                     R.string.heatmap_week_used,
-                    formatWeekRangeText(w, state.useUtc8, state.selectedYear, state.dailyData.lastOrNull()?.dayTs, activeLocale),
+                    formatWeekRangeText(w, false, state.selectedYear, state.dailyData.lastOrNull()?.dayTs, activeLocale),
                     formatTokenChinese(w.tokens, activeLocale),
                 )
                 else -> null

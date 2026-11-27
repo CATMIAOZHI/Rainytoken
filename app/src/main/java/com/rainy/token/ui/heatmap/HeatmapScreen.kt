@@ -77,6 +77,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rainy.token.R
 import com.rainy.token.ui.theme.inkMuted
@@ -102,10 +104,10 @@ fun HeatmapScreen(
     val activeLocale = LocalConfiguration.current.locales[0]
 
     // ── 浮层状态 ──
-    var selectedDay: HeatmapDayData? by remember { mutableStateOf(null) }
-    var selectedWeek: HeatmapWeekData? by remember { mutableStateOf(null) }
+    var selectedDay: HeatmapDayData? by remember(state.scopeGeneration) { mutableStateOf(null) }
+    var selectedWeek: HeatmapWeekData? by remember(state.scopeGeneration) { mutableStateOf(null) }
     // 浮层锚点：被点击格子中心在窗口中的位置
-    var popupAnchor by remember { mutableStateOf<IntOffset?>(null) }
+    var popupAnchor by remember(state.scopeGeneration) { mutableStateOf<IntOffset?>(null) }
     // 浮层自身尺寸（用于锚点偏移计算）
     var popupSize by remember { mutableStateOf(IntSize.Zero) }
     val density = LocalDensity.current
@@ -164,7 +166,10 @@ fun HeatmapScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(viewModel) { viewModel.observeGoUsageScope() }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        selectedDay = null
+        selectedWeek = null
         viewModel.load()
     }
 
@@ -277,10 +282,9 @@ fun HeatmapScreen(
                     .padding(bottom = 12.dp),
             )
 
-            // ── 活动洞察卡片（个人资料下方：总请求次数 + 最多请求时段 Top3）──
+            // Total requests in the locally synced UTC daily summaries.
             InsightsCard(
-                totalRequests = state.insights.totalRequests,
-                topHours = state.insights.topHours,
+                totalRequests = state.totalRequests,
                 loading = state.loading,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -468,16 +472,15 @@ fun HeatmapScreen(
     val week = selectedWeek
     val anchor = popupAnchor
     if (day != null || week != null) {
-        val useUtc8 = state.useUtc8
         val popupText = when {
             day != null -> stringResource(
                 R.string.heatmap_day_used,
-                formatDateChinese(day.dayTs, useUtc8, state.currentYear, activeLocale),
+                formatDateChinese(day.dayTs, false, state.currentYear, activeLocale),
                 formatTokenChinese(day.tokens, activeLocale),
             )
             week != null -> stringResource(
                 R.string.heatmap_week_used,
-                formatWeekRangeText(week, useUtc8, state.selectedYear, state.dailyData.lastOrNull()?.dayTs, activeLocale),
+                formatWeekRangeText(week, false, state.selectedYear, state.dailyData.lastOrNull()?.dayTs, activeLocale),
                 formatTokenChinese(week.tokens, activeLocale),
             )
             else -> ""
@@ -729,11 +732,10 @@ private fun ProfileEditDialog(
     )
 }
 
-// ── 活动洞察卡片（总请求次数 + 最多请求时段 Top3，全量历史口径）──
+// Workspace requests across all locally synced days.
 @Composable
 private fun InsightsCard(
-    totalRequests: Int,
-    topHours: List<Int>,
+    totalRequests: Long,
     loading: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -745,7 +747,7 @@ private fun InsightsCard(
     ) {
         Column(Modifier.padding(14.dp)) {
             Text(
-                text = stringResource(R.string.heatmap_insights_title),
+                text = stringResource(R.string.go_usage_scope),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -762,7 +764,7 @@ private fun InsightsCard(
                     text = if (loading) {
                         dash
                     } else {
-                        pluralStringResource(R.plurals.heatmap_insights_request_count, totalRequests, totalRequests)
+                        java.text.NumberFormat.getIntegerInstance(LocalConfiguration.current.locales[0]).format(totalRequests)
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
@@ -771,35 +773,13 @@ private fun InsightsCard(
             }
             Spacer(Modifier.height(6.dp))
             Text(
-                text = stringResource(R.string.heatmap_insights_peak_hours),
+                text = stringResource(R.string.go_usage_heatmap_note),
                 style = MaterialTheme.typography.bodySmall,
                 color = inkMuted(),
             )
-            Spacer(Modifier.height(6.dp))
-            // 固定 3 个时段槽位，不足的显示占位，避免布局跳动
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                repeat(3) { i ->
-                    val hour = topHours.getOrNull(i)
-                    Text(
-                        text = if (loading || hour == null) {
-                            dash
-                        } else {
-                            stringResource(R.string.heatmap_insight_hour_range, hour, hour + 1)
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surface)
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                    )
-                }
-            }
         }
     }
 }
-
 // ── 个人资料持久化 ──
 private const val PROFILE_PREFS = "heatmap_profile"
 private const val KEY_NICKNAME = "nickname"

@@ -1,5 +1,6 @@
 package com.rainy.token.data.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -35,7 +36,11 @@ data class UsageRecordEntity(
     val cost: Long,
     val keyId: String,
     val sessionId: String,
-    val enrichmentPlan: String = ""
+    val enrichmentPlan: String = "",
+    @ColumnInfo(defaultValue = "1") val requestCount: Long = 1,
+    val userType: String? = null,
+    val userId: String? = null,
+    val userName: String? = null
 ) {
     /** Convert Entity → domain model */
     fun toDomain(): UsageRecord = UsageRecord(
@@ -54,10 +59,13 @@ data class UsageRecordEntity(
         cost = cost,
         keyId = keyId,
         sessionId = sessionId,
-        enrichmentPlan = enrichmentPlan
+        enrichmentPlan = enrichmentPlan,
+        requestCount = requestCount,
+        userType = userType,
+        userId = userId,
+        userName = userName
     )
 
-    val totalTokens: Long get() = inputTokens + outputTokens + reasoningTokens
 }
 
 /** Convert domain model → Entity */
@@ -77,5 +85,9 @@ fun UsageRecord.toEntity(): UsageRecordEntity = UsageRecordEntity(
     cost = cost,
     keyId = keyId,
     sessionId = sessionId,
-    enrichmentPlan = enrichmentPlan
+    enrichmentPlan = enrichmentPlan,
+    requestCount = requestCount,
+    userType = userType,
+    userId = userId,
+    userName = userName
 )

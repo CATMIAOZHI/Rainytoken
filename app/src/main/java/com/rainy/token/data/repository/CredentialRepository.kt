@@ -11,6 +11,12 @@ import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -47,6 +53,23 @@ class CredentialRepository @Inject constructor(
     )
 
     private val mutationMutex = Mutex()
+    private data class OpenCodeUsageScope(val value: String?)
+    private val openCodeScope = MutableStateFlow<OpenCodeUsageScope?>(null)
+
+    /** Observe the active key's usage namespace; verification-only writes keep it unchanged. */
+    internal val openCodeUsageScopeChanges: Flow<String?> = flow {
+        mutationMutex.withLock {
+            if (openCodeScope.value == null) {
+                emitOpenCodeUsageScope(getUnlocked(ServiceType.OPENCODE_GO))
+            }
+        }
+        emitAll(openCodeScope.filterNotNull().map { it.value })
+    }
+
+    private fun emitOpenCodeUsageScope(credential: Credential?) {
+        openCodeScope.value = OpenCodeUsageScope(OpenCodeUsageRepository.cacheScope(credential))
+    }
+
     private val revisions = mutableMapOf<ServiceType, Long>()
     private val cacheRollbackEntries = mutableMapOf<ServiceType, CacheRollbackEntry>()
 
@@ -109,7 +132,7 @@ class CredentialRepository @Inject constructor(
             bumpRevision(service)
             cacheRollbackEntries.remove(service)
             balanceCache.remove(service)
-            secureStorage.remove(keyFor(service))
+            removeUnlocked(service)
         }
     }
 
@@ -145,7 +168,7 @@ class CredentialRepository @Inject constructor(
             balanceCache.remove(service)
         }
         if (previous == null) {
-            secureStorage.remove(keyFor(service))
+            removeUnlocked(service)
         } else {
             require(previous.service == service) { "回滚凭据服务不匹配" }
             putUnlocked(previous)
@@ -278,6 +301,12 @@ class CredentialRepository @Inject constructor(
             value = credential,
             serializer = Credential.serializer()
         )
+        if (credential.service == ServiceType.OPENCODE_GO) emitOpenCodeUsageScope(credential)
+    }
+
+    private suspend fun removeUnlocked(service: ServiceType) {
+        secureStorage.remove(keyFor(service))
+        if (service == ServiceType.OPENCODE_GO) emitOpenCodeUsageScope(null)
     }
 
     private suspend fun getUnlocked(service: ServiceType): Credential? =
@@ -332,15 +361,19 @@ class CredentialRepository @Inject constructor(
                     }
                     is Credential.SessionCredential -> {
                         field("type", "session")
-                        field("token", credential.token)
-                        field("authCookie", credential.authCookie)
-                        field("workspaceId", credential.workspaceId)
-                        field("ollamaCookie", credential.ollamaCookie)
-                        credential.cookies.sortedForFingerprint().forEachIndexed { index, cookie ->
-                            field("cookie[$index].name", cookie.name)
-                            field("cookie[$index].value", cookie.value)
-                            field("cookie[$index].domain", cookie.domain)
-                            field("cookie[$index].path", cookie.path)
+                        if (credential.service == ServiceType.OPENCODE_GO) {
+                            field("apiKey", credential.apiKey?.trim()?.ifEmpty { null })
+                        } else {
+                            field("token", credential.token)
+                            field("authCookie", credential.authCookie)
+                            field("workspaceId", credential.workspaceId)
+                            field("ollamaCookie", credential.ollamaCookie)
+                            credential.cookies.sortedForFingerprint().forEachIndexed { index, cookie ->
+                                field("cookie[$index].name", cookie.name)
+                                field("cookie[$index].value", cookie.value)
+                                field("cookie[$index].domain", cookie.domain)
+                                field("cookie[$index].path", cookie.path)
+                            }
                         }
                     }
                     is Credential.ClaudeCredential -> {

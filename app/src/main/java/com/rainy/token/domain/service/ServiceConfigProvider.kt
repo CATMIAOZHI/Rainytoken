@@ -44,8 +44,7 @@ object ServiceConfigProvider {
         ),
         ServiceType.OPENCODE_GO to ServiceConfig(
             type = ServiceType.OPENCODE_GO,
-            // 用 OkHttp + Cookie 抓 dashboard，枚举值借用 WEBVIEW_SCRAPER 表示"页面抓取"统称
-            method = FetchMethod.WEBVIEW_SCRAPER,
+            method = FetchMethod.REST_API,
             loginUrl = "https://opencode.ai/auth",
             displayUnit = "%"
         ),

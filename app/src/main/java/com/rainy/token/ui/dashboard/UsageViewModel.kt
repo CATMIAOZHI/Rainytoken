@@ -10,7 +10,7 @@ import com.rainy.token.data.local.DailyStats
 import com.rainy.token.data.local.UsageCache
 import com.rainy.token.data.repository.CredentialRepository
 import com.rainy.token.data.repository.RepositoryError
-import com.rainy.token.domain.model.Credential
+import com.rainy.token.data.repository.OpenCodeUsageRepository
 import com.rainy.token.domain.service.ServiceType
 import com.rainy.token.domain.usecase.SyncError
 import com.rainy.token.domain.usecase.SyncResult
@@ -19,6 +19,8 @@ import com.rainy.token.domain.usecase.UsageSyncCoordinator
 import com.rainy.token.ui.components.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,6 +33,14 @@ import javax.inject.Inject
 import javax.inject.Provider
 
 internal const val DAILY_PAGE_SIZE = 5
+internal fun usageTimeFilters(dailyOnly: Boolean): List<TimeFilter> = buildList {
+    add(TimeFilter.All)
+    if (!dailyOnly) {
+        add(TimeFilter.Last5h)
+        add(TimeFilter.Last24h)
+    }
+    addAll(listOf(TimeFilter.Today, TimeFilter.Yesterday, TimeFilter.Last7Days, TimeFilter.Last30Days, TimeFilter.ThisMonth))
+}
 
 /** 时间筛选条件（label 用字符串资源 ID，UI 层按当前语言解析） */
 sealed class TimeFilter(@StringRes val labelRes: Int) {
@@ -87,7 +97,29 @@ class UsageViewModel @Inject constructor(
     val uiState: StateFlow<UsageUiState> = _uiState.asStateFlow()
 
     private var workspaceIdOverride: String? = null
-    private var loadGeneration = 0  // 递增：过时的 loadStatsInternal 结果自动丢弃
+    private var statsJob: Job? = null
+    private var displayedGoScope: String? = null
+    private var goScopeObserver: Job? = null
+    private var activeGoSync: Pair<String, Job>? = null
+
+    fun observeGoUsageScope() {
+        if (workspaceIdOverride != null || goScopeObserver?.isActive == true) return
+        goScopeObserver = viewModelScope.launch {
+            credentialRepository.openCodeUsageScopeChanges.collect { scope ->
+                if (workspaceIdOverride != null) return@collect
+                activeGoSync?.takeIf { (runningScope, _) -> runningScope != scope }?.second?.cancel()
+                showGoScope(scope)
+                loadStats()
+            }
+        }
+    }
+
+    private fun showGoScope(scope: String?) {
+        if (displayedGoScope != scope) {
+            displayedGoScope = scope
+            _uiState.value = UsageUiState()
+        }
+    }
 
     init {
         // 跨页面共享的同步状态（进程级单飞）：协调器在跑时，CCGO 各页面的刷新按钮一起转圈；
@@ -113,7 +145,7 @@ class UsageViewModel @Inject constructor(
         // 幂等：进入 / 回到前台会重复调用，同值不重置状态，避免卡片闪一下空数据
         if (workspaceIdOverride == wid) return
         workspaceIdOverride = wid
-        loadGeneration++
+        goScopeObserver?.cancel()
         // 先清空数据防止 init 自动加载的 OCGO 数据闪一下
         _uiState.value = UsageUiState()
         loadStats()
@@ -121,20 +153,24 @@ class UsageViewModel @Inject constructor(
 
     // 不在 init 自动加载，由 Composable 层显式触发 loadStats()（OCGO）或 setWorkspace()（CCGO）
 
-    private suspend fun workspaceId(): String? {
+    private suspend fun cacheScope(): String? {
         workspaceIdOverride?.let { return it }
-        val c = credentialRepository.get(ServiceType.OPENCODE_GO)
-        return (c as? Credential.SessionCredential)?.workspaceId?.takeIf { it.isNotBlank() }
+        return OpenCodeUsageRepository.cacheScope(credentialRepository.get(ServiceType.OPENCODE_GO))
     }
 
     fun loadStats() {
-        viewModelScope.launch { loadStatsInternal() }
+        statsJob?.cancel()
+        statsJob = viewModelScope.launch { loadStatsInternal() }
     }
 
     /** 只调一次 getRecords()，所有统计从同一次结果派生。重 IO/CPU 操作跑在 Default 上。 */
     private suspend fun loadStatsInternal() {
-        val wid = workspaceId() ?: return
-        val genAtStart = loadGeneration  // 记下发起时的世代
+        val wid = cacheScope()
+        if (workspaceIdOverride == null) showGoScope(wid)
+        if (wid == null) {
+            _uiState.update { it.copy(loading = false, hasGoApiKey = false) }
+            return
+        }
         val cache = cacheProvider.get()
         val filter = _uiState.value.timeFilter
         val (fromTs, toTs) = filter.toRange()
@@ -148,7 +184,7 @@ class UsageViewModel @Inject constructor(
             val ov = if (filtered.isEmpty()) null else OverviewStats(
                 totalTokens = filtered.sumOf { it.inputTokens + it.cacheReadTokens + it.outputTokens },
                 totalCost = filtered.sumOf { it.cost },
-                totalCount = filtered.size,
+                totalCount = filtered.sumOf { it.requestCount },
                 modelCount = filtered.map { it.model }.distinct().size,
                 inputTokens = filtered.sumOf { it.inputTokens },
                 outputTokens = filtered.sumOf { it.outputTokens },
@@ -159,19 +195,23 @@ class UsageViewModel @Inject constructor(
             )
 
             val ms = filtered.groupBy { it.model }.map { (m, recs) ->
-                ModelStats(model = m, totalTokens = recs.sumOf { it.totalTokens }, totalCost = recs.sumOf { it.cost }, count = recs.size)
+                ModelStats(model = m, totalTokens = recs.sumOf { it.totalTokens }, totalCost = recs.sumOf { it.cost }, count = recs.sumOf { it.requestCount })
             }.sortedByDescending { it.totalTokens }
 
             val ds = filtered.groupBy { it.timeCreated / 86_400_000L * 86_400_000L }
                 .map { (dayTs, recs) ->
-                    com.rainy.token.data.local.DailyStats(dayTs = dayTs, totalTokens = recs.sumOf { it.totalTokens }, totalCost = recs.sumOf { it.cost }, count = recs.size)
+                    com.rainy.token.data.local.DailyStats(dayTs = dayTs, totalTokens = recs.sumOf { it.totalTokens }, totalCost = recs.sumOf { it.cost }, count = recs.sumOf { it.requestCount })
                 }.sortedByDescending { it.dayTs }
 
             LoadResult(ov, ms, ds, records.size)
         }
 
-        // 如果 loadGeneration 已经变化（setWorkspace 被调用），丢弃这次结果
-        if (loadGeneration != genAtStart) return
+        val currentScope = cacheScope()
+        if (currentScope != wid) {
+            if (workspaceIdOverride == null) showGoScope(currentScope)
+            loadStats()
+            return
+        }
 
         _uiState.update {
             it.copy(
@@ -180,6 +220,7 @@ class UsageViewModel @Inject constructor(
                 dailyStats = dailyStats,
                 recordCount = totalCount,
                 loading = false,
+                hasGoApiKey = workspaceIdOverride == null,
                 dailyPage = 1,
                 lastSyncAt = syncCoordinator.lastSyncAt(wid),
                 syncStale = syncCoordinator.isSyncStale(wid)
@@ -210,70 +251,90 @@ class UsageViewModel @Inject constructor(
         _uiState.update { it.copy(dailyPage = (it.dailyPage + 1).coerceAtMost(totalPages)) }
     }
 
-    /**
-     * 手动同步（刷新按钮 / 下拉刷新）：默认把服务端窗口拉满，能把窗口内的空洞补齐。
-     *
-     * 自动路径（[syncIfStale]、后台 Worker）传 [incremental] = true 走增量（整页命中即停），省请求。
-     */
     fun sync(incremental: Boolean = false) {
+        if (workspaceIdOverride != null) {
+            syncCcgo(incremental)
+            return
+        }
+        viewModelScope.launch {
+            val scope = cacheScope()
+            showGoScope(scope)
+            if (scope == null) {
+                _uiState.update { it.copy(loading = false) }
+                return@launch
+            }
+            if (incremental && !syncCoordinator.isSyncStale(scope, UsageSyncCoordinator.FOREGROUND_MIN_INTERVAL_MS)) {
+                return@launch
+            }
+            activeGoSync?.let { (runningScope, runningJob) ->
+                if (runningScope == scope && runningJob.isActive) return@launch
+                runningJob.cancel()
+            }
+            val job = checkNotNull(currentCoroutineContext()[Job])
+            activeGoSync = scope to job
+            _uiState.update { it.copy(syncing = true, lastSyncError = null, lastSyncResult = 0) }
+            try {
+                val result = withContext(Dispatchers.Default) {
+                    val useCase = syncUseCaseProvider.get()
+                    if (incremental) useCase.incrementalSync(scope) else useCase.fullSync(scope)
+                }
+                val currentScope = cacheScope()
+                if (currentScope != scope || displayedGoScope != scope) {
+                    showGoScope(currentScope)
+                    loadStats()
+                    return@launch
+                }
+                if (activeGoSync?.second !== job) return@launch
+                _uiState.update {
+                    it.copy(
+                        syncing = false,
+                        lastSyncResult = result.getOrNull()?.let { it.inserted + it.updated + it.deleted } ?: 0,
+                        lastSyncError = result.exceptionOrNull()?.let(::syncErrorToUiText)
+                    )
+                }
+                loadStats()
+            } finally {
+                if (activeGoSync?.second === job) activeGoSync = null
+            }
+        }
+    }
+    private fun syncCcgo(incremental: Boolean) {
         viewModelScope.launch {
             _uiState.update { it.copy(syncing = true) }
-            val wid = workspaceIdOverride ?: workspaceId()
-            val isCcgo = workspaceIdOverride == com.rainy.token.data.repository
-                .CommandCodeUsageRepository.CCGO_WORKSPACE_ID
-
+            val wid = workspaceIdOverride ?: return@launch
             val result = withContext(Dispatchers.Default) {
-                if (isCcgo) {
-                    syncCoordinator.syncCcgoUsage(incremental = incremental)
-                } else {
-                    // OCGO：保持既有分页同步（服务端窗口与游标语义不同，本次不动）
-                    val useCase = syncUseCaseProvider.get()
-                    val cache = cacheProvider.get()
-                    if (cache.count() == 0) useCase.fullSync() else useCase.incrementalSync()
-                }
+                syncCoordinator.syncCcgoUsage(incremental = incremental)
             }
-
             val error = result.exceptionOrNull()
-            // 已有同步在跑（其它页面 / 后台 Worker）：不清空上次结果，按钮状态交给协调器的 busy 驱动。
+            // 其它页面 / Worker 正在同步时，按钮继续由协调器的 busy 状态驱动。
             if (error is SyncError.AlreadyRunning) {
-                // 极小概率竞态：busy 刚转 false 又被判定为「正在跑」，此时不会有人再复位 syncing
                 _uiState.update { it.copy(syncing = syncCoordinator.busy.value) }
                 return@launch
             }
-
-            // OCGO 不走协调器，成功时间要在这里补写（否则卡片的「更新于 X」会永远停在旧值）
-            if (result.isSuccess && !isCcgo && wid != null) {
-                syncCoordinator.saveLastSyncAt(wid, System.currentTimeMillis())
-            }
-
-            // 失败（尤其 PartialSync）时通常也已经写入了一部分记录：必须重新加载，
-            // 否则界面停在旧数据上，用户会以为「刷新没生效」。
-            // 这里无条件刷新（多一次全表统计读，代价很小）；不依赖 busy 跳变，避免 StateFlow 合并导致漏刷新。
             loadStats()
-
             _uiState.update {
                 it.copy(
                     syncing = false,
                     lastSyncResult = syncInsertedCount(result),
-                    lastSyncError = error?.let { syncErrorToUiText(it) },
-                    lastSyncAt = if (result.isSuccess && wid != null) syncCoordinator.lastSyncAt(wid)
-                    else it.lastSyncAt
+                    lastSyncError = error?.let(::syncErrorToUiText),
+                    lastSyncAt = if (result.isSuccess) syncCoordinator.lastSyncAt(wid) else it.lastSyncAt
                 )
             }
         }
     }
 
-    /**
-     * 进入 / 回到前台时的自动同步（主力防线）。
-     *
-     * 距上次成功同步超过 [UsageSyncCoordinator.FOREGROUND_MIN_INTERVAL_MS]（8 小时）才真正发起，
-     * 避免每次切页面都打网络；服务端明细窗口约 24h，这一层保证「每天打开过就不会丢」。
-     * 走增量同步（整页命中即停），省请求；补洞交给用户主动点的「立即同步」。
-     */
     fun syncIfStale() {
-        val wid = workspaceIdOverride ?: return
-        if (syncCoordinator.isSyncStale(wid, UsageSyncCoordinator.FOREGROUND_MIN_INTERVAL_MS)) {
-            sync(incremental = true)
+        val wid = workspaceIdOverride
+        if (wid != null) {
+            if (syncCoordinator.isSyncStale(wid, UsageSyncCoordinator.FOREGROUND_MIN_INTERVAL_MS)) {
+                syncCcgo(incremental = true)
+            }
+            return
+        }
+        // The first Go import is explicit; only a previously synced scope auto-refreshes.
+        viewModelScope.launch {
+            val scope = cacheScope() ?: return@launch
+            if (syncCoordinator.lastSyncAt(scope) > 0) sync(incremental = true)
         }
     }
 }
@@ -286,6 +347,7 @@ private fun syncInsertedCount(result: Result<SyncResult>): Int =
 
 data class UsageUiState(
     val loading: Boolean = true,
+    val hasGoApiKey: Boolean = false,
     val syncing: Boolean = false,
     val overview: OverviewStats? = null,
     val modelStats: List<ModelStats> = emptyList(),
@@ -311,12 +373,21 @@ private data class LoadResult(
 
 /** 把同步错误映射为本地化文案：SyncError / RepositoryError 全部走资源，不透传中文 message。 */
 private fun syncErrorToUiText(error: Throwable): UiText = when (error) {
+    is SyncError.AlreadyRunning -> UiText.Resource(R.string.go_usage_already_syncing)
     is SyncError.PartialSync ->
         UiText.Resource(R.string.sync_partial, listOf(error.inserted, error.errors.size))
     is RepositoryError.InvalidCredential ->
         UiText.Resource(R.string.error_credential_invalid_reconfigure)
     is RepositoryError.CredentialChanged ->
         UiText.Resource(R.string.error_credential_changed_reload)
+    is RepositoryError.OpenCodeUsageForbidden -> when (error.reason) {
+        RepositoryError.OpenCodeUsageForbiddenReason.MISSING_PERMISSION -> UiText.Resource(R.string.error_opencode_usage_permission)
+        RepositoryError.OpenCodeUsageForbiddenReason.NOT_OWNER_OR_ADMIN -> UiText.Resource(R.string.error_opencode_usage_role)
+        RepositoryError.OpenCodeUsageForbiddenReason.UNSPECIFIED -> UiText.Resource(R.string.error_opencode_usage_forbidden)
+    }
+    is RepositoryError.OpenCodeUsageBadRequest -> UiText.Resource(R.string.error_opencode_usage_bad_request)
+    is RepositoryError.OpenCodeUsageSummaryUnavailable -> UiText.Resource(R.string.error_opencode_usage_unavailable)
+    is RepositoryError.OpenCodeGoSubscriptionRequired -> UiText.Resource(R.string.error_opencode_go_subscription_required)
     is RepositoryError.RateLimited -> UiText.Resource(
         R.string.error_rate_limited_retry,
         listOf(

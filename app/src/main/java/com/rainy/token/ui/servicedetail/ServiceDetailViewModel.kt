@@ -547,6 +547,8 @@ class ServiceDetailViewModel @Inject constructor(
             _serviceType.value != type
 
     private fun errorMessage(error: Throwable): UiText = when (error) {
+        is RepositoryError.OpenCodeGoSubscriptionRequired ->
+            UiText.Resource(R.string.error_opencode_go_subscription_required)
         is RepositoryError.InvalidCredential ->
             UiText.Resource(R.string.error_credential_invalid_reconfigure)
         is RepositoryError.CredentialChanged ->

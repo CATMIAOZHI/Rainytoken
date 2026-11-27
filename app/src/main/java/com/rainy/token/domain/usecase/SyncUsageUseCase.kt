@@ -1,81 +1,57 @@
 package com.rainy.token.domain.usecase
 
 import com.rainy.token.data.local.UsageCache
-import com.rainy.token.data.local.UsageRecord
 import com.rainy.token.data.repository.OpenCodeUsageRepository
+import com.rainy.token.data.repository.RepositoryError
+import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 import javax.inject.Provider
+import javax.inject.Singleton
 
-/**
- * 用量数据同步 UseCase。
- *
- * ## 首次全量同步
- * 从 cursor=0 开始逐页抓取直至最后一页（count=0 或 <50），全量插入。
- *
- * ## 增量同步
- * 从 cursor=0 逐页抓取，每页比对本地已有 ID，
- * **当某页全部记录都已存在于本地时停止**（说明已接到旧数据，不会漏）。
- */
+/** OpenCode exports one rolling snapshot; there is no cursor or immutable per-request ID. */
+@Singleton
 class SyncUsageUseCase @Inject constructor(
     private val usageRepoProvider: Provider<OpenCodeUsageRepository>,
-    private val cacheProvider: Provider<UsageCache>
+    private val cacheProvider: Provider<UsageCache>,
+    private val syncCoordinator: UsageSyncCoordinator
 ) {
-    suspend fun fullSync(): Result<SyncResult> {
-        val repo = usageRepoProvider.get()
-        val cache = cacheProvider.get()
-        var cursor = 0
-        var totalInserted = 0
-        val errors = mutableListOf<String>()
+    private val inFlightScopes = mutableSetOf<String>()
 
-        while (true) {
-            val pageResult = repo.fetchPage(cursor)
-            if (pageResult.isFailure) {
-                errors.add("cursor=$cursor: ${pageResult.exceptionOrNull()?.message}")
-                break
-            }
-            val records = pageResult.getOrThrow()
-            if (records.isEmpty()) break
+    suspend fun fullSync(scope: String): Result<SyncResult> = sync(scope, incremental = false)
+    suspend fun incrementalSync(scope: String): Result<SyncResult> = sync(scope, incremental = true)
 
-            val before = cache.count()
-            cache.insertAll(records)
-            totalInserted += (cache.count() - before)
-
-            if (records.size < 50) break
-            cursor++
+    private suspend fun sync(scope: String, incremental: Boolean): Result<SyncResult> {
+        // Only block duplicate refreshes of this key. An older key's blocking HTTP
+        // call may still be winding down when a different key needs its first import.
+        if (!synchronized(inFlightScopes) { inFlightScopes.add(scope) }) {
+            return Result.failure(SyncError.AlreadyRunning())
         }
-
-        return if (errors.isEmpty()) Result.success(SyncResult(inserted = totalInserted))
-        else Result.failure(SyncError.PartialSync(totalInserted, errors))
-    }
-
-    suspend fun incrementalSync(): Result<SyncResult> {
-        val repo = usageRepoProvider.get()
-        val cache = cacheProvider.get()
-        var cursor = 0
-        var totalInserted = 0
-
-        while (true) {
-            val pageResult = repo.fetchPage(cursor)
-            if (pageResult.isFailure) return Result.failure(pageResult.exceptionOrNull()!!)
-
-            val records = pageResult.getOrThrow()
-            if (records.isEmpty()) break
-
-            // 用第一条记录的 workspaceId 过滤本地已有 ID，避免跨 workspace 碰撞
-            val workspaceId = records.firstOrNull()?.workspaceId ?: ""
-            val existingIds = if (workspaceId.isNotEmpty()) cache.getIdsByWorkspace(workspaceId) else cache.getAllIds()
-            val newRecords = records.filter { it.id !in existingIds }
-
-            if (newRecords.isEmpty()) break            // 整页都已存在 → 接到旧数据
-
-            cache.insertAll(newRecords)
-            totalInserted += newRecords.size
-
-            if (records.size < 50) break               // 最后一页
-            cursor++
+        return try {
+            val export = usageRepoProvider.get().fetchExport(scope).getOrThrow()
+            val cache = cacheProvider.get()
+            // Compare the whole export before declaring a hit: known rows can grow during the
+            // day, and an unchanged recent day does not prove older days are already complete.
+            val changes = cache.applyDailyExport(export.cacheScope, export.fromTs, export.toTs, export.records)
+            val result = SyncResult(
+                inserted = changes.inserted,
+                updated = changes.updated,
+                deleted = changes.deleted,
+                totalCount = cache.count(export.cacheScope),
+                scanned = export.records.size,
+                pages = 1,
+                stopReason = if (incremental && changes.unchanged) SyncStopReason.HIT_EXISTING else SyncStopReason.BOTTOM
+            )
+            syncCoordinator.saveLastSyncAt(export.cacheScope, System.currentTimeMillis())
+            Result.success(result)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: RepositoryError) {
+            Result.failure(e)
+        } catch (e: Exception) {
+            Result.failure(RepositoryError.Unknown(e))
+        } finally {
+            synchronized(inFlightScopes) { inFlightScopes.remove(scope) }
         }
-
-        return Result.success(SyncResult(inserted = totalInserted))
     }
 }
 
@@ -101,7 +77,9 @@ data class SyncResult(
     /** 解析失败被丢弃的条数，>0 表示服务端有本地解析不了的数据 */
     val dropped: Int = 0,
     val pages: Int = 0,
-    val stopReason: SyncStopReason = SyncStopReason.BOTTOM
+    val stopReason: SyncStopReason = SyncStopReason.BOTTOM,
+    val updated: Int = 0,
+    val deleted: Int = 0
 )
 
 sealed class SyncError : Exception() {

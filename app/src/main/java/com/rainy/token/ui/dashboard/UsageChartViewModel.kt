@@ -8,7 +8,7 @@ import com.rainy.token.data.local.ChartGranularity
 import com.rainy.token.data.local.ChartSettingsStore
 import com.rainy.token.data.local.UsageCache
 import com.rainy.token.data.repository.CredentialRepository
-import com.rainy.token.domain.model.Credential
+import com.rainy.token.data.repository.OpenCodeUsageRepository
 import com.rainy.token.domain.service.ServiceType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
@@ -34,28 +35,52 @@ class UsageChartViewModel @Inject constructor(
     val state: StateFlow<ChartUiState> = _state.asStateFlow()
 
     private var workspaceIdOverride: String? = null
-    private var loadGeneration = 0
+    private var loadJob: Job? = null
+    private var displayedGoScope: String? = null
+    private var goScopeObserver: Job? = null
     /** 是否允许自动降级到更大时间窗口（仅初始加载时允许，用户手动选粒度后关闭） */
     private var allowFallback = true
+
+    fun observeGoUsageScope() {
+        if (workspaceIdOverride != null || goScopeObserver?.isActive == true) return
+        goScopeObserver = viewModelScope.launch {
+            credentialRepository.openCodeUsageScopeChanges.collect { scope ->
+                if (workspaceIdOverride != null) return@collect
+                showGoScope(scope)
+                load()
+            }
+        }
+    }
+
+    private fun showGoScope(scope: String?) {
+        if (displayedGoScope == scope) return
+        displayedGoScope = scope
+        allowFallback = true
+        _state.value = ChartUiState(loading = scope != null, scopeGeneration = _state.value.scopeGeneration + 1)
+    }
 
     /** 覆盖 workspaceId，用于 CCGO 等非 OCGO 服务。必须在 load() 前调用。 */
     fun setWorkspace(wid: String) {
         workspaceIdOverride = wid
-        loadGeneration++
+        goScopeObserver?.cancel()
         allowFallback = true
-        _state.value = ChartUiState(useUtc8 = _state.value.useUtc8)
+        _state.value = ChartUiState(
+            granularity = ChartGranularity.LAST_5H_HOURLY,
+            useUtc8 = _state.value.useUtc8,
+            dailyOnly = false
+        )
         load()
     }
 
-    private suspend fun workspaceId(): String? {
+    private suspend fun cacheScope(): String? {
         workspaceIdOverride?.let { return it }
-        val c = credentialRepository.get(ServiceType.OPENCODE_GO)
-        return (c as? Credential.SessionCredential)?.workspaceId?.takeIf { it.isNotBlank() }
+        return OpenCodeUsageRepository.cacheScope(credentialRepository.get(ServiceType.OPENCODE_GO))
     }
 
     // 不在 init 自动加载，由 Composable 层显式触发 load()（OCGO）或 setWorkspace()（CCGO）
 
     fun setGranularity(g: ChartGranularity) {
+        if (_state.value.dailyOnly && g !in GO_CHART_GRANULARITIES) return
         allowFallback = false  // 用户手动选择，关闭自动降级
         _state.update { it.copy(granularity = g) }
         load()
@@ -81,6 +106,7 @@ class UsageChartViewModel @Inject constructor(
     }
 
     fun toggleUtc8() {
+        if (_state.value.dailyOnly) return
         _state.update { it.copy(useUtc8 = !it.useUtc8) }
         viewModelScope.launch {
             chartSettingsStore.setUseUtc8(_state.value.useUtc8)
@@ -89,14 +115,19 @@ class UsageChartViewModel @Inject constructor(
     }
 
     fun load() {
-        viewModelScope.launch {
-            // 首次加载时同步读取 UTC 偏好，避免用默认值 false 加载后再切换
-            if (!_state.value.useUtc8Initialized) {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
+            val wid = cacheScope()
+            if (workspaceIdOverride == null) showGoScope(wid)
+            if (wid == null) {
+                _state.update { it.copy(loading = false) }
+                return@launch
+            }
+            // Go export is already grouped on UTC dates; only CCGO has real times.
+            if (!_state.value.dailyOnly && !_state.value.useUtc8Initialized) {
                 val saved = chartSettingsStore.useUtc8Flow.first()
                 _state.update { it.copy(useUtc8 = saved, useUtc8Initialized = true) }
             }
-            val wid = workspaceId() ?: return@launch
-            val genAtStart = loadGeneration
             val cache = cacheProvider.get()
             val allModels = cache.getDistinctModels(wid)
 
@@ -132,8 +163,10 @@ class UsageChartViewModel @Inject constructor(
             val result = if (_state.value.granularity == ChartGranularity.LAST_5H_HOURLY)
                 filled.takeLast(5) else filled
 
-            // 如果 loadGeneration 已经变化（setWorkspace 被调用），丢弃这次结果
-            if (loadGeneration != genAtStart) return@launch
+            if (cacheScope() != wid) {
+                load()
+                return@launch
+            }
 
             // 自动降级：当前粒度无实际数据且允许降级 → 尝试更大窗口
             val hasData = result.any { it.totalRequests > 0 }
@@ -141,7 +174,11 @@ class UsageChartViewModel @Inject constructor(
                 val fallbackTo = when (_state.value.granularity) {
                     ChartGranularity.LAST_5H_HOURLY -> ChartGranularity.LAST_12H_10MIN
                     ChartGranularity.LAST_12H_10MIN -> ChartGranularity.LAST_7D_DAILY
-                    ChartGranularity.LAST_7D_DAILY -> ChartGranularity.THIS_MONTH_DAILY
+                    ChartGranularity.LAST_7D_DAILY -> if (_state.value.dailyOnly) {
+                        ChartGranularity.LAST_30D_DAILY
+                    } else {
+                        ChartGranularity.THIS_MONTH_DAILY
+                    }
                     else -> null
                 }
                 if (fallbackTo != null) {
@@ -167,6 +204,7 @@ class UsageChartViewModel @Inject constructor(
         }
     }
     fun setCustomDay(date: LocalDate) {
+        if (_state.value.dailyOnly) return
         _state.update { it.copy(granularity = ChartGranularity.CUSTOM_DAY_HOURLY, customDay = date) }
         _customDay = date
         load()
@@ -265,7 +303,8 @@ class UsageChartViewModel @Inject constructor(
 
 data class ChartUiState(
     val loading: Boolean = true,
-    val granularity: ChartGranularity = ChartGranularity.LAST_5H_HOURLY,
+    val scopeGeneration: Int = 0,
+    val granularity: ChartGranularity = ChartGranularity.LAST_7D_DAILY,
     val allModels: List<String> = emptyList(),
     /** 当前显示范围内实际出现过的模型（图例只显示这些） */
     val rangeModels: List<String> = emptyList(),
@@ -276,5 +315,14 @@ data class ChartUiState(
     val selectedModels: Set<String> = emptySet(), // empty = all
     val buckets: List<ChartBucket> = emptyList(),
     val useUtc8: Boolean = false,
-    val useUtc8Initialized: Boolean = false
+    val useUtc8Initialized: Boolean = false,
+    val dailyOnly: Boolean = true
+)
+
+internal val GO_CHART_GRANULARITIES = listOf(
+    ChartGranularity.LAST_7D_DAILY,
+    ChartGranularity.LAST_30D_DAILY,
+    ChartGranularity.THIS_MONTH_DAILY,
+    ChartGranularity.CUSTOM_MONTH_DAILY,
+    ChartGranularity.CUSTOM_RANGE_DAILY
 )

@@ -39,6 +39,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -104,16 +105,17 @@ fun UsageChartScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    var granularityExpanded by remember { mutableStateOf(false) }
-    var modelExpanded by remember { mutableStateOf(false) }
-    var showCustomDayPicker by remember { mutableStateOf(false) }
-    var showCustomMonthPicker by remember { mutableStateOf(false) }
-    var showCustomRangeStart by remember { mutableStateOf(false) }
-    var showCustomRangeEnd by remember { mutableStateOf(false) }
-    var customRangeStartDate by remember { mutableStateOf<LocalDate?>(null) }
-    var showCostDetail by remember { mutableStateOf(false) }
-    var showReqDetail by remember { mutableStateOf(false) }
-    var showTokenDetail by remember { mutableStateOf(false) }
+    LaunchedEffect(viewModel) { viewModel.observeGoUsageScope() }
+    var granularityExpanded by remember(state.scopeGeneration) { mutableStateOf(false) }
+    var modelExpanded by remember(state.scopeGeneration) { mutableStateOf(false) }
+    var showCustomDayPicker by remember(state.scopeGeneration) { mutableStateOf(false) }
+    var showCustomMonthPicker by remember(state.scopeGeneration) { mutableStateOf(false) }
+    var showCustomRangeStart by remember(state.scopeGeneration) { mutableStateOf(false) }
+    var showCustomRangeEnd by remember(state.scopeGeneration) { mutableStateOf(false) }
+    var customRangeStartDate by remember(state.scopeGeneration) { mutableStateOf<LocalDate?>(null) }
+    var showCostDetail by remember(state.scopeGeneration) { mutableStateOf(false) }
+    var showReqDetail by remember(state.scopeGeneration) { mutableStateOf(false) }
+    var showTokenDetail by remember(state.scopeGeneration) { mutableStateOf(false) }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -154,7 +156,7 @@ fun UsageChartScreen(
                                 Icon(Icons.Filled.ArrowDropDown, null, tint = StrawberryPink)
                             }
                             DropdownMenu(granularityExpanded, { granularityExpanded = false }) {
-                                ChartGranularity.entries.forEach { g ->
+                                (if (state.dailyOnly) GO_CHART_GRANULARITIES else ChartGranularity.entries).forEach { g ->
                                     DropdownMenuItem(
                                         text = { Text(stringResource(g.labelRes)) },
                                         onClick = {
@@ -244,7 +246,8 @@ fun UsageChartScreen(
                                         buckets = state.buckets,
                                         valueSelector = { it.totalRequests.toFloat() },
                                         lineColor = StrawberryPink,
-                                        formatValue = { context.getString(R.string.count_times, it.toInt()) },
+                                        formatValue = { context.getString(R.string.count_times, it.toLong()) },
+                                        formatTooltip = { context.getString(R.string.count_times, it.totalRequests) },
                                         granularity = state.granularity,
                                         useUtc8 = state.useUtc8
                                     )
@@ -326,7 +329,8 @@ fun UsageChartScreen(
                                 buckets = state.buckets,
                                 valueSelector = { it.totalRequests.toFloat() },
                                 lineColor = StrawberryPink,
-                                formatValue = { context.getString(R.string.count_times, it.toInt()) },
+                                formatValue = { context.getString(R.string.count_times, it.toLong()) },
+                                formatTooltip = { context.getString(R.string.count_times, it.totalRequests) },
                                 granularity = state.granularity,
                                 useUtc8 = state.useUtc8
                             )
@@ -449,7 +453,7 @@ fun UsageChartScreen(
                 text = {
                     Column {
                         models.forEach { model ->
-                            val total = state.buckets.sumOf { it.byModel[model]?.requests ?: 0 }
+                            val total = state.buckets.sumOf { it.byModel[model]?.requests ?: 0L }
                             if (total > 0) {
                                 Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text(model, style = MaterialTheme.typography.bodySmall)
@@ -676,7 +680,8 @@ internal fun LineChart(
     lineColor: Color,
     formatValue: (Float) -> String,
     granularity: ChartGranularity,
-    useUtc8: Boolean = false
+    useUtc8: Boolean = false,
+    formatTooltip: ((ChartBucket) -> String)? = null
 ) {
     if (buckets.isEmpty()) {
         Text(stringResource(R.string.common_no_data), color = InkMuted, style = MaterialTheme.typography.bodySmall)
@@ -769,7 +774,7 @@ internal fun LineChart(
                 ) {
                     Row(Modifier.padding(8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(formatChartTime(bucket.ts, granularity, 0, 1, useUtc8).first, style = MaterialTheme.typography.labelSmall)
-                        Text(formatValue(valueSelector(bucket)), style = MaterialTheme.typography.bodySmall, color = StrawberryPink)
+                        Text(formatTooltip?.invoke(bucket) ?: formatValue(valueSelector(bucket)), style = MaterialTheme.typography.bodySmall, color = StrawberryPink)
                     }
                 }
             }
