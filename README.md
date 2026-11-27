@@ -47,11 +47,11 @@ RainyToken（雨晴Token）— AI Balance & Usage Quota Query · the Rainy Famil
 | 特性 | 说明 |
 |------|------|
 | 📊 **仪表盘** | DeepSeek 余额（¥）+ 各服务用量/余额卡片；OCGO/CCGO 卡片可直达用量详情；长按拖动自由排序（持久化）；下拉全局刷新 · 平板自适应双窗格布局 |
-| 📈 **用量图表** | 3 张图表：消费金额 / 请求次数 / Token。OpenCode 工作区按 UTC 日汇总；CommandCode 支持小时粒度、UTC/UTC+8 和自定义范围。 |
+| 📈 **用量图表** | 3 张图表：消费金额 / 请求次数 / Token。OpenCode 和 CommandCode 基于每条请求的实际时间生成统计。 |
 | 🗓️ **Token活动** | OpenCode 工作区 UTC 日用量热力图，支持每日 / 每周 / 累计视图、年份切换与请求总数。 |
 | 📱 **平板适配** | 全局 `BoxWithConstraints` 自适应容器宽度；≥600dp 卡片双列，≥700dp 图表并排；双窗格 35/65 左右分栏（Expanded 模式）；支持 Android 13+ 预见性返回手势 |
-| 📋 **详细数据** | 按日期和模型筛选：OpenCode 查看日汇总，CommandCode 查看逐条请求。 |
-| 🔍 **多粒度筛选** | OpenCode 支持日、月及日期范围；CommandCode 另支持 5 小时、12 小时、24 小时等小时级范围。 |
+| 📋 **详细数据** | 按日期和模型筛选，分页查看 OpenCode 或 CommandCode 逐笔请求；OpenCode 明细显示结果、耗时、Token 和单笔成本。 |
+| 🔍 **多粒度筛选** | 支持日、月及自定义日期范围，图表可查看近期活动。 |
 | 🏷️ **模型筛选** | 多选 / 单选 / 全选，动态图例自适应换行 |
 | 📱 **桌面小组件** | 不打开 APP 也能看用量；支持四服务切换（OCGO/CCGO/Codex/Ollama）+ DeepSeek 余额；左上角 > 进 APP、其他区域点切换、↻ 刷新；可拖入负一屏；划到即自动刷新（MIUI 曝光刷新） |
 | 🔄 **自动同步** | 首页下拉自动同步用量；无缓存时启动自动全量同步；CCGO 详情页支持手动清除并重新同步 |
@@ -74,10 +74,9 @@ RainyToken（雨晴Token）— AI Balance & Usage Quota Query · the Rainy Famil
 
 > ⚠️ 需要配置 DeepSeek API Key、OpenCode Go API Key、CommandCode API Key、Codex（OAuth 登录或粘贴 auth.json）或 Ollama Cookie 才能拉取数据。
 
-**OpenCode Go 只需在设置中填写 `oc_sk_...` API Key**，无需 Cookie 或工作区 ID。[官方 Go 用量 API](https://opencode.ai/docs/console/go/) 提供 5 小时、每周和每月的用量百分比、重置时间及是否达限。工作区明细来自[官方 CSV 导出](https://opencode.ai/docs/console/api/usage-export)，需要启用 `Usage › Read`，并使用所有者或管理员的个人密钥，或有此权限的服务账号密钥。普通成员的密钥不能导出工作区用量。
+**OpenCode Go 只需在设置中填写 `oc_sk_...` API Key**，无需 Cookie 或工作区 ID。[官方 Go 用量 API](https://opencode.ai/docs/console/go/) 提供 5 小时、每周和每月的用量百分比、重置时间及是否达限。明细另通过 Console 的 `GET /console/api/request-logs` 分页读取该 Key 有权访问的推理请求，不使用日汇总 CSV。请求日志的读取权限与 Go 配额查询分开；如被拒绝，请检查密钥权限和工作区角色。
 
-明细覆盖密钥所在工作区的全部模型，按 UTC 天汇总，不含每次请求的时间。每次同步可回填最近 90 天，超出窗口的已导入汇总留在本地。旧版网页明细不删除，但因无法用新接口核实两个数据源的工作区是否相同，不会混入新视图。更换 API Key 后会从新密钥的独立本地缓存读取。
-
+OpenCode 服务端只保留最近 30 天的逐笔日志。第一次同步或手动「全量刷新」会补拉这个窗口，平常刷新只拉新增和一小段重叠数据。已同步到本机的逐笔日志超过 30 天后不会自动删。旧版网页明细和日汇总缓存留在本机，但不会混进新视图；更换 API Key 后使用独立缓存。
 ---
 
 ## 🏗️ 技术架构
@@ -202,7 +201,7 @@ wrapper 脚本将等号形式拆分为空格分隔的两个独立 argv。项目 
 | `androidx.compose:compose-bom` | Jetpack Compose BOM |
 | `androidx.navigation:navigation-compose` | 页面导航 |
 | `com.squareup.retrofit2:retrofit` | DeepSeek REST API |
-| `com.squareup.okhttp3:okhttp` | OpenCode Go JSON 配额 / Console CSV 明细 |
+| `com.squareup.okhttp3:okhttp` | OpenCode Go JSON 配额 / Console 逐笔请求日志 |
 | `org.jetbrains.kotlinx:kotlinx-serialization-json` | JSON 序列化 |
 | `androidx.room:room-runtime` | 用量数据本地数据库（Room） |
 | `androidx.datastore:datastore-preferences` | 本地缓存 |

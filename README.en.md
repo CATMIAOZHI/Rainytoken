@@ -47,11 +47,11 @@ RainyToken (雨晴Token) — AI Balance & Usage Quota Query · the Rainy Family 
 | Feature | Description |
 |------|------|
 | 📊 **Dashboard** | DeepSeek balance (¥) + usage/balance cards for each service; OCGO/CCGO cards link directly to usage details; long-press & drag to reorder (persisted); pull-to-refresh globally · tablet-adaptive two-pane layout |
-| 📈 **Usage charts** | Spend, requests, and tokens. OpenCode workspace charts use UTC days; CommandCode retains hourly views, UTC/UTC+8, and custom ranges. |
+| 📈 **Usage charts** | Spend, requests, and tokens. OpenCode and CommandCode charts use the actual request timestamps. |
 | 🗓️ **Token Activity** | OpenCode workspace heatmap by UTC day, with daily, weekly, and cumulative views, year selection, and total requests. |
 | 📱 **Tablet adaptation** | Global `BoxWithConstraints` adaptive container width; ≥600dp dual-column cards, ≥700dp side-by-side charts; two-pane 35/65 split (Expanded mode); supports Android 13+ predictive back gestures |
-| 📋 **Detailed data** | Browse and filter by date and model. OpenCode shows daily summaries; CommandCode shows individual requests. |
-| 🔍 **Multi-granularity filters** | OpenCode supports days, months, and date ranges; CommandCode also supports hourly ranges such as 5, 12, and 24 hours. |
+| 📋 **Detailed data** | Browse individual requests for OpenCode or CommandCode, with date and model filters. OpenCode details include the outcome, duration, tokens, and cost per request. |
+| 🔍 **Multi-granularity filters** | View days, months, custom date ranges, and charts for recent activity. |
 | 🏷️ **Model filtering** | Multi-select / single-select / select all, with dynamic legends that wrap automatically |
 | 📱 **Home screen widget** | Check usage without opening the app; switch between four services (OCGO/CCGO/Codex/Ollama) + DeepSeek balance; top-left corner → open app, tap elsewhere to switch, ↻ to refresh; can be added to the At a Glance screen; auto-refreshes when scrolled into view (MIUI exposure refresh) |
 | 🔄 **Auto sync** | Pull-to-refresh on home auto-syncs usage; auto full sync on startup when no cache; CCGO detail page supports manual clear & re-sync |
@@ -74,10 +74,9 @@ Download the latest APK from [Releases](https://github.com/CATMIAOZHI/Rainytoken
 
 > ⚠️ You need a DeepSeek API Key, an OpenCode Go API Key, a CommandCode API Key, Codex (OAuth sign-in or pasted auth.json), or an Ollama Cookie to fetch data.
 
-**OpenCode Go only needs an `oc_sk_...` API key in Settings**, not a cookie or workspace ID. The [official Go usage API](https://opencode.ai/docs/console/go/) reports usage percent, reset time, and whether the 5-hour, weekly, and monthly limits have been reached. Workspace details come from the [official CSV export](https://opencode.ai/docs/console/api/usage-export). Use an owner’s or admin’s personal key, or a service account key, with `Usage › Read`. Ordinary members cannot export workspace usage.
+**OpenCode Go only needs an `oc_sk_...` API key in Settings**, not a cookie or workspace ID. The [official Go usage API](https://opencode.ai/docs/console/go/) reports usage percent, reset time, and whether the 5-hour, weekly, and monthly limits have been reached. For details, the app pages through inference requests that the key can access via the Console `GET /console/api/request-logs` endpoint; it does not use the daily CSV export. Request-log access is separate from quota access. If access is denied, check the key's permissions and the workspace role.
 
-The export includes all models in the key’s workspace and groups usage by UTC day, without individual request times. Each sync can fill the latest 90 days; previously imported CSV history older than that stays on the device. Legacy web records are kept on disk, but are not mixed with the new views because the export does not identify the workspace. A replacement API key uses a separate local cache.
-
+OpenCode keeps the last 30 days of request logs on the server. First sync or a manual full refresh fetches that window; routine refreshes fetch new entries with a short overlap. Requests already saved on the device aren't automatically removed after 30 days. Legacy web records and daily CSV summaries stay on disk without being mixed into the new view. A replacement API key uses a separate local cache.
 ---
 
 ## 🏗️ Architecture
@@ -203,7 +202,7 @@ The project manages all dependencies with a Gradle Version Catalog (`gradle/libs
 | `androidx.compose:compose-bom` | Jetpack Compose BOM |
 | `androidx.navigation:navigation-compose` | Page navigation |
 | `com.squareup.retrofit2:retrofit` | DeepSeek REST API |
-| `com.squareup.okhttp3:okhttp` | OpenCode Go JSON quotas and Console CSV export |
+| `com.squareup.okhttp3:okhttp` | OpenCode Go JSON quotas and Console request logs |
 | `org.jetbrains.kotlinx:kotlinx-serialization-json` | JSON serialization |
 | `androidx.room:room-runtime` | Local usage database (Room) |
 | `androidx.datastore:datastore-preferences` | Local caching |
