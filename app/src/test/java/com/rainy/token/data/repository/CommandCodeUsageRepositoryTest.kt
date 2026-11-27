@@ -72,7 +72,7 @@ class CommandCodeUsageRepositoryTest {
         )
         assertEquals(1, records.size)
         val r = records.first()
-        assertEquals((0.001651536 * CommandCodeUsageRepository.COST_DENOM).toLong(), r.cost)
+        assertEquals(0.001651536, requireNotNull(r.cost), 0.0)
         assertEquals(46314L, r.inputTokens)
         assertEquals(118L, r.outputTokens)
         assertEquals(0L, r.cacheReadTokens)
@@ -87,7 +87,15 @@ class CommandCodeUsageRepositoryTest {
             newFormatBody(totalCost = 0)
         )
         assertEquals(1, records.size)
-        assertEquals(0L, records.first().cost)
+        assertEquals(0.0, requireNotNull(records.first().cost), 0.0)
+    }
+
+    @Test
+    fun `unreported cost stays null`() {
+        val (records, _) = CommandCodeUsageRepository.parseUsageResponse(
+            """{"usages":[{"id":"unpriced","createdAt":"2026-08-20T10:00:00.000Z","meta":{"totalCost":null}}]}"""
+        )
+        assertNull(records.single().cost)
     }
 
     @Test
@@ -175,7 +183,7 @@ class CommandCodeUsageRepositoryTest {
         val (records, _) = CommandCodeUsageRepository.parseUsageResponse(body)
         assertEquals(1, records.size)
         val r = records.first()
-        assertEquals((0.01 * CommandCodeUsageRepository.COST_DENOM).toLong(), r.cost)
+        assertEquals(0.01, requireNotNull(r.cost), 0.0)
         assertEquals(300L, r.inputTokens)   // 500 - 200
         assertEquals(200L, r.cacheReadTokens)
         assertEquals("morph", r.provider)

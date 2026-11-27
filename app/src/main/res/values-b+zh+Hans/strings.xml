@@ -361,12 +361,11 @@
     <string name="usage_cache_read_note">※ 缓存读取已计入「输入 Token」</string>
     <string name="usage_calls">%1$d 次调用</string>
     <string name="date_format_md">MM月dd日 EEEE</string>
-    <string name="daily_count_cost">%1$d 次 · $%2$s</string>
+    <string name="daily_count_cost">%1$d 次 · %2$s</string>
     <string name="raw_record_title">原始数据</string>
     <string name="stat_cache_write_5m">缓存写入(5m)</string>
     <string name="stat_cache_write_1h">缓存写入(1h)</string>
     <string name="raw_cost_usd">成本(USD)</string>
-    <string name="raw_cost_raw">成本(Raw)</string>
 
     <!-- ══════════ 凭据编辑（C 组迁移） ══════════ -->
     <string name="help_codex_4"> ~/.config/codex-oauth-proxy/auth.json</string>
@@ -557,10 +556,10 @@
     <string name="window_model_weekly">模型每周</string>
 
     <string name="error_opencode_go_subscription_required">此 API Key 所属的工作区需要有效的 OpenCode Go 订阅。</string>
-    <string name="error_opencode_usage_permission">此 API Key 需要开启「用量 › 读取」（Usage › Read）权限才能查看工作区用量。</string>
-    <string name="error_opencode_usage_role">普通成员的 API Key 不能查看工作区用量。请使用所有者或管理员的个人密钥，或有 Usage › Read 权限的服务账号密钥。</string>
-    <string name="error_opencode_usage_forbidden">请改用所有者或管理员的个人密钥，或服务账号密钥，并开启 Usage › Read 权限。</string>
-    <string name="error_opencode_usage_bad_request">工作区用量导出请求被拒绝，请重试或检查应用更新。</string>
-    <string name="error_opencode_usage_unavailable">每日用量汇总尚未生成，请稍后重试。</string>
+    <string name="error_opencode_usage_permission">此 API Key 没有读取请求日志的权限。</string>
+    <string name="error_opencode_usage_role">此 API Key 对应的工作区角色无法读取请求日志。</string>
+    <string name="error_opencode_usage_forbidden">此 API Key 无权读取该工作区的请求日志。请检查密钥及工作区权限。</string>
+    <string name="error_opencode_usage_bad_request">请求日志查询被拒绝，请重试或检查应用更新。</string>
+    <string name="error_opencode_usage_unavailable">暂时无法获取请求日志，请稍后再试。</string>
     <string name="widget_refresh_failed">刷新失败</string>
 </resources>

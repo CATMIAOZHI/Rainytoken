@@ -3,7 +3,6 @@ package com.rainy.token.data.local
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
-import androidx.room.PrimaryKey
 
 /**
  * Room Entity for usage records.
@@ -13,14 +12,13 @@ import androidx.room.PrimaryKey
  */
 @Entity(
     tableName = "usage_records",
+    primaryKeys = ["workspaceId", "id"],
     indices = [
-        Index(value = ["workspaceId", "timeCreated"]),
-        Index(value = ["workspaceId", "model"]),
-        Index(value = ["id"], unique = true)
+        Index(value = ["workspaceId", "timeCreated", "id"]),
+        Index(value = ["workspaceId", "model", "timeCreated"])
     ]
 )
 data class UsageRecordEntity(
-    @PrimaryKey
     val id: String,
     val workspaceId: String,
     val timeCreated: Long,
@@ -33,14 +31,24 @@ data class UsageRecordEntity(
     val cacheReadTokens: Long,
     val cacheWrite5mTokens: Long = 0,
     val cacheWrite1hTokens: Long = 0,
-    val cost: Long,
+    val cost: Double?,
     val keyId: String,
     val sessionId: String,
     val enrichmentPlan: String = "",
     @ColumnInfo(defaultValue = "1") val requestCount: Long = 1,
     val userType: String? = null,
     val userId: String? = null,
-    val userName: String? = null
+    val userName: String? = null,
+    val durationMs: Long? = null,
+    val timeToFirstTokenMs: Long? = null,
+    val outcome: String? = null,
+    val statusCode: Int? = null,
+    val errorCode: String? = null,
+    val country: String? = null,
+    val city: String? = null,
+    val reasoningEffort: String? = null,
+    val requestedModel: String? = null,
+    val cacheWriteTokensUnspecified: Long? = null
 ) {
     /** Convert Entity → domain model */
     fun toDomain(): UsageRecord = UsageRecord(
@@ -63,7 +71,17 @@ data class UsageRecordEntity(
         requestCount = requestCount,
         userType = userType,
         userId = userId,
-        userName = userName
+        userName = userName,
+        durationMs = durationMs,
+        timeToFirstTokenMs = timeToFirstTokenMs,
+        outcome = outcome,
+        statusCode = statusCode,
+        errorCode = errorCode,
+        country = country,
+        city = city,
+        reasoningEffort = reasoningEffort,
+        requestedModel = requestedModel,
+        cacheWriteTokensUnspecified = cacheWriteTokensUnspecified
     )
 
 }
@@ -89,5 +107,15 @@ fun UsageRecord.toEntity(): UsageRecordEntity = UsageRecordEntity(
     requestCount = requestCount,
     userType = userType,
     userId = userId,
-    userName = userName
+    userName = userName,
+    durationMs = durationMs,
+    timeToFirstTokenMs = timeToFirstTokenMs,
+    outcome = outcome,
+    statusCode = statusCode,
+    errorCode = errorCode,
+    country = country,
+    city = city,
+    reasoningEffort = reasoningEffort,
+    requestedModel = requestedModel,
+    cacheWriteTokensUnspecified = cacheWriteTokensUnspecified
 )

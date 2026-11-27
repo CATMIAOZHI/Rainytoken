@@ -7,6 +7,7 @@ import com.rainy.token.R
 import com.rainy.token.data.local.OverviewStats
 import com.rainy.token.data.local.ModelStats
 import com.rainy.token.data.local.DailyStats
+import com.rainy.token.data.local.UsageRecord
 import com.rainy.token.data.local.UsageCache
 import com.rainy.token.data.repository.CredentialRepository
 import com.rainy.token.data.repository.RepositoryError
@@ -33,15 +34,10 @@ import javax.inject.Inject
 import javax.inject.Provider
 
 internal const val DAILY_PAGE_SIZE = 5
-internal fun usageTimeFilters(dailyOnly: Boolean): List<TimeFilter> = buildList {
-    add(TimeFilter.All)
-    if (!dailyOnly) {
-        add(TimeFilter.Last5h)
-        add(TimeFilter.Last24h)
-    }
-    addAll(listOf(TimeFilter.Today, TimeFilter.Yesterday, TimeFilter.Last7Days, TimeFilter.Last30Days, TimeFilter.ThisMonth))
-}
-
+internal fun usageTimeFilters(): List<TimeFilter> = listOf(
+    TimeFilter.All, TimeFilter.Last5h, TimeFilter.Last24h, TimeFilter.Today,
+    TimeFilter.Yesterday, TimeFilter.Last7Days, TimeFilter.Last30Days, TimeFilter.ThisMonth
+)
 /** 时间筛选条件（label 用字符串资源 ID，UI 层按当前语言解析） */
 sealed class TimeFilter(@StringRes val labelRes: Int) {
     data object All : TimeFilter(R.string.time_all)
@@ -56,8 +52,12 @@ sealed class TimeFilter(@StringRes val labelRes: Int) {
 
     /** 计算筛选的起止 epoch 毫秒（from 含，to 含）。
      *  返回 Pair(null, null) 表示不限制。 */
-    fun toRange(now: Long = System.currentTimeMillis()): Pair<Long?, Long?> {
-        val todayMidnight = midnightBefore(now)
+    fun toRange(
+        now: Long = System.currentTimeMillis(),
+        zoneOffset: ZoneOffset = ZoneOffset.UTC
+    ): Pair<Long?, Long?> {
+        val localDate = Instant.ofEpochMilli(now).atOffset(zoneOffset).toLocalDate()
+        val todayMidnight = localDate.atStartOfDay(zoneOffset).toInstant().toEpochMilli()
         return when (this) {
             is All -> null to null
             is Last5h -> now - 5 * 3600_000L to null
@@ -67,22 +67,14 @@ sealed class TimeFilter(@StringRes val labelRes: Int) {
             is Last7Days -> todayMidnight - 6 * 86400_000L to todayMidnight + 86400_000L - 1
             is Last30Days -> todayMidnight - 29 * 86400_000L to todayMidnight + 86400_000L - 1
             is ThisMonth -> {
-                val localDate = Instant.ofEpochMilli(now).atOffset(ZoneOffset.UTC).toLocalDate()
-                val monthStart = localDate.withDayOfMonth(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-                val monthEnd = localDate.withDayOfMonth(localDate.lengthOfMonth()).plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli() - 1
+                val monthStart = localDate.withDayOfMonth(1).atStartOfDay(zoneOffset).toInstant().toEpochMilli()
+                val monthEnd = localDate.withDayOfMonth(localDate.lengthOfMonth()).plusDays(1).atStartOfDay(zoneOffset).toInstant().toEpochMilli() - 1
                 monthStart to monthEnd
             }
             is Custom -> if (from == 0L && to == 0L) null to null else from to to
         }
     }
 
-    companion object {
-        private fun midnightBefore(ts: Long): Long {
-            val utc = ZoneOffset.UTC
-            val localDate = Instant.ofEpochMilli(ts).atOffset(utc).toLocalDate()
-            return localDate.atStartOfDay(utc).toInstant().toEpochMilli()
-        }
-    }
 }
 
 @HiltViewModel
@@ -117,7 +109,7 @@ class UsageViewModel @Inject constructor(
     private fun showGoScope(scope: String?) {
         if (displayedGoScope != scope) {
             displayedGoScope = scope
-            _uiState.value = UsageUiState()
+            _uiState.value = UsageUiState(scopeGeneration = _uiState.value.scopeGeneration + 1)
         }
     }
 
@@ -175,6 +167,7 @@ class UsageViewModel @Inject constructor(
         val filter = _uiState.value.timeFilter
         val (fromTs, toTs) = filter.toRange()
         val model = _uiState.value.modelFilter
+        val isGo = workspaceIdOverride == null
 
         // ★ 全部重操作放后台线程，避免阻塞 Compose 动画帧
         val (overview, modelStats, dailyStats, totalCount) = withContext(Dispatchers.Default) {
@@ -182,8 +175,9 @@ class UsageViewModel @Inject constructor(
             val filtered = if (model != null) records.filter { it.model == model } else records
 
             val ov = if (filtered.isEmpty()) null else OverviewStats(
-                totalTokens = filtered.sumOf { it.inputTokens + it.cacheReadTokens + it.outputTokens },
-                totalCost = filtered.sumOf { it.cost },
+                totalTokens = if (isGo) filtered.sumOf { it.totalTokens }
+                    else filtered.sumOf { it.inputTokens + it.cacheReadTokens + it.outputTokens },
+                totalCost = filtered.sumOf { it.cost ?: 0.0 },
                 totalCount = filtered.sumOf { it.requestCount },
                 modelCount = filtered.map { it.model }.distinct().size,
                 inputTokens = filtered.sumOf { it.inputTokens },
@@ -191,16 +185,18 @@ class UsageViewModel @Inject constructor(
                 reasoningTokens = filtered.sumOf { it.reasoningTokens },
                 cacheReadTokens = filtered.sumOf { it.cacheReadTokens },
                 cacheWrite5mTokens = filtered.sumOf { it.cacheWrite5mTokens },
-                cacheWrite1hTokens = filtered.sumOf { it.cacheWrite1hTokens }
+                cacheWrite1hTokens = filtered.sumOf { it.cacheWrite1hTokens },
+                cacheWriteTokensUnspecified = filtered.sumOf { it.cacheWriteTokensUnspecified ?: 0L },
+                pricedRequests = filtered.pricedRequests()
             )
 
             val ms = filtered.groupBy { it.model }.map { (m, recs) ->
-                ModelStats(model = m, totalTokens = recs.sumOf { it.totalTokens }, totalCost = recs.sumOf { it.cost }, count = recs.sumOf { it.requestCount })
+                ModelStats(model = m, totalTokens = recs.sumOf { it.totalTokens }, totalCost = recs.sumOf { it.cost ?: 0.0 }, count = recs.sumOf { it.requestCount }, pricedRequests = recs.pricedRequests())
             }.sortedByDescending { it.totalTokens }
 
             val ds = filtered.groupBy { it.timeCreated / 86_400_000L * 86_400_000L }
                 .map { (dayTs, recs) ->
-                    com.rainy.token.data.local.DailyStats(dayTs = dayTs, totalTokens = recs.sumOf { it.totalTokens }, totalCost = recs.sumOf { it.cost }, count = recs.sumOf { it.requestCount })
+                    com.rainy.token.data.local.DailyStats(dayTs = dayTs, totalTokens = recs.sumOf { it.totalTokens }, totalCost = recs.sumOf { it.cost ?: 0.0 }, count = recs.sumOf { it.requestCount }, pricedRequests = recs.pricedRequests())
                 }.sortedByDescending { it.dayTs }
 
             LoadResult(ov, ms, ds, records.size)
@@ -251,11 +247,16 @@ class UsageViewModel @Inject constructor(
         _uiState.update { it.copy(dailyPage = (it.dailyPage + 1).coerceAtMost(totalPages)) }
     }
 
-    fun sync(incremental: Boolean = false) {
-        if (workspaceIdOverride != null) {
-            syncCcgo(incremental)
-            return
-        }
+    /** Short refresh and pull are incremental for Go; keep CommandCode's existing manual mode. */
+    fun sync() {
+        if (workspaceIdOverride != null) syncCcgo(incremental = false) else syncGo(full = false)
+    }
+
+    fun refreshGoWindow() {
+        if (workspaceIdOverride == null) syncGo(full = true)
+    }
+
+    private fun syncGo(full: Boolean, staleOnly: Boolean = false) {
         viewModelScope.launch {
             val scope = cacheScope()
             showGoScope(scope)
@@ -263,7 +264,7 @@ class UsageViewModel @Inject constructor(
                 _uiState.update { it.copy(loading = false) }
                 return@launch
             }
-            if (incremental && !syncCoordinator.isSyncStale(scope, UsageSyncCoordinator.FOREGROUND_MIN_INTERVAL_MS)) {
+            if (staleOnly && !syncCoordinator.isSyncStale(scope, UsageSyncCoordinator.FOREGROUND_MIN_INTERVAL_MS)) {
                 return@launch
             }
             activeGoSync?.let { (runningScope, runningJob) ->
@@ -276,7 +277,7 @@ class UsageViewModel @Inject constructor(
             try {
                 val result = withContext(Dispatchers.Default) {
                     val useCase = syncUseCaseProvider.get()
-                    if (incremental) useCase.incrementalSync(scope) else useCase.fullSync(scope)
+                    if (full) useCase.fullSync(scope) else useCase.incrementalSync(scope)
                 }
                 val currentScope = cacheScope()
                 if (currentScope != scope || displayedGoScope != scope) {
@@ -334,12 +335,15 @@ class UsageViewModel @Inject constructor(
         // The first Go import is explicit; only a previously synced scope auto-refreshes.
         viewModelScope.launch {
             val scope = cacheScope() ?: return@launch
-            if (syncCoordinator.lastSyncAt(scope) > 0) sync(incremental = true)
+            if (syncCoordinator.lastSyncAt(scope) > 0) syncGo(full = false, staleOnly = true)
         }
     }
 }
 
-/** 同步结果里的新增条数：成功取 result，部分失败时从 PartialSync 异常里取（旧实现失败一律显示 0）。 */
+private fun List<UsageRecord>.pricedRequests(): Long =
+    sumOf { if (it.cost != null) it.requestCount else 0L }
+
+/** 同步结果里的新增条数：成功取 result，部分失败时从 PartialSync 异常里取。 */
 private fun syncInsertedCount(result: Result<SyncResult>): Int =
     result.getOrNull()?.inserted
         ?: (result.exceptionOrNull() as? SyncError.PartialSync)?.inserted
@@ -347,6 +351,7 @@ private fun syncInsertedCount(result: Result<SyncResult>): Int =
 
 data class UsageUiState(
     val loading: Boolean = true,
+    val scopeGeneration: Int = 0,
     val hasGoApiKey: Boolean = false,
     val syncing: Boolean = false,
     val overview: OverviewStats? = null,

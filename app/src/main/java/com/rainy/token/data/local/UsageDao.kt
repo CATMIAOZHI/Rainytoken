@@ -5,7 +5,6 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
-import androidx.room.Update
 
 @Dao
 interface UsageDao {
@@ -28,27 +27,54 @@ interface UsageDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(records: List<UsageRecordEntity>): List<Long>
 
-    @Update
-    suspend fun updateAll(records: List<UsageRecordEntity>): Int
+    @Query("SELECT COUNT(*) FROM usage_records WHERE workspaceId = :scope AND timeCreated BETWEEN :fromTs AND :toTs")
+    suspend fun countRecords(scope: String, fromTs: Long, toTs: Long): Int
 
-    @Query("DELETE FROM usage_records WHERE workspaceId = :scope AND id IN (:ids)")
-    suspend fun deleteExportRows(scope: String, ids: List<String>): Int
+    @Query("""
+        SELECT COUNT(*) FROM usage_records
+        WHERE workspaceId = :scope AND timeCreated BETWEEN :fromTs AND :toTs AND model IN (:models)
+    """)
+    suspend fun countRecordsByModels(scope: String, fromTs: Long, toTs: Long, models: List<String>): Int
 
+    @Query("""
+        SELECT * FROM usage_records
+        WHERE workspaceId = :scope AND timeCreated BETWEEN :fromTs AND :toTs
+        ORDER BY timeCreated DESC, id DESC LIMIT :limit OFFSET :offset
+    """)
+    suspend fun getRecordPage(
+        scope: String, fromTs: Long, toTs: Long, limit: Int, offset: Int
+    ): List<UsageRecordEntity>
+
+    @Query("""
+        SELECT * FROM usage_records
+        WHERE workspaceId = :scope AND timeCreated BETWEEN :fromTs AND :toTs AND model IN (:models)
+        ORDER BY timeCreated DESC, id DESC LIMIT :limit OFFSET :offset
+    """)
+    suspend fun getRecordPageByModels(
+        scope: String, fromTs: Long, toTs: Long, models: List<String>, limit: Int, offset: Int
+    ): List<UsageRecordEntity>
+
+    /** Go is append-only. A changed scoped count invalidates any previous OFFSET. */
     @Transaction
-    suspend fun applyDailyExport(
+    suspend fun getGoRecordPageSnapshot(
         scope: String,
         fromTs: Long,
         toTs: Long,
-        incoming: List<UsageRecordEntity>
-    ): UsageExportChanges {
-        val cached = getByWorkspaceAndTime(scope, fromTs, toTs)
-        val changes = diffDailyExport(cached, incoming)
-        val inserted = if (changes.inserts.isEmpty()) 0 else insertAll(changes.inserts).count { it != -1L }
-        val updated = if (changes.updates.isEmpty()) 0 else updateAll(changes.updates)
-        val deleted = changes.deletes.chunked(500).sumOf { deleteExportRows(scope, it) }
-        return UsageExportChanges(inserted, updated, deleted)
+        models: List<String>,
+        limit: Int,
+        requestedPage: Int,
+        previousScopeCount: Int?
+    ): GoRecordPageSnapshot<UsageRecordEntity> {
+        val scopeCount = countByWorkspace(scope)
+        val filteredCount = if (models.isEmpty()) countRecords(scope, fromTs, toTs)
+            else countRecordsByModels(scope, fromTs, toTs, models)
+        val pages = ((filteredCount.toLong() + limit - 1) / limit).toInt()
+        val page = if (previousScopeCount == scopeCount) requestedPage.coerceIn(1, pages.coerceAtLeast(1)) else 1
+        val offset = (page - 1) * limit
+        val records = if (models.isEmpty()) getRecordPage(scope, fromTs, toTs, limit, offset)
+            else getRecordPageByModels(scope, fromTs, toTs, models, limit, offset)
+        return GoRecordPageSnapshot(scopeCount, filteredCount, page, records, getDistinctModels(scope))
     }
-
     @Query("DELETE FROM usage_records WHERE workspaceId = :workspaceId")
     suspend fun deleteByWorkspaceId(workspaceId: String): Int
 
@@ -71,25 +97,12 @@ interface UsageDao {
     @Query("SELECT MAX(timeCreated) FROM usage_records WHERE workspaceId = :workspaceId")
     suspend fun getMaxTimeCreated(workspaceId: String): Long?
 }
-/** Stable identities match submissions even while their request/token/cost before midnight changes. */
-internal fun diffDailyExport(cached: List<UsageRecordEntity>, incoming: List<UsageRecordEntity>): DailyExportDiff {
-    val cachedById = cached.associateBy { it.id }
-    val incomingIds = incoming.mapTo(HashSet()) { it.id }
-    val inserts = mutableListOf<UsageRecordEntity>()
-    val updates = mutableListOf<UsageRecordEntity>()
-    for (record in incoming) {
-        val previous = cachedById[record.id]
-        if (previous == null) inserts += record else if (previous != record) updates += record
-    }
-    return DailyExportDiff(inserts, updates, cached.filter { it.id !in incomingIds }.map { it.id })
-}
 
-internal data class DailyExportDiff(
-    val inserts: List<UsageRecordEntity>,
-    val updates: List<UsageRecordEntity>,
-    val deletes: List<String>
+/** Row counts and contents read from the same transaction. */
+data class GoRecordPageSnapshot<T>(
+    val scopeCount: Int,
+    val filteredCount: Int,
+    val page: Int,
+    val records: List<T>,
+    val models: List<String>
 )
-
-data class UsageExportChanges(val inserted: Int, val updated: Int, val deleted: Int) {
-    val unchanged: Boolean get() = inserted == 0 && updated == 0 && deleted == 0
-}

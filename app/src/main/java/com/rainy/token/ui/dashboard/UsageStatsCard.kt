@@ -1,6 +1,7 @@
 package com.rainy.token.ui.dashboard
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,9 +12,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -22,6 +26,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -52,6 +59,7 @@ fun UsageStatsCard(
     viewModel: UsageViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var refreshOptions by remember(uiState.scopeGeneration) { mutableStateOf(false) }
 
     // Wide dashboard panes stay mounted while the credential editor replaces the key.
     LaunchedEffect(viewModel) { viewModel.observeGoUsageScope() }
@@ -101,6 +109,20 @@ fun UsageStatsCard(
                         )
                     }
                 }
+                Box {
+                    IconButton(
+                        onClick = { refreshOptions = true },
+                        enabled = uiState.hasGoApiKey && !uiState.syncing
+                    ) {
+                        Icon(Icons.Filled.MoreVert, stringResource(R.string.go_usage_refresh_options), tint = StrawberryPink)
+                    }
+                    DropdownMenu(refreshOptions && uiState.hasGoApiKey && !uiState.syncing, { refreshOptions = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.go_usage_refresh_full)) },
+                            onClick = { refreshOptions = false; viewModel.refreshGoWindow() }
+                        )
+                    }
+                }
             }
 
             if (!uiState.loading) {
@@ -119,16 +141,13 @@ fun UsageStatsCard(
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
-                if (uiState.hasGoApiKey && uiState.lastSyncAt == 0L) {
-                    Text(
-                        text = stringResource(R.string.go_usage_legacy),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = InkMuted,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
             }
-
+            Text(
+                text = stringResource(R.string.go_usage_retention),
+                style = MaterialTheme.typography.bodySmall,
+                color = InkMuted,
+                modifier = Modifier.padding(top = 4.dp)
+            )
             // ─── 核心指标 ───
             uiState.overview?.let { overview ->
                 Spacer(modifier = Modifier.height(12.dp))
@@ -155,8 +174,9 @@ fun UsageStatsCard(
                 // 输出 Token + 总花费 同一排
                 Row(Modifier.fillMaxWidth()) {
                     MetricRow(stringResource(R.string.usage_output_tokens), formatTokenCount(overview.outputTokens), Modifier.weight(1f))
-                    MetricRow(stringResource(R.string.usage_total_cost), "$${String.format(Locale.US, "%.4f", overview.totalCost / 100_000_000.0)}", Modifier.weight(1f))
+                    MetricRow(stringResource(R.string.usage_total_cost), formatKnownUsageUsd(overview.totalCost, overview.pricedRequests), Modifier.weight(1f))
                 }
+                if (overview.pricedRequests < overview.totalCount) UsageCostCoverage()
             }
 
             // ─── 首次读取本地缓存 ───

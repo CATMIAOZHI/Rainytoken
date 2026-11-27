@@ -68,8 +68,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneOffset
-import java.util.Date
 import java.util.Locale
+import java.util.Date
 
 /**
  * 用量详情页 —— 统计图表。
@@ -156,7 +156,7 @@ fun UsageDetailScreen(
                                     Icon(Icons.Filled.ArrowDropDown, null, tint = StrawberryPink)
                                 }
                                 DropdownMenu(granularityExpanded, { granularityExpanded = false }) {
-                                    (if (state.dailyOnly) GO_CHART_GRANULARITIES else ChartGranularity.entries).forEach { g ->
+                                    ChartGranularity.entries.forEach { g ->
                                         DropdownMenuItem(text = { Text(stringResource(g.labelRes)) }, onClick = {
                                             granularityExpanded = false
                                             when (g) {
@@ -169,7 +169,7 @@ fun UsageDetailScreen(
                                     }
                                 }
                             }
-                            if (isCcgo) TextButton(onClick = {
+                            TextButton(onClick = {
                                 viewModel.toggleUtc8()
                                 scope.launch {
                                     snackbarHostState.showSnackbar(
@@ -179,16 +179,10 @@ fun UsageDetailScreen(
                                 }
                             }) {
                                 Text(
-                                    if (state.useUtc8) "UTC+8」" else "UTC+0」",
+                                    if (state.useUtc8) "UTC+8" else "UTC+0",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = if (state.useUtc8) StrawberryPink else InkMuted,
                                     fontWeight = if (state.useUtc8) FontWeight.SemiBold else FontWeight.Normal
-                                )
-                                Text(
-                                    stringResource(R.string.usage_click_to_switch),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = InkMuted.copy(alpha = 0.5f),
-                                    fontWeight = FontWeight.Normal
                                 )
                             }
                             Spacer(Modifier.weight(1f))
@@ -219,26 +213,13 @@ fun UsageDetailScreen(
                         // 面板够宽：前两张图表并排
                         item {
                             val models = state.rangeModels
-                            val costTotal = state.buckets.sumOf { it.totalCost.toDouble() / 100_000_000.0 }
                             val reqTotal = state.buckets.sumOf { it.totalRequests }
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Box(modifier = Modifier.weight(1f)) {
-                                    ChartCard(stringResource(R.string.chart_cost), "$${String.format(Locale.US, "%.4f", costTotal)}", { showCostDetail = true }) {
-                                        StackedBarChart(state.buckets,
-                                            { it.totalCost.toDouble() / 100_000_000.0 },
-                                            { bucket -> models.mapIndexedNotNull { idx, m -> val v = bucket.byModel[m]?.cost ?: return@mapIndexedNotNull null; v.toDouble() / 100_000_000.0 to modelColors[idx % modelColors.size] } },
-                                            { bucket -> models.mapNotNull { if (bucket.byModel[it] != null) it else null } },
-                                            formatValue = { "$${String.format(Locale.US, "%.4f", it)}" },
-                                            granularity = state.granularity,
-                                            legendItems = models.mapIndexed { idx, m ->
-                                                m to modelColors[idx % modelColors.size]
-                                            },
-                                            useUtc8 = state.useUtc8
-                                        )
-                                    }
+                                    UsageCostChart(state, state.rangeModels) { showCostDetail = true }
                                 }
                                 Box(modifier = Modifier.weight(1f)) {
                                     ChartCard(stringResource(R.string.chart_requests), stringResource(R.string.count_times, reqTotal), { showReqDetail = true }) {
@@ -249,7 +230,7 @@ fun UsageDetailScreen(
                         }
                         item {
                             val tokTotal = state.buckets.sumOf { it.cacheHitTokens + it.inputTokens + it.outputTokens }
-                            ChartCard(stringResource(R.string.chart_tokens), formatTokenComma(tokTotal), { showTokenDetail = true }) {
+                            ChartCard(stringResource(if (isCcgo) R.string.chart_tokens else R.string.go_usage_chart_tokens), formatTokenComma(tokTotal), { showTokenDetail = true }) {
                                 StackedBarChart(state.buckets,
                                     { (it.cacheHitTokens + it.inputTokens + it.outputTokens).toDouble() },
                                     { bucket -> listOfNotNull(bucket.outputTokens.toDouble() to tokenColors[2], bucket.inputTokens.toDouble() to tokenColors[1], bucket.cacheHitTokens.toDouble() to tokenColors[0]) },
@@ -265,21 +246,7 @@ fun UsageDetailScreen(
                     } else {
                         // 窄面板：三张图表纵向堆叠
                         item {
-                            val models = state.rangeModels
-                            val costTotal = state.buckets.sumOf { it.totalCost.toDouble() / 100_000_000.0 }
-                            ChartCard(stringResource(R.string.chart_cost), "$${String.format(Locale.US, "%.4f", costTotal)}", { showCostDetail = true }) {
-                                StackedBarChart(state.buckets,
-                                    { it.totalCost.toDouble() / 100_000_000.0 },
-                                    { bucket -> models.mapIndexedNotNull { idx, m -> val v = bucket.byModel[m]?.cost ?: return@mapIndexedNotNull null; v.toDouble() / 100_000_000.0 to modelColors[idx % modelColors.size] } },
-                                    { bucket -> models.mapNotNull { if (bucket.byModel[it] != null) it else null } },
-                                    formatValue = { "$${String.format(Locale.US, "%.4f", it)}" },
-                                    granularity = state.granularity,
-                                    legendItems = models.mapIndexed { idx, m ->
-                                        m to modelColors[idx % modelColors.size]
-                                    },
-                                    useUtc8 = state.useUtc8
-                                )
-                            }
+                            UsageCostChart(state, state.rangeModels) { showCostDetail = true }
                         }
                         item {
                             val reqTotal = state.buckets.sumOf { it.totalRequests }
@@ -289,7 +256,7 @@ fun UsageDetailScreen(
                         }
                         item {
                             val tokTotal = state.buckets.sumOf { it.cacheHitTokens + it.inputTokens + it.outputTokens }
-                            ChartCard(stringResource(R.string.chart_tokens), formatTokenComma(tokTotal), { showTokenDetail = true }) {
+                            ChartCard(stringResource(if (isCcgo) R.string.chart_tokens else R.string.go_usage_chart_tokens), formatTokenComma(tokTotal), { showTokenDetail = true }) {
                                 StackedBarChart(state.buckets,
                                     { (it.cacheHitTokens + it.inputTokens + it.outputTokens).toDouble() },
                                     { bucket -> listOfNotNull(bucket.outputTokens.toDouble() to tokenColors[2], bucket.inputTokens.toDouble() to tokenColors[1], bucket.cacheHitTokens.toDouble() to tokenColors[0]) },
@@ -346,7 +313,7 @@ fun UsageDetailScreen(
         }
         val models = state.rangeModels
         if (showCostDetail) ChartDetailDialog(stringResource(R.string.chart_detail_cost), { showCostDetail = false }) {
-            models.forEach { model -> val t = state.buckets.sumOf { it.byModel[model]?.cost ?:0L }; if (t>0) DetailRow(model, "$${String.format(Locale.US, "%.4f", t/100_000_000.0)}") }
+            UsageCostByModel(state, models)
         }
         if (showReqDetail) ChartDetailDialog(stringResource(R.string.chart_detail_requests), { showReqDetail = false }) {
             models.forEach { model -> val t = state.buckets.sumOf { it.byModel[model]?.requests ?: 0L }; if (t>0) DetailRow(model, stringResource(R.string.count_times, t)) }
@@ -356,19 +323,18 @@ fun UsageDetailScreen(
             DetailRow(stringResource(R.string.chart_stack_input), formatTokenComma(state.buckets.sumOf { it.inputTokens }))
             DetailRow(stringResource(R.string.chart_stack_output), formatTokenComma(state.buckets.sumOf { it.outputTokens }))
         }
-        // 「清除」入口已移除：服务端明细只保留约 24h，清空本地缓存无法补回历史，只会永久丢失现有记录
     }
 }
 
 @Composable
-private fun ChartDetailDialog(title: String, onDismiss: () -> Unit, content: @Composable () -> Unit) {
+internal fun ChartDetailDialog(title: String, onDismiss: () -> Unit, content: @Composable () -> Unit) {
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title, fontWeight = FontWeight.Bold) },
         text = { androidx.compose.foundation.layout.Column { content() } },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) } })
 }
-@Composable private fun DetailRow(label: String, value: String) {
+@Composable internal fun DetailRow(label: String, value: String) {
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), Arrangement.SpaceBetween) {
         Text(label, style = MaterialTheme.typography.bodySmall)
         Text(value, color = StrawberryPink, style = MaterialTheme.typography.bodySmall)

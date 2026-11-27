@@ -16,9 +16,9 @@ sealed class RepositoryError(message: String, cause: Throwable? = null) : Except
 
     enum class OpenCodeUsageForbiddenReason { MISSING_PERMISSION, NOT_OWNER_OR_ADMIN, UNSPECIFIED }
     class OpenCodeUsageForbidden(val reason: OpenCodeUsageForbiddenReason) :
-        RepositoryError("OpenCode workspace usage access denied")
-    class OpenCodeUsageBadRequest : RepositoryError("Invalid OpenCode usage export request (HTTP 400)")
-    class OpenCodeUsageSummaryUnavailable : RepositoryError("OpenCode daily totals aren't available yet (HTTP 503)")
+        RepositoryError("OpenCode request-log access denied")
+    class OpenCodeUsageBadRequest : RepositoryError("Invalid OpenCode request-logs request (HTTP 400)")
+    class OpenCodeUsageSummaryUnavailable : RepositoryError("OpenCode request logs are temporarily unavailable (HTTP 503)")
 
     /** 限流（429 Too Many Requests） */
     class RateLimited(val retryAfterSeconds: Long? = null) :

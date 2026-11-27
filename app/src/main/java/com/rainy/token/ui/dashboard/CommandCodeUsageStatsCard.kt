@@ -131,7 +131,7 @@ fun CommandCodeUsageStatsCard(
                 // 输出 Token + 总花费 同一排
                 Row(Modifier.fillMaxWidth()) {
                     MetricRow(stringResource(R.string.usage_output_tokens), formatTokenCount(overview.outputTokens), Modifier.weight(1f))
-                    MetricRow(stringResource(R.string.usage_total_cost), "$${String.format(Locale.US, "%.4f", overview.totalCost / 100_000_000.0)}", Modifier.weight(1f))
+                    MetricRow(stringResource(R.string.usage_total_cost), formatKnownUsageUsd(overview.totalCost, overview.pricedRequests), Modifier.weight(1f))
                 }
             }
 

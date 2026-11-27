@@ -282,7 +282,7 @@ fun HeatmapScreen(
                     .padding(bottom = 12.dp),
             )
 
-            // Total requests in the locally synced UTC daily summaries.
+            // Total requests in the locally synced log.
             InsightsCard(
                 totalRequests = state.totalRequests,
                 loading = state.loading,

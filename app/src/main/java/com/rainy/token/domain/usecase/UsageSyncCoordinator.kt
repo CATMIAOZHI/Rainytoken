@@ -84,6 +84,14 @@ class UsageSyncCoordinator @Inject constructor(
         prefs.edit().putLong(syncAtKey(workspaceId), ts).apply()
     }
 
+    /** A completed server snapshot boundary, independent of the device time shown in the UI. */
+    internal fun openCodeLogsCheckpoint(scope: String): Long = prefs.getLong(KEY_OPEN_CODE_UNTIL + scope, 0L)
+
+    internal fun saveOpenCodeLogsSuccess(scope: String, until: Long, syncedAt: Long) {
+        prefs.edit().putLong(KEY_OPEN_CODE_UNTIL + scope, until)
+            .putLong(syncAtKey(scope), syncedAt).apply()
+    }
+
     // ===== 后台同步开关 =====
 
     var backgroundSyncEnabled: Boolean
@@ -96,6 +104,7 @@ class UsageSyncCoordinator @Inject constructor(
         /** 沿用既有 prefs 名与 key 格式，保证老版本写入的同步时间不丢失 */
         private const val PREFS_NAME = "usage_sync_at"
         private const val KEY_PREFIX = "sync_at_"
+        private const val KEY_OPEN_CODE_UNTIL = "request_logs_until_"
         private const val KEY_BACKGROUND_SYNC = "background_sync_enabled"
 
         /**

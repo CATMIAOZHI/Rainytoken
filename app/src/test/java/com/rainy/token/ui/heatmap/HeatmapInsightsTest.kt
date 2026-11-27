@@ -22,7 +22,7 @@ class HeatmapInsightsTest {
         outputTokens = 0,
         reasoningTokens = 0,
         cacheReadTokens = 0,
-        cost = 0,
+        cost = 0.0,
         keyId = "k",
         sessionId = "s",
         requestCount = requests,

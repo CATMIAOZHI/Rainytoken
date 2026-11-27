@@ -364,12 +364,11 @@
     <string name="usage_cache_read_note">※ Cache reads are included in "Input tokens"</string>
     <string name="usage_calls">%1$d calls</string>
     <string name="date_format_md">MMM d, EEEE</string>
-    <string name="daily_count_cost">%1$d calls · $%2$s</string>
+    <string name="daily_count_cost">%1$d calls · %2$s</string>
     <string name="raw_record_title">Raw data</string>
     <string name="stat_cache_write_5m">Cache write (5m)</string>
     <string name="stat_cache_write_1h">Cache write (1h)</string>
     <string name="raw_cost_usd">Cost (USD)</string>
-    <string name="raw_cost_raw">Cost (raw)</string>
 
     <!-- ══════════ 凭据编辑（C 组） ══════════ -->
     <string name="help_codex_4"> ~/.config/codex-oauth-proxy/auth.json</string>
@@ -562,10 +561,10 @@
     <string name="window_model_weekly">Model weekly</string>
 
     <string name="error_opencode_go_subscription_required">This API key must belong to a workspace with an active OpenCode Go subscription.</string>
-    <string name="error_opencode_usage_permission">This API key needs Usage › Read permission to view workspace usage.</string>
-    <string name="error_opencode_usage_role">A member key cannot view workspace usage. Use an owner or admin’s personal key, or a service account key with Usage › Read.</string>
-    <string name="error_opencode_usage_forbidden">To view workspace usage, use an owner or admin’s personal key or a service account key, with Usage › Read enabled.</string>
-    <string name="error_opencode_usage_bad_request">The workspace usage export request was rejected. Try again or check for an app update.</string>
-    <string name="error_opencode_usage_unavailable">Daily usage totals are not ready yet. Try again later.</string>
+    <string name="error_opencode_usage_permission">This API key lacks permission to read request logs.</string>
+    <string name="error_opencode_usage_role">This API key’s workspace role cannot read request logs.</string>
+    <string name="error_opencode_usage_forbidden">This API key is not allowed to read request logs for this workspace. Check the key and workspace permissions.</string>
+    <string name="error_opencode_usage_bad_request">The request-log query was rejected. Try again or check for an app update.</string>
+    <string name="error_opencode_usage_unavailable">Request logs are temporarily unavailable. Try again later.</string>
     <string name="widget_refresh_failed">Refresh failed</string>
 </resources>

@@ -360,12 +360,11 @@
     <string name="usage_cache_read_note">※ 快取讀取已計入「輸入 Token」</string>
     <string name="usage_calls">%1$d 次呼叫</string>
     <string name="date_format_md">MM月dd日 EEEE</string>
-    <string name="daily_count_cost">%1$d 次 · $%2$s</string>
+    <string name="daily_count_cost">%1$d 次 · %2$s</string>
     <string name="raw_record_title">原始數據</string>
     <string name="stat_cache_write_5m">快取寫入(5m)</string>
     <string name="stat_cache_write_1h">快取寫入(1h)</string>
     <string name="raw_cost_usd">成本(USD)</string>
-    <string name="raw_cost_raw">成本(Raw)</string>
 
     <!-- ══════════ 凭据编辑（C 组迁移） ══════════ -->
     <string name="help_codex_4"> ~/.config/codex-oauth-proxy/auth.json</string>
@@ -556,10 +555,10 @@
     <string name="window_model_weekly">模型每週</string>
 
     <string name="error_opencode_go_subscription_required">此 API Key 所屬的工作區需要有效的 OpenCode Go 訂閱。</string>
-    <string name="error_opencode_usage_permission">此 API Key 需要開啟「用量 › 讀取」（Usage › Read）權限才能查看工作區用量。</string>
-    <string name="error_opencode_usage_role">一般成員的 API Key 無法查看工作區用量。請使用擁有者或管理員的個人金鑰，或有 Usage › Read 權限的服務帳號金鑰。</string>
-    <string name="error_opencode_usage_forbidden">請改用擁有者或管理員的個人金鑰，或服務帳號金鑰，並開啟 Usage › Read 權限。</string>
-    <string name="error_opencode_usage_bad_request">工作區用量匯出請求遭拒，請重試或檢查應用程式更新。</string>
-    <string name="error_opencode_usage_unavailable">每日用量彙總尚未產生，請稍後再試。</string>
+    <string name="error_opencode_usage_permission">此 API 金鑰沒有讀取請求記錄的權限。</string>
+    <string name="error_opencode_usage_role">此 API 金鑰對應的工作區角色無法讀取請求記錄。</string>
+    <string name="error_opencode_usage_forbidden">此 API 金鑰無權讀取該工作區的請求記錄。請檢查金鑰和工作區權限。</string>
+    <string name="error_opencode_usage_bad_request">請求記錄查詢遭拒，請重試或檢查應用程式更新。</string>
+    <string name="error_opencode_usage_unavailable">暫時無法取得請求記錄，請稍後再試。</string>
     <string name="widget_refresh_failed">更新失敗</string>
 </resources>

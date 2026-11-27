@@ -48,7 +48,7 @@ class UsageCache(
     /**
      * 批量插入，返回**真正写入**的条数。
      *
-     * DAO 使用 OnConflictStrategy.IGNORE：已存在的 id 会被忽略且返回 -1L，可据此精确计数。
+     * DAO 使用 OnConflictStrategy.IGNORE：同一 workspaceId 下已存在的 id 会被忽略且返回 -1L，可据此精确计数。
      * 旧实现用全表 count() 差值统计插入数，会被并发的其它服务同步污染。
      */
     suspend fun insertAll(newRecords: List<UsageRecord>): Int {
@@ -58,17 +58,60 @@ class UsageCache(
         return dao.insertAll(entities).count { it != -1L }
     }
 
-    /** Merge one authoritative CSV window. Unchanged rows and history outside the window are untouched. */
-    internal suspend fun applyDailyExport(
-        scope: String,
-        fromTs: Long,
-        toTs: Long,
-        records: List<UsageRecord>
-    ): UsageExportChanges {
+    suspend fun insertRequestLogs(records: List<UsageRecord>): Int = insertAll(records)
+
+    suspend fun latestTimestamp(scope: String): Long? {
         ensureMigrated()
-        return dao.applyDailyExport(scope, fromTs, toTs, records.map { it.toEntity() })
+        return dao.getMaxTimeCreated(scope)
     }
 
+    /** Counts rows, not requests represented by those rows. Bounds are inclusive. */
+    suspend fun countRecords(scope: String, fromTs: Long?, toTs: Long?, models: Set<String>): Int {
+        ensureMigrated()
+        val from = fromTs ?: Long.MIN_VALUE
+        val to = toTs ?: Long.MAX_VALUE
+        return if (models.isEmpty()) dao.countRecords(scope, from, to)
+        else dao.countRecordsByModels(scope, from, to, models.toList())
+    }
+
+    /** A deterministic page even when multiple requests share the same millisecond. */
+    suspend fun getRecordPage(
+        scope: String,
+        fromTs: Long?,
+        toTs: Long?,
+        models: Set<String>,
+        limit: Int,
+        offset: Int
+    ): List<UsageRecord> {
+        require(limit > 0 && offset >= 0)
+        ensureMigrated()
+        val from = fromTs ?: Long.MIN_VALUE
+        val to = toTs ?: Long.MAX_VALUE
+        val rows = if (models.isEmpty()) dao.getRecordPage(scope, from, to, limit, offset)
+        else dao.getRecordPageByModels(scope, from, to, models.toList(), limit, offset)
+        return rows.map { it.toDomain() }
+    }
+
+    suspend fun getGoRecordPageSnapshot(
+        scope: String,
+        fromTs: Long?,
+        toTs: Long?,
+        models: Set<String>,
+        limit: Int,
+        requestedPage: Int,
+        previousScopeCount: Int?
+    ): GoRecordPageSnapshot<UsageRecord> {
+        require(limit > 0)
+        ensureMigrated()
+        val page = dao.getGoRecordPageSnapshot(
+            scope, fromTs ?: Long.MIN_VALUE, toTs ?: Long.MAX_VALUE,
+            models.toList(), limit, requestedPage, previousScopeCount
+        )
+        return GoRecordPageSnapshot(
+            page.scopeCount, page.filteredCount, page.page,
+            page.records.map { it.toDomain() }, page.models
+        )
+    }
     suspend fun getLatest(): UsageRecord? {
         ensureMigrated()
         return dao.getLatest()?.toDomain()
@@ -132,8 +175,9 @@ class UsageCache(
                 ModelStats(
                     model = model,
                     totalTokens = recs.sumOf { it.totalTokens },
-                    totalCost = recs.sumOf { it.cost },
-                    count = recs.sumOf { it.requestCount }
+                    totalCost = recs.sumOf { it.cost ?: 0.0 },
+                    count = recs.sumOf { it.requestCount },
+                    pricedRequests = recs.sumOf { it.pricedRequests }
                 )
             }
             .sortedByDescending { it.totalTokens }
@@ -152,8 +196,9 @@ class UsageCache(
                 DailyStats(
                     dayTs = dayTs,
                     totalTokens = recs.sumOf { it.totalTokens },
-                    totalCost = recs.sumOf { it.cost },
-                    count = recs.sumOf { it.requestCount }
+                    totalCost = recs.sumOf { it.cost ?: 0.0 },
+                    count = recs.sumOf { it.requestCount },
+                    pricedRequests = recs.sumOf { it.pricedRequests }
                 )
             }
             .sortedByDescending { it.dayTs }
@@ -168,8 +213,12 @@ class UsageCache(
         val records = getRecords(workspaceId, fromTs, toTs)
         if (records.isEmpty()) return null
         return OverviewStats(
-            totalTokens = records.sumOf { it.inputTokens + it.cacheReadTokens + it.outputTokens },
-            totalCost = records.sumOf { it.cost },
+            totalTokens = if (workspaceId.startsWith(OPEN_CODE_LOGS_SCOPE_PREFIX)) {
+                records.sumOf { it.totalTokens }
+            } else {
+                records.sumOf { it.inputTokens + it.cacheReadTokens + it.outputTokens }
+            },
+            totalCost = records.sumOf { it.cost ?: 0.0 },
             totalCount = records.sumOf { it.requestCount },
             modelCount = records.map { it.model }.distinct().size,
             inputTokens = records.sumOf { it.inputTokens },
@@ -177,10 +226,14 @@ class UsageCache(
             reasoningTokens = records.sumOf { it.reasoningTokens },
             cacheReadTokens = records.sumOf { it.cacheReadTokens },
             cacheWrite5mTokens = records.sumOf { it.cacheWrite5mTokens },
-            cacheWrite1hTokens = records.sumOf { it.cacheWrite1hTokens }
+            cacheWrite1hTokens = records.sumOf { it.cacheWrite1hTokens },
+            cacheWriteTokensUnspecified = records.sumOf { it.cacheWriteTokensUnspecified ?: 0L },
+            pricedRequests = records.sumOf { it.pricedRequests }
         )
     }
 }
+
+internal const val OPEN_CODE_LOGS_SCOPE_PREFIX = "opencode-logs:"
 
 @Serializable
 data class UsageRecord(
@@ -196,7 +249,8 @@ data class UsageRecord(
     val cacheReadTokens: Long,
     val cacheWrite5mTokens: Long = 0,
     val cacheWrite1hTokens: Long = 0,
-    val cost: Long,
+    /** Cost in USD; null when the service does not report it. */
+    val cost: Double?,
     val keyId: String,
     val sessionId: String,
     val enrichmentPlan: String = "",
@@ -204,31 +258,44 @@ data class UsageRecord(
     val requestCount: Long = 1,
     val userType: String? = null,
     val userId: String? = null,
-    val userName: String? = null
+    val userName: String? = null,
+    val durationMs: Long? = null,
+    val timeToFirstTokenMs: Long? = null,
+    val outcome: String? = null,
+    val statusCode: Int? = null,
+    val errorCode: String? = null,
+    val country: String? = null,
+    val city: String? = null,
+    val reasoningEffort: String? = null,
+    val requestedModel: String? = null,
+    val cacheWriteTokensUnspecified: Long? = null
 ) {
-    val costUsd: Double get() = cost / 100_000_000.0
-    // OpenCode export lists cache reads separately; count them consistently in daily/model totals.
+    val pricedRequests: Long get() = if (cost == null) 0L else requestCount
+
+    // OpenCode reports cache reads separately; preserve the previous Go total, including CSV rows.
     val totalTokens: Long get() = inputTokens + outputTokens + reasoningTokens +
-        (if (userType != null) cacheReadTokens else 0L)
+        (if (workspaceId.startsWith(OPEN_CODE_LOGS_SCOPE_PREFIX) || userType != null) cacheReadTokens else 0L)
 }
 
 data class ModelStats(
     val model: String,
     val totalTokens: Long,
-    val totalCost: Long,
-    val count: Long
+    val totalCost: Double,
+    val count: Long,
+    val pricedRequests: Long = count
 )
 
 data class DailyStats(
     val dayTs: Long,
     val totalTokens: Long,
-    val totalCost: Long,
-    val count: Long
+    val totalCost: Double,
+    val count: Long,
+    val pricedRequests: Long = count
 )
 
 data class OverviewStats(
     val totalTokens: Long,
-    val totalCost: Long,
+    val totalCost: Double,
     val totalCount: Long,
     val modelCount: Int,
     val inputTokens: Long = 0,
@@ -236,10 +303,12 @@ data class OverviewStats(
     val reasoningTokens: Long = 0,
     val cacheReadTokens: Long = 0,
     val cacheWrite5mTokens: Long = 0,
-    val cacheWrite1hTokens: Long = 0
+    val cacheWrite1hTokens: Long = 0,
+    val cacheWriteTokensUnspecified: Long = 0,
+    val pricedRequests: Long = totalCount
 ) {
-    /** 缓存写入总量（5分钟 + 1小时） */
-    val cacheWriteTokens: Long get() = cacheWrite5mTokens + cacheWrite1hTokens
+    /** 缓存写入总量（包含未标注 TTL 的写入） */
+    val cacheWriteTokens: Long get() = cacheWrite5mTokens + cacheWrite1hTokens + cacheWriteTokensUnspecified
 }
 
 /** DataStore 委托 — 保留用于数据迁移，迁移完成后旧 key 会被清除 */

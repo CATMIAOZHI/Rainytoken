@@ -75,9 +75,9 @@ fun UsageOverviewScreen(
         if (autoLoad) viewModel.observeGoUsageScope()
     }
 
-    var menuExpanded by remember { mutableStateOf(false) }
-    var modelMenuExpanded by remember { mutableStateOf(false) }
-    var showRangePicker by remember { mutableStateOf(false) }
+    var menuExpanded by remember(uiState.scopeGeneration) { mutableStateOf(false) }
+    var modelMenuExpanded by remember(uiState.scopeGeneration) { mutableStateOf(false) }
+    var showRangePicker by remember(uiState.scopeGeneration) { mutableStateOf(false) }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -107,7 +107,7 @@ fun UsageOverviewScreen(
                     }
                     Text("UTC+0", style = MaterialTheme.typography.bodySmall, color = inkMuted(), modifier = Modifier.padding(start = 4.dp))
                     DropdownMenu(menuExpanded, { menuExpanded = false }) {
-                        usageTimeFilters(dailyOnly = autoLoad).forEach { filter ->
+                        usageTimeFilters().forEach { filter ->
                             DropdownMenuItem(
                                 text = { Text(stringResource(filter.labelRes)) },
                                 onClick = { menuExpanded = false; viewModel.setTimeFilter(filter) }
@@ -127,7 +127,7 @@ fun UsageOverviewScreen(
             }
             // 总览
             uiState.overview?.let { overview ->
-                item { OverviewCard(overview, false, dailyOnly = autoLoad) }
+                item { OverviewCard(overview, false, isGo = autoLoad) }
                 if (overview.cacheReadTokens > 0 || overview.cacheWriteTokens > 0) {
                     item { CacheBreakdownCard(overview) }
                 }
@@ -181,7 +181,7 @@ fun UsageOverviewScreen(
             DateRangePickerDialog(
                 title = stringResource(R.string.date_pick_range),
                 initialStart = current?.from?.takeIf { it > 0 }?.toUtcLocalDate(),
-                initialEnd = current?.to?.takeIf { current.from > 0 }?.toUtcLocalDate(),
+                initialEnd = current?.to?.takeIf { it > 0 }?.toUtcLocalDate(),
                 onConfirm = { from, to ->
                     val fromMs = from.toUtcStartOfDayMillis()
                     val toMs = to.toUtcStartOfDayMillis()
@@ -195,7 +195,7 @@ fun UsageOverviewScreen(
 }
 
 @OptIn(ExperimentalLayoutApi::class)
-@Composable private fun OverviewCard(overview: OverviewStats, isExpanded: Boolean = false, dailyOnly: Boolean) {
+@Composable private fun OverviewCard(overview: OverviewStats, isExpanded: Boolean = false, isGo: Boolean) {
     val inputTotal = overview.inputTokens + overview.cacheReadTokens
     Card(Modifier.fillMaxWidth(), RoundedCornerShape(20.dp), CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(0.dp)) {
         Column(Modifier.padding(16.dp)) {
@@ -208,28 +208,25 @@ fun UsageOverviewScreen(
                 ) {
                     StatItem(stringResource(R.string.usage_input_tokens), formatTokenCount(inputTotal))
                     StatItem(stringResource(R.string.usage_output_tokens), formatTokenCount(overview.outputTokens))
-                    if (!dailyOnly) {
-                        StatItem(stringResource(R.string.usage_reasoning_tokens), formatTokenCount(overview.reasoningTokens))
-                    }
+                    StatItem(stringResource(R.string.usage_reasoning_tokens), formatTokenCount(overview.reasoningTokens))
                     StatItem(stringResource(R.string.usage_total), formatTokenCount(overview.totalTokens))
-                    StatItem(stringResource(R.string.usage_total_cost), "$${String.format(Locale.US, "%.4f", overview.totalCost / 100_000_000.0)}")
-                    StatItem(stringResource(if (dailyOnly) R.string.chart_requests else R.string.usage_records), "${overview.totalCount}")
+                    StatItem(stringResource(R.string.usage_total_cost), formatKnownUsageUsd(overview.totalCost, overview.pricedRequests))
+                    StatItem(stringResource(if (isGo) R.string.chart_requests else R.string.usage_records), "${overview.totalCount}")
                 }
             } else {
                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly) {
                     StatItem(stringResource(R.string.usage_input_tokens), formatTokenCount(inputTotal))
                     StatItem(stringResource(R.string.usage_output_tokens), formatTokenCount(overview.outputTokens))
-                    if (!dailyOnly) {
-                        StatItem(stringResource(R.string.usage_reasoning_tokens), formatTokenCount(overview.reasoningTokens))
-                    }
+                    StatItem(stringResource(R.string.usage_reasoning_tokens), formatTokenCount(overview.reasoningTokens))
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly) {
                     StatItem(stringResource(R.string.usage_total), formatTokenCount(overview.totalTokens))
-                    StatItem(stringResource(R.string.usage_total_cost), "$${String.format(Locale.US, "%.4f", overview.totalCost / 100_000_000.0)}")
-                    StatItem(stringResource(if (dailyOnly) R.string.chart_requests else R.string.usage_records), "${overview.totalCount}")
+                    StatItem(stringResource(R.string.usage_total_cost), formatKnownUsageUsd(overview.totalCost, overview.pricedRequests))
+                    StatItem(stringResource(if (isGo) R.string.chart_requests else R.string.usage_records), "${overview.totalCount}")
                 }
             }
+            if (overview.pricedRequests < overview.totalCount) UsageCostCoverage()
         }
     }
 }
@@ -264,7 +261,7 @@ fun UsageOverviewScreen(
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(formatTokenCount(stat.totalTokens), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = StrawberryPink)
-                Text("$${String.format(Locale.US, "%.4f", stat.totalCost / 100_000_000.0)}", style = MaterialTheme.typography.bodySmall, color = inkMuted())
+                Text(formatKnownUsageUsd(stat.totalCost, stat.pricedRequests), style = MaterialTheme.typography.bodySmall, color = inkMuted())
             }
         }
     }
@@ -282,7 +279,7 @@ fun UsageOverviewScreen(
             Text(utcFmt.format(Date(day.dayTs)), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
             Column(horizontalAlignment = Alignment.End) {
                 Text(formatTokenCount(day.totalTokens), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = StrawberryPink)
-                Text(stringResource(R.string.daily_count_cost, day.count, String.format(Locale.US, "%.4f", day.totalCost / 100_000_000.0)), style = MaterialTheme.typography.bodySmall, color = inkMuted())
+                Text(stringResource(R.string.daily_count_cost, day.count, formatKnownUsageUsd(day.totalCost, day.pricedRequests)), style = MaterialTheme.typography.bodySmall, color = inkMuted())
             }
         }
     }

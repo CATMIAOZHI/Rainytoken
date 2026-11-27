@@ -11,6 +11,7 @@ import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emitAll
@@ -53,7 +54,8 @@ class CredentialRepository @Inject constructor(
     )
 
     private val mutationMutex = Mutex()
-    private data class OpenCodeUsageScope(val value: String?)
+    private data class OpenCodeUsageScope(val value: String?, val generation: Long)
+    internal class OpenCodeUsageAccess(val scope: String, val credential: Credential, val generation: Long)
     private val openCodeScope = MutableStateFlow<OpenCodeUsageScope?>(null)
 
     /** Observe the active key's usage namespace; verification-only writes keep it unchanged. */
@@ -67,8 +69,32 @@ class CredentialRepository @Inject constructor(
     }
 
     private fun emitOpenCodeUsageScope(credential: Credential?) {
-        openCodeScope.value = OpenCodeUsageScope(OpenCodeUsageRepository.cacheScope(credential))
+        val scope = OpenCodeUsageRepository.cacheScope(credential)
+        val previous = openCodeScope.value
+        if (previous == null || previous.value != scope) {
+            openCodeScope.value = OpenCodeUsageScope(scope, (previous?.generation ?: 0L) + 1)
+        }
     }
+
+    internal suspend fun openCodeUsageAccess(expectedScope: String): OpenCodeUsageAccess =
+        mutationMutex.withLock {
+            val credential = getUnlocked(ServiceType.OPENCODE_GO)
+            emitOpenCodeUsageScope(credential)
+            val active = checkNotNull(openCodeScope.value)
+            if (credential == null || active.value != expectedScope) throw RepositoryError.CredentialChanged()
+            OpenCodeUsageAccess(expectedScope, credential, active.generation)
+        }
+
+    /** Verification-only writes don't change the generation; replacing and restoring a key does. */
+    internal suspend fun withCurrentOpenCodeUsageAccess(access: OpenCodeUsageAccess, action: () -> Unit) =
+        mutationMutex.withLock {
+            currentCoroutineContext().ensureActive()
+            val active = openCodeScope.value
+            if (active?.generation != access.generation || active.value != access.scope) {
+                throw RepositoryError.CredentialChanged()
+            }
+            action()
+        }
 
     private val revisions = mutableMapOf<ServiceType, Long>()
     private val cacheRollbackEntries = mutableMapOf<ServiceType, CacheRollbackEntry>()

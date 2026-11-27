@@ -10,21 +10,23 @@ import java.time.ZoneOffset
  */
 data class ChartBucket(
     val ts: Long,               // 时间桶起点 epoch ms（小时桶或天桶）
-    val totalCost: Long,        // 总花费（原始值，÷1亿=美元）
+    val totalCost: Double,       // 总花费（美元）
     val totalRequests: Long,     // API 请求次数
     val inputTokens: Long,      // 未命中缓存的输入 token
     val cacheHitTokens: Long,   // 命中缓存的 token（cacheReadTokens）
     val outputTokens: Long,     // 输出 token
     /** 按模型分项 */
-    val byModel: Map<String, ModelBucket> = emptyMap()
+    val byModel: Map<String, ModelBucket> = emptyMap(),
+    val pricedRequests: Long = totalRequests
 )
 
 data class ModelBucket(
-    val cost: Long,
+    val cost: Double,
     val requests: Long,
     val inputTokens: Long,
     val cacheHitTokens: Long,
-    val outputTokens: Long
+    val outputTokens: Long,
+    val pricedRequests: Long = requests
 )
 
 /** 时间粒度（label 用字符串资源 ID，UI 层按当前语言解析） */
@@ -108,21 +110,23 @@ object ChartAggregator {
             .groupBy { it.model }
             .mapValues { (_, recs) ->
                 ModelBucket(
-                    cost = recs.sumOf { it.cost },
+                    cost = recs.sumOf { it.cost ?: 0.0 },
                     requests = recs.sumOf { it.requestCount },
                     inputTokens = recs.sumOf { it.inputTokens },
                     cacheHitTokens = recs.sumOf { it.cacheReadTokens },
-                    outputTokens = recs.sumOf { it.outputTokens }
+                    outputTokens = recs.sumOf { it.outputTokens },
+                    pricedRequests = recs.sumOf { it.pricedRequests }
                 )
             }
         return ChartBucket(
             ts = ts,
-            totalCost = records.sumOf { it.cost },
+            totalCost = records.sumOf { it.cost ?: 0.0 },
             totalRequests = records.sumOf { it.requestCount },
             inputTokens = records.sumOf { it.inputTokens },
             cacheHitTokens = records.sumOf { it.cacheReadTokens },
             outputTokens = records.sumOf { it.outputTokens },
-            byModel = byModel
+            byModel = byModel,
+            pricedRequests = records.sumOf { it.pricedRequests }
         )
     }
 }

@@ -57,8 +57,6 @@ class CommandCodeUsageRepository(
 
     companion object {
         const val PAGE_SIZE = 100
-        /** cost / DENOM = USD */
-        const val COST_DENOM = 100_000_000L
         /** CCGO 用量数据在 UsageCache 中的 workspaceId 区分键 */
         const val CCGO_WORKSPACE_ID = "commandcode"
 
@@ -119,11 +117,8 @@ class CommandCodeUsageRepository(
             val tokensOut = obj["tokensOut"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L
 
             val meta = obj["meta"]?.jsonObject
-            val creditsTotal = meta?.get("totalCost")?.jsonPrimitive?.content?.toDoubleOrNull()
-                ?: obj["creditsTotal"]?.jsonPrimitive?.content?.toDoubleOrNull()
-                ?: 0.0
-            val cost = (creditsTotal * COST_DENOM).toLong()
-
+            val cost = meta?.get("totalCost")?.jsonPrimitive?.content?.toDoubleOrNull()?.takeIf { it.isFinite() }
+                ?: obj["creditsTotal"]?.jsonPrimitive?.content?.toDoubleOrNull()?.takeIf { it.isFinite() }
             val model = meta?.get("model")?.jsonPrimitive?.content ?: ""
             val provider = meta?.get("provider")?.jsonPrimitive?.content ?: ""
             val cacheReadInputTokens = meta?.get("cacheReadInputTokens")?.jsonPrimitive?.content?.toLongOrNull() ?: 0L

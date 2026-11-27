@@ -156,7 +156,7 @@ fun UsageChartScreen(
                                 Icon(Icons.Filled.ArrowDropDown, null, tint = StrawberryPink)
                             }
                             DropdownMenu(granularityExpanded, { granularityExpanded = false }) {
-                                (if (state.dailyOnly) GO_CHART_GRANULARITIES else ChartGranularity.entries).forEach { g ->
+                                ChartGranularity.entries.forEach { g ->
                                     DropdownMenuItem(
                                         text = { Text(stringResource(g.labelRes)) },
                                         onClick = {
@@ -171,6 +171,9 @@ fun UsageChartScreen(
                                     )
                                 }
                             }
+                        }
+                        TextButton(onClick = viewModel::toggleUtc8) {
+                            Text(if (state.useUtc8) "UTC+8" else "UTC+0", color = StrawberryPink)
                         }
                         Spacer(Modifier.weight(1f))
                         // 模型多选下拉
@@ -208,37 +211,13 @@ fun UsageChartScreen(
                 if (wideEnough) {
                     // 面板够宽：前两张图表并排，第三张独立
                     item {
-                        val models = state.selectedModels.ifEmpty { state.allModels.toSet() }
-                        val costTotal = state.buckets.sumOf { it.totalCost.toDouble() / 100_000_000.0 }
                         val reqTotal = state.buckets.sumOf { it.totalRequests }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Box(modifier = Modifier.weight(1f)) {
-                                ChartCard(stringResource(R.string.chart_cost), "$${String.format(Locale.US, "%.4f", costTotal)}", { showCostDetail = true }) {
-                                    StackedBarChart(
-                                        buckets = state.buckets,
-                                        valueSelector = { it.totalCost.toDouble() / 100_000_000.0 },
-                                        stackSelector = { bucket ->
-                                            models.mapIndexedNotNull { idx, model ->
-                                                val v = bucket.byModel[model]?.cost ?: return@mapIndexedNotNull null
-                                                v.toDouble() / 100_000_000.0 to modelColors[idx % modelColors.size]
-                                            }
-                                        },
-                                        stackLabels = { bucket ->
-                                            models.mapNotNull { model ->
-                                                if (bucket.byModel[model] != null) model else null
-                                            }
-                                        },
-                                        formatValue = { "$${String.format(Locale.US, "%.4f", it)}" },
-                                        granularity = state.granularity,
-                                        legendItems = models.mapIndexed { idx, m ->
-                                            m to modelColors[idx % modelColors.size]
-                                        },
-                                        useUtc8 = state.useUtc8
-                                    )
-                                }
+                                UsageCostChart(state, state.rangeModels) { showCostDetail = true }
                             }
                             Box(modifier = Modifier.weight(1f)) {
                                 ChartCard(stringResource(R.string.chart_requests), stringResource(R.string.count_times, reqTotal), { showReqDetail = true }) {
@@ -258,7 +237,7 @@ fun UsageChartScreen(
                     // 第三张图表独立一行
                     item {
                         val tokTotal = state.buckets.sumOf { it.cacheHitTokens + it.inputTokens + it.outputTokens }
-                        ChartCard(stringResource(R.string.chart_tokens), formatTokenComma(tokTotal), { showTokenDetail = true }) {
+                        ChartCard(stringResource(R.string.go_usage_chart_tokens), formatTokenComma(tokTotal), { showTokenDetail = true }) {
                             StackedBarChart(
                                 buckets = state.buckets,
                                 valueSelector = { (it.cacheHitTokens + it.inputTokens + it.outputTokens).toDouble() },
@@ -287,35 +266,7 @@ fun UsageChartScreen(
                 } else {
                     // 手机：三张图表纵向堆叠（原逻辑不变）
                     item {
-                        val models = state.selectedModels.ifEmpty { state.allModels.toSet() }
-                        val costTotal = state.buckets.sumOf { it.totalCost.toDouble() / 100_000_000.0 }
-                        ChartCard(
-                            title = stringResource(R.string.chart_cost),
-                            summary = "$${String.format(Locale.US, "%.4f", costTotal)}",
-                            onSummaryClick = { showCostDetail = true }
-                        ) {
-                            StackedBarChart(
-                                buckets = state.buckets,
-                                valueSelector = { it.totalCost.toDouble() / 100_000_000.0 },
-                                stackSelector = { bucket ->
-                                    models.mapIndexedNotNull { idx, model ->
-                                        val v = bucket.byModel[model]?.cost ?: return@mapIndexedNotNull null
-                                        v.toDouble() / 100_000_000.0 to modelColors[idx % modelColors.size]
-                                    }
-                                },
-                                stackLabels = { bucket ->
-                                    models.mapNotNull { model ->
-                                        if (bucket.byModel[model] != null) model else null
-                                    }
-                                },
-                                formatValue = { "$${String.format(Locale.US, "%.4f", it)}" },
-                                granularity = state.granularity,
-                                legendItems = models.mapIndexed { idx, m ->
-                                    m to modelColors[idx % modelColors.size]
-                                },
-                                useUtc8 = state.useUtc8
-                            )
-                        }
+                        UsageCostChart(state, state.rangeModels) { showCostDetail = true }
                     }
 
                     item {
@@ -340,7 +291,7 @@ fun UsageChartScreen(
                     item {
                         val tokTotal = state.buckets.sumOf { it.cacheHitTokens + it.inputTokens + it.outputTokens }
                         ChartCard(
-                            title = stringResource(R.string.chart_tokens),
+                            title = stringResource(R.string.go_usage_chart_tokens),
                             summary = formatTokenComma(tokTotal),
                             onSummaryClick = { showTokenDetail = true }
                         ) {
@@ -425,26 +376,8 @@ fun UsageChartScreen(
 
         // ─── 详情弹窗 ───
         val models = state.selectedModels.ifEmpty { state.allModels.toSet() }
-        if (showCostDetail) {
-            AlertDialog(
-                onDismissRequest = { showCostDetail = false },
-                title = { Text(stringResource(R.string.chart_detail_cost), fontWeight = FontWeight.Bold) },
-                text = {
-                    Column {
-                        models.forEach { model ->
-                            val total = state.buckets.sumOf { it.byModel[model]?.cost ?: 0L }
-                            if (total > 0) {
-                                Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text(model, style = MaterialTheme.typography.bodySmall)
-                                    Text("$${String.format(Locale.US, "%.4f", total / 100_000_000.0)}",
-                                        color = StrawberryPink, style = MaterialTheme.typography.bodySmall)
-                                }
-                            }
-                        }
-                    }
-                },
-                confirmButton = { TextButton(onClick = { showCostDetail = false }) { Text(stringResource(R.string.action_close)) } }
-            )
+        if (showCostDetail) ChartDetailDialog(stringResource(R.string.chart_detail_cost), { showCostDetail = false }) {
+            UsageCostByModel(state, state.rangeModels)
         }
         if (showReqDetail) {
             AlertDialog(
@@ -549,7 +482,8 @@ internal fun StackedBarChart(
     formatValue: (Double) -> String,
     granularity: ChartGranularity,
     legendItems: List<Pair<String, Color>> = emptyList(),
-    useUtc8: Boolean = false
+    useUtc8: Boolean = false,
+    formatBucketTooltip: ((ChartBucket) -> String)? = null
 ) {
     if (buckets.isEmpty()) {
         Text(stringResource(R.string.common_no_data), color = InkMuted, style = MaterialTheme.typography.bodySmall)
@@ -648,7 +582,7 @@ internal fun StackedBarChart(
                 ) {
                     Column(Modifier.padding(8.dp)) {
                         Text(formatChartTime(bucket.ts, granularity, 0, 1, useUtc8).first, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                        Text(stringResource(R.string.chart_total_label, formatValue(total)), style = MaterialTheme.typography.bodySmall, color = StrawberryPink)
+                        Text(stringResource(R.string.chart_total_label, formatBucketTooltip?.invoke(bucket) ?: formatValue(total)), style = MaterialTheme.typography.bodySmall, color = StrawberryPink)
                         val labels = stackLabels(bucket)
                         val items = stackSelector(bucket).withIndex()
                         val display = if (tooltipReversed) items.toList().reversed() else items.toList()

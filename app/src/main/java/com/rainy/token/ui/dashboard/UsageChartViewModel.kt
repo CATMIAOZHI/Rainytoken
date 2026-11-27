@@ -66,8 +66,7 @@ class UsageChartViewModel @Inject constructor(
         allowFallback = true
         _state.value = ChartUiState(
             granularity = ChartGranularity.LAST_5H_HOURLY,
-            useUtc8 = _state.value.useUtc8,
-            dailyOnly = false
+            useUtc8 = _state.value.useUtc8
         )
         load()
     }
@@ -80,7 +79,6 @@ class UsageChartViewModel @Inject constructor(
     // 不在 init 自动加载，由 Composable 层显式触发 load()（OCGO）或 setWorkspace()（CCGO）
 
     fun setGranularity(g: ChartGranularity) {
-        if (_state.value.dailyOnly && g !in GO_CHART_GRANULARITIES) return
         allowFallback = false  // 用户手动选择，关闭自动降级
         _state.update { it.copy(granularity = g) }
         load()
@@ -106,7 +104,6 @@ class UsageChartViewModel @Inject constructor(
     }
 
     fun toggleUtc8() {
-        if (_state.value.dailyOnly) return
         _state.update { it.copy(useUtc8 = !it.useUtc8) }
         viewModelScope.launch {
             chartSettingsStore.setUseUtc8(_state.value.useUtc8)
@@ -123,8 +120,7 @@ class UsageChartViewModel @Inject constructor(
                 _state.update { it.copy(loading = false) }
                 return@launch
             }
-            // Go export is already grouped on UTC dates; only CCGO has real times.
-            if (!_state.value.dailyOnly && !_state.value.useUtc8Initialized) {
+            if (!_state.value.useUtc8Initialized) {
                 val saved = chartSettingsStore.useUtc8Flow.first()
                 _state.update { it.copy(useUtc8 = saved, useUtc8Initialized = true) }
             }
@@ -174,7 +170,7 @@ class UsageChartViewModel @Inject constructor(
                 val fallbackTo = when (_state.value.granularity) {
                     ChartGranularity.LAST_5H_HOURLY -> ChartGranularity.LAST_12H_10MIN
                     ChartGranularity.LAST_12H_10MIN -> ChartGranularity.LAST_7D_DAILY
-                    ChartGranularity.LAST_7D_DAILY -> if (_state.value.dailyOnly) {
+                    ChartGranularity.LAST_7D_DAILY -> if (workspaceIdOverride == null) {
                         ChartGranularity.LAST_30D_DAILY
                     } else {
                         ChartGranularity.THIS_MONTH_DAILY
@@ -204,29 +200,25 @@ class UsageChartViewModel @Inject constructor(
         }
     }
     fun setCustomDay(date: LocalDate) {
-        if (_state.value.dailyOnly) return
+        allowFallback = false
         _state.update { it.copy(granularity = ChartGranularity.CUSTOM_DAY_HOURLY, customDay = date) }
-        _customDay = date
         load()
     }
 
     fun setCustomMonth(monthDate: LocalDate) {
+        allowFallback = false
         val month = monthDate.withDayOfMonth(1)
         _state.update { it.copy(granularity = ChartGranularity.CUSTOM_MONTH_DAILY, customMonth = month) }
-        _customMonth = month
         load()
     }
 
     fun setCustomRange(fromDate: LocalDate, toDate: LocalDate) {
         if (toDate.isBefore(fromDate)) return
+        allowFallback = false
         _state.update { it.copy(granularity = ChartGranularity.CUSTOM_RANGE_DAILY, customRange = fromDate to toDate) }
-        _customRange = fromDate to toDate
         load()
     }
 
-    private var _customDay: LocalDate? = null
-    private var _customMonth: LocalDate? = null
-    private var _customRange: Pair<LocalDate, LocalDate>? = null
 
     private fun timeRangeFor(g: ChartGranularity): Pair<Long?, Long?> {
         val now = System.currentTimeMillis()
@@ -241,14 +233,14 @@ class UsageChartViewModel @Inject constructor(
             ChartGranularity.YESTERDAY_HOURLY -> todayMidnight - 86400_000L to todayMidnight - 1
             ChartGranularity.LAST_7D_DAILY -> todayMidnight - 6 * 86400_000L to todayMidnight + 86400_000L - 1
             ChartGranularity.LAST_30D_DAILY -> todayMidnight - 29 * 86400_000L to todayMidnight + 86400_000L - 1
-            ChartGranularity.CUSTOM_DAY_HOURLY -> dayRange(_customDay ?: today, zoneOffset)
+            ChartGranularity.CUSTOM_DAY_HOURLY -> dayRange(_state.value.customDay ?: today, zoneOffset)
             ChartGranularity.THIS_MONTH_DAILY -> monthRange(today.withDayOfMonth(1), zoneOffset)
             ChartGranularity.CUSTOM_MONTH_DAILY -> {
-                val month = _customMonth ?: return null to null
+                val month = _state.value.customMonth ?: return null to null
                 monthRange(month, zoneOffset)
             }
             ChartGranularity.CUSTOM_RANGE_DAILY -> {
-                val range = _customRange ?: return null to null
+                val range = _state.value.customRange ?: return null to null
                 val from = range.first.atStartOfDay(zoneOffset).toInstant().toEpochMilli()
                 val to = range.second.plusDays(1).atStartOfDay(zoneOffset).toInstant().toEpochMilli() - 1
                 from to to
@@ -293,7 +285,7 @@ class UsageChartViewModel @Inject constructor(
         // 小时粒度：from 是滑动窗口起点，需截断到 interval 边界
         var t = if (interval == 86_400_000L) from else from / interval * interval
         while (t <= end) {
-            result.add(map[t] ?: ChartBucket(ts = t, totalCost = 0, totalRequests = 0,
+            result.add(map[t] ?: ChartBucket(ts = t, totalCost = 0.0, totalRequests = 0,
                 inputTokens = 0, cacheHitTokens = 0, outputTokens = 0))
             t += interval
         }
@@ -315,14 +307,5 @@ data class ChartUiState(
     val selectedModels: Set<String> = emptySet(), // empty = all
     val buckets: List<ChartBucket> = emptyList(),
     val useUtc8: Boolean = false,
-    val useUtc8Initialized: Boolean = false,
-    val dailyOnly: Boolean = true
-)
-
-internal val GO_CHART_GRANULARITIES = listOf(
-    ChartGranularity.LAST_7D_DAILY,
-    ChartGranularity.LAST_30D_DAILY,
-    ChartGranularity.THIS_MONTH_DAILY,
-    ChartGranularity.CUSTOM_MONTH_DAILY,
-    ChartGranularity.CUSTOM_RANGE_DAILY
+    val useUtc8Initialized: Boolean = false
 )

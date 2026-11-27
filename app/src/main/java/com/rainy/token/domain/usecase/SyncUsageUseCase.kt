@@ -1,14 +1,18 @@
 package com.rainy.token.domain.usecase
 
 import com.rainy.token.data.local.UsageCache
+import com.rainy.token.data.local.UsageRecord
+import com.rainy.token.data.repository.OpenCodeRequestLogs
 import com.rainy.token.data.repository.OpenCodeUsageRepository
 import com.rainy.token.data.repository.RepositoryError
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
 
-/** OpenCode exports one rolling snapshot; there is no cursor or immutable per-request ID. */
+/** OpenCode request logs: one paginated snapshot per bearer-key scope. */
 @Singleton
 class SyncUsageUseCase @Inject constructor(
     private val usageRepoProvider: Provider<OpenCodeUsageRepository>,
@@ -27,22 +31,29 @@ class SyncUsageUseCase @Inject constructor(
             return Result.failure(SyncError.AlreadyRunning())
         }
         return try {
-            val export = usageRepoProvider.get().fetchExport(scope).getOrThrow()
+            val session = usageRepoProvider.get().openSession(scope)
             val cache = cacheProvider.get()
-            // Compare the whole export before declaring a hit: known rows can grow during the
-            // day, and an unchanged recent day does not prove older days are already complete.
-            val changes = cache.applyDailyExport(export.cacheScope, export.fromTs, export.toTs, export.records)
-            val result = SyncResult(
-                inserted = changes.inserted,
-                updated = changes.updated,
-                deleted = changes.deleted,
-                totalCount = cache.count(export.cacheScope),
-                scanned = export.records.size,
-                pages = 1,
-                stopReason = if (incremental && changes.unchanged) SyncStopReason.HIT_EXISTING else SyncStopReason.BOTTOM
+            val window = openCodeLogsWindow(
+                now = System.currentTimeMillis(),
+                incremental = incremental,
+                checkpoint = syncCoordinator.openCodeLogsCheckpoint(scope)
             )
-            syncCoordinator.saveLastSyncAt(export.cacheScope, System.currentTimeMillis())
-            Result.success(result)
+            Result.success(syncOpenCodeRequestLogs(
+                window = window,
+                fetchPage = session::fetchPage,
+                insertRecords = { records ->
+                    session.ensureCurrent()
+                    // If the key changes during the database transaction, these rows are still
+                    // isolated in the original scope; saveIfCurrent will reject the checkpoint.
+                    cache.insertRequestLogs(records)
+                },
+                countRecords = { cache.count(scope) },
+                saveCheckpoint = { until ->
+                    session.saveIfCurrent {
+                        syncCoordinator.saveOpenCodeLogsSuccess(scope, until, System.currentTimeMillis())
+                    }
+                }
+            ))
         } catch (e: CancellationException) {
             throw e
         } catch (e: RepositoryError) {
@@ -53,6 +64,67 @@ class SyncUsageUseCase @Inject constructor(
             synchronized(inFlightScopes) { inFlightScopes.remove(scope) }
         }
     }
+}
+
+private const val LOG_RETENTION_MS = 30L * 24 * 60 * 60 * 1000
+private const val LOG_OVERLAP_MS = 60L * 60 * 1000
+
+internal data class OpenCodeLogsWindow(val since: Long, val until: Long)
+
+internal fun openCodeLogsWindow(
+    now: Long, incremental: Boolean, checkpoint: Long
+): OpenCodeLogsWindow {
+    val until = now.coerceAtLeast(0)
+    val floor = (until - LOG_RETENTION_MS).coerceAtLeast(0)
+    // A missing or future checkpoint (e.g. the wall clock just moved back) is not a safe bound.
+    // Use the completed snapshot, not the latest local row: partial writes can have newer
+    // rows, and a dormant account can have no new rows for the entire retention window.
+    val since = if (incremental && checkpoint > 0 && checkpoint <= until) {
+        (checkpoint - LOG_OVERLAP_MS).coerceAtLeast(floor)
+    } else floor
+    return OpenCodeLogsWindow(since, until)
+}
+
+/** Iterate to a genuine bottom even after a page inserts nothing; later pages can fill holes. */
+internal suspend fun syncOpenCodeRequestLogs(
+    window: OpenCodeLogsWindow,
+    fetchPage: suspend (since: Long, until: Long, cursor: String?) -> OpenCodeRequestLogs.Page,
+    insertRecords: suspend (List<UsageRecord>) -> Int,
+    countRecords: suspend () -> Int,
+    saveCheckpoint: suspend (Long) -> Unit
+): SyncResult {
+    var cursor: String? = null
+    var until = window.until
+    val seenCursors = mutableSetOf<String>()
+    var inserted = 0
+    var scanned = 0
+    var pages = 0
+    do {
+        currentCoroutineContext().ensureActive()
+        val page = fetchPage(window.since, until, cursor)
+        currentCoroutineContext().ensureActive()
+        if (pages == 0 && page.until != null) {
+            until = minOf(page.until, until)
+            if (until < window.since) OpenCodeRequestLogs.malformed("OpenCode request-logs until precedes since")
+        } else if (page.until != null && page.until != until) {
+            OpenCodeRequestLogs.malformed("OpenCode request-logs window changed during pagination")
+        }
+        if (page.records.any { it.timeCreated !in window.since..until }) {
+            OpenCodeRequestLogs.malformed("OpenCode request logs fall outside the requested window")
+        }
+        val next = page.nextCursor
+        if (next != null && !seenCursors.add(next)) {
+            OpenCodeRequestLogs.malformed("OpenCode request-logs cursor repeated")
+        }
+        if (page.records.isNotEmpty()) inserted += insertRecords(page.records)
+        scanned += page.records.size
+        pages++
+        cursor = next
+    } while (cursor != null)
+    val result = SyncResult(inserted = inserted, totalCount = countRecords(), scanned = scanned, pages = pages)
+    currentCoroutineContext().ensureActive()
+    saveCheckpoint(until)
+    return result
 }
 
 /** 同步停止原因：把「真追平」与「被截断 / 遇到异常」区分开（旧实现不可区分，空洞因此无法诊断）。 */
